@@ -17,6 +17,8 @@ pybind11/pytypes.h
 -
 pybind11/cast.h
 -
+pybind11/stl.h
+-
 Izing.h
 /home/ypolyach/!Princeton/Izing/Init_state_gen/Izing.h
 
@@ -26,6 +28,8 @@ gsl/gsl_rng.h
 pybind11/pybind11.h
 -
 pybind11/numpy.h
+-
+pybind11/stl.h
 -
 
 /home/ypolyach/!Princeton/Izing/Init_state_gen/main.cpp
@@ -192,6 +196,36 @@ buffer_info.h
 utility
 -
 type_traits
+-
+
+/home/ypolyach/anaconda3/include/pybind11/stl.h
+pybind11.h
+/home/ypolyach/anaconda3/include/pybind11/pybind11.h
+set
+-
+unordered_set
+-
+map
+-
+unordered_map
+-
+iostream
+-
+list
+-
+deque
+-
+valarray
+-
+optional
+-
+experimental/optional
+-
+variant
+-
+optional
+-
+variant
 -
 
 /home/ypolyach/anaconda3/include/python3.8/Python.h

@@ -16,7 +16,7 @@ namespace py = pybind11;
 
 namespace Izing
 {
-    extern gsl_rng *rng;
+	extern gsl_rng *rng;
     extern int seed;
     extern int verbose_dafault;
 

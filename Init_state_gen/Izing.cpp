@@ -209,7 +209,7 @@ namespace Izing
 
         int ix, iy;
         double dE;
-        int do_flip;
+//        int do_flip;
         int N_init_states = 0;
         int M_arr_len = N0;
         i = 0;
@@ -328,6 +328,8 @@ namespace Izing
         if(suffix > 0){
             printf("%c", suffix);
         }
+
+        return 0;
     }
 
     int print_S(int **s, int L, char prefix)
@@ -344,6 +346,8 @@ namespace Izing
             }
             printf("\n");
         }
+
+        return 0;
     }
 }
 

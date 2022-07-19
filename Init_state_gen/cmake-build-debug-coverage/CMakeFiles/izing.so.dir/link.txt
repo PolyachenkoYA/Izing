@@ -1,1 +1,0 @@
-/usr/bin/c++ -fPIC -Wall -Wextra -g -shared  -o izing.so.cpython-38-x86_64-linux-gnu.so CMakeFiles/izing.so.dir/Izing.cpp.o CMakeFiles/izing.so.dir/Izing_py.cpp.o   -L/home/ypolyach/anaconda3/lib  -Wl,-rpath,/home/ypolyach/anaconda3/lib -lm -lgsl -lgslcblas -lcrypt -lpthread -ldl -lutil -lrt -lpython3.8 
