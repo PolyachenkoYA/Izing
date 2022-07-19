@@ -18,6 +18,7 @@ CMakeFiles/izing.so.dir/Izing.cpp.o: \
  /home/ypolyach/anaconda3/include/pybind11/options.h \
  /home/ypolyach/anaconda3/include/pybind11/pybind11.h \
  /home/ypolyach/anaconda3/include/pybind11/pytypes.h \
+ /home/ypolyach/anaconda3/include/pybind11/stl.h \
  /home/ypolyach/anaconda3/include/python3.8/Python.h \
  /home/ypolyach/anaconda3/include/python3.8/abstract.h \
  /home/ypolyach/anaconda3/include/python3.8/bltinmodule.h \
@@ -123,6 +124,7 @@ CMakeFiles/izing.so.dir/Izing_py.cpp.o: \
  /home/ypolyach/anaconda3/include/pybind11/options.h \
  /home/ypolyach/anaconda3/include/pybind11/pybind11.h \
  /home/ypolyach/anaconda3/include/pybind11/pytypes.h \
+ /home/ypolyach/anaconda3/include/pybind11/stl.h \
  /home/ypolyach/anaconda3/include/python3.8/Python.h \
  /home/ypolyach/anaconda3/include/python3.8/abstract.h \
  /home/ypolyach/anaconda3/include/python3.8/bltinmodule.h \

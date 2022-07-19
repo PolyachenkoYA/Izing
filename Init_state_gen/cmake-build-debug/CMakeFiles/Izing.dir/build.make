@@ -53,10 +53,10 @@ RM = /home/ypolyach/clion-2020.3.2/bin/cmake/linux/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/ypolyach/!Princeton/Izing
+CMAKE_SOURCE_DIR = /home/ypolyach/!Princeton/Izing/Init_state_gen
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/ypolyach/!Princeton/Izing/cmake-build-debug
+CMAKE_BINARY_DIR = /home/ypolyach/!Princeton/Izing/Init_state_gen/cmake-build-debug
 
 # Include any dependencies generated for this target.
 include CMakeFiles/Izing.dir/depend.make
@@ -68,29 +68,29 @@ include CMakeFiles/Izing.dir/flags.make
 
 CMakeFiles/Izing.dir/main.cpp.o: CMakeFiles/Izing.dir/flags.make
 CMakeFiles/Izing.dir/main.cpp.o: ../main.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/ypolyach/!Princeton/Izing/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/Izing.dir/main.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/Izing.dir/main.cpp.o -c /home/ypolyach/!Princeton/Izing/main.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/ypolyach/!Princeton/Izing/Init_state_gen/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/Izing.dir/main.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/Izing.dir/main.cpp.o -c /home/ypolyach/!Princeton/Izing/Init_state_gen/main.cpp
 
 CMakeFiles/Izing.dir/main.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/Izing.dir/main.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ypolyach/!Princeton/Izing/main.cpp > CMakeFiles/Izing.dir/main.cpp.i
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ypolyach/!Princeton/Izing/Init_state_gen/main.cpp > CMakeFiles/Izing.dir/main.cpp.i
 
 CMakeFiles/Izing.dir/main.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/Izing.dir/main.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ypolyach/!Princeton/Izing/main.cpp -o CMakeFiles/Izing.dir/main.cpp.s
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ypolyach/!Princeton/Izing/Init_state_gen/main.cpp -o CMakeFiles/Izing.dir/main.cpp.s
 
 CMakeFiles/Izing.dir/Izing.cpp.o: CMakeFiles/Izing.dir/flags.make
 CMakeFiles/Izing.dir/Izing.cpp.o: ../Izing.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/ypolyach/!Princeton/Izing/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/Izing.dir/Izing.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/Izing.dir/Izing.cpp.o -c /home/ypolyach/!Princeton/Izing/Izing.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/ypolyach/!Princeton/Izing/Init_state_gen/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Building CXX object CMakeFiles/Izing.dir/Izing.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/Izing.dir/Izing.cpp.o -c /home/ypolyach/!Princeton/Izing/Init_state_gen/Izing.cpp
 
 CMakeFiles/Izing.dir/Izing.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/Izing.dir/Izing.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ypolyach/!Princeton/Izing/Izing.cpp > CMakeFiles/Izing.dir/Izing.cpp.i
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/ypolyach/!Princeton/Izing/Init_state_gen/Izing.cpp > CMakeFiles/Izing.dir/Izing.cpp.i
 
 CMakeFiles/Izing.dir/Izing.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/Izing.dir/Izing.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ypolyach/!Princeton/Izing/Izing.cpp -o CMakeFiles/Izing.dir/Izing.cpp.s
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/ypolyach/!Princeton/Izing/Init_state_gen/Izing.cpp -o CMakeFiles/Izing.dir/Izing.cpp.s
 
 # Object files for target Izing
 Izing_OBJECTS = \
@@ -104,7 +104,7 @@ Izing: CMakeFiles/Izing.dir/main.cpp.o
 Izing: CMakeFiles/Izing.dir/Izing.cpp.o
 Izing: CMakeFiles/Izing.dir/build.make
 Izing: CMakeFiles/Izing.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/ypolyach/!Princeton/Izing/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX executable Izing"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/ypolyach/!Princeton/Izing/Init_state_gen/cmake-build-debug/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX executable Izing"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/Izing.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
@@ -116,6 +116,6 @@ CMakeFiles/Izing.dir/clean:
 .PHONY : CMakeFiles/Izing.dir/clean
 
 CMakeFiles/Izing.dir/depend:
-	cd /home/ypolyach/!Princeton/Izing/cmake-build-debug && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/ypolyach/!Princeton/Izing /home/ypolyach/!Princeton/Izing /home/ypolyach/!Princeton/Izing/cmake-build-debug /home/ypolyach/!Princeton/Izing/cmake-build-debug /home/ypolyach/!Princeton/Izing/cmake-build-debug/CMakeFiles/Izing.dir/DependInfo.cmake --color=$(COLOR)
+	cd /home/ypolyach/!Princeton/Izing/Init_state_gen/cmake-build-debug && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/ypolyach/!Princeton/Izing/Init_state_gen /home/ypolyach/!Princeton/Izing/Init_state_gen /home/ypolyach/!Princeton/Izing/Init_state_gen/cmake-build-debug /home/ypolyach/!Princeton/Izing/Init_state_gen/cmake-build-debug /home/ypolyach/!Princeton/Izing/Init_state_gen/cmake-build-debug/CMakeFiles/Izing.dir/DependInfo.cmake --color=$(COLOR)
 .PHONY : CMakeFiles/Izing.dir/depend
 

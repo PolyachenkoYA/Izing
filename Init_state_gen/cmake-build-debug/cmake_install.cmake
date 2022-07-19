@@ -1,4 +1,4 @@
-# Install script for directory: /home/ypolyach/!Princeton/Izing
+# Install script for directory: /home/ypolyach/!Princeton/Izing/Init_state_gen
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -50,5 +50,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/ypolyach/!Princeton/Izing/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/ypolyach/!Princeton/Izing/Init_state_gen/cmake-build-debug/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

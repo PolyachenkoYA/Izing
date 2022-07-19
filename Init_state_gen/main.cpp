@@ -4,7 +4,7 @@
 
 int main(int argc, char** argv) {
     if(argc != 9){
-        printf("usage:\n%s   L   T   h   N0   M0   to_remember_EM   verbose   seed\n");
+        printf("usage:\n%s   L   T   h   N0   M0   to_remember_EM   verbose   seed\n", argv[0]);
         return 1;
     }
 
@@ -29,7 +29,10 @@ int main(int argc, char** argv) {
         *M = (double*) malloc(sizeof(double) * N0);
 
     }
-    get_init_states_C(L, Temp, h, N0, M0, init_states, my_seed, E, M, &Nt, to_remember_EM, verbose);
+//    printf("0: %d\n", Izing::get_seed_C());
+    Izing::init_rand_C(my_seed);
+//    printf("1: %d\n", Izing::get_seed_C());
+    Izing::get_init_states_C(L, Temp, h, N0, M0, init_states, E, M, &Nt, to_remember_EM, verbose);
     printf("hi\n");
     printf("Nt = %d\n", Nt);
 

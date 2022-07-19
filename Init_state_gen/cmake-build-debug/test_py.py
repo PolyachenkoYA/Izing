@@ -9,8 +9,8 @@ my.run_it('mv izing.so.cpython-38-x86_64-linux-gnu.so izing.so')
 
 import izing
 
-def proc_T(L, Temp, h, N0, M0, my_seed, verbose=0, max_flip_time=None, to_get_EM=False):
-	(init_states, E, M) = izing.get_init_states(L, Temp, h, N0, M0, my_seed=my_seed, verbose=verbose, to_get_EM=to_get_EM)
+def proc_T(L, Temp, h, N0, M0, my_seed, verbose=None, max_flip_time=None, to_get_EM=False, to_plot=True):
+	(init_states, E, M) = izing.get_init_states(L, Temp, h, N0, M0, verbose=verbose, to_get_EM=to_get_EM)
 	
 	if(to_get_EM):
 		M = M / L**2
@@ -68,7 +68,7 @@ def proc_T(L, Temp, h, N0, M0, my_seed, verbose=0, max_flip_time=None, to_get_EM
 		d_E_mean = E_std / np.sqrt(Nt_stab / memory_time)
 		d_M_mean = M_std / np.sqrt(Nt_stab / memory_time)
 		
-		if(verbose):
+		if(to_plot):
 			fig_E, ax_E = my.get_fig('step', '$E / L^2$', title='E(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
 			ax_E.plot(steps, E, label='data')
 			ax_E.plot([stab_step] * 2, [min(E), max(E)], label='equilibr')
@@ -168,7 +168,7 @@ def proc_N(box, Nt, my_seed, ax_C=None, ax_E=None, ax_M=None, ax_M2=None, recomp
 
 my_seed = 2
 recomp = 0
-test_C = 1
+mode = 0
 to_get_EM = 1
 
 L = 11
@@ -176,7 +176,7 @@ M0 = -L**2 + 20
 
 # -------- T < Tc, transitions ---------
 N0 = 100000
-Temp = 2.0   # T_C = 2.27
+Temp = 2.0   # T_c = 2.27
 h = -0.010
 
 # -------- T > Tc, fluctuations around 0 ---------
@@ -184,9 +184,12 @@ h = -0.010
 #Temp = 3.0
 #h = 0.05
 
-if(test_C):
-	proc_T(L, Temp, h, N0, M0, my_seed, verbose=1, to_get_EM=to_get_EM)
-else:
+izing.init_rand(my_seed)
+izing.set_verbose(1)
+
+if(mode == 0):
+	proc_T(L, Temp, h, N0, M0, my_seed, to_get_EM=to_get_EM)
+elif(mode == 99):
 	fig_E, ax_E = my.get_fig('T', '$E/L^2$', xscl='log')
 	fig_M, ax_M = my.get_fig('T', '$M/L^2$', xscl='log')
 	fig_C, ax_C = my.get_fig('T', '$C/L^2$', xscl='log', yscl='log')
