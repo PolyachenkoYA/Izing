@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wall -Wextra -g CMakeFiles/Izing.dir/main.cpp.o CMakeFiles/Izing.dir/Izing.cpp.o -o Izing   -L/home/ypolyach/anaconda3/lib  -Wl,-rpath,/home/ypolyach/anaconda3/lib -lm -lgsl -lgslcblas -lcrypt -lpthread -ldl -lutil -lrt -lpython3.8 
