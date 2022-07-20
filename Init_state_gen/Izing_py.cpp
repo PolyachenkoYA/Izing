@@ -35,6 +35,9 @@ PYBIND11_MODULE(izing, m)
           "Set default verbose behaviour",
           py::arg("new_verbose")
     );
-}
 
-// # double prob_for_p(double p, int box_size, int N_iter, int my_seed=time(NULL), bool verbose=0);
+// py::int_ set_verbose(int new_verbose)
+	m.def("get_seed", &get_seed,
+		  "Returns the current seed used for the last GSL random initiation"
+	);
+}

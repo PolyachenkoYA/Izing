@@ -9,11 +9,13 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/cast.h>
 #include <pybind11/stl.h>
+#include <python3.8/Python.h>
+
 namespace py = pybind11;
 
 #include "Izing.h"
 
-py::tuple get_init_states(int L, double Temp, double h, int N0, int M0, std::optional<bool> _verbose, int to_get_EM)
+py::tuple get_init_states(int L, double Temp, double h, int N0, int M_0, std::optional<bool> _verbose, int to_get_EM)
 {
     auto init_states = py::array_t<int>(N0 * L*L);
     py::buffer_info init_states_info = init_states.request();
@@ -31,7 +33,7 @@ py::tuple get_init_states(int L, double Temp, double h, int N0, int M0, std::opt
         *_M = (double*) malloc(sizeof(double) * N0);
     }
 
-    Izing::get_init_states_C(L, Temp, h, N0, M0, init_states_ptr, _E, _M, &Nt, to_get_EM, verbose);
+    Izing::get_init_states_C(L, Temp, h, N0, M_0, init_states_ptr, _E, _M, &Nt, to_get_EM, verbose);
     printf("Nt = %d\n", Nt);
 
     py::array_t<double> E;
@@ -64,6 +66,11 @@ py::int_ init_rand(int my_seed)
     return 0;
 }
 
+py::int_ get_seed()
+{
+	return Izing::seed;
+}
+
 py::int_ set_verbose(int new_verbose)
 {
     Izing::verbose_dafault = new_verbose;
@@ -76,11 +83,6 @@ namespace Izing
     int seed;
     int verbose_dafault;
 
-    int get_seed_C()
-    {
-        return seed;
-    }
-
     int init_rand_C(int my_seed)
     {
         // initialize random generator
@@ -88,7 +90,7 @@ namespace Izing
         const gsl_rng_type* T = gsl_rng_default;
         rng = gsl_rng_alloc(T);
         gsl_rng_set(rng, my_seed);
-//    srand(my_seed);
+//		srand(my_seed);
 
         seed = my_seed;
         return 0;
@@ -97,8 +99,6 @@ namespace Izing
     int copy_state(int *src, int* dst, int N)
     {
         memcpy(dst, src, sizeof(int) * N);
-//    for(int i = 0; i < N; ++i)
-//        dst[i] = src[i];
         return 0;
     }
 
@@ -188,8 +188,8 @@ namespace Izing
         return 0;
     }
 
-    int get_init_states_C(int L, double Temp, double h, int N0, int M0, int *init_states, double **E, double **M, int *Nt, bool to_remember_EM, bool verbose)
-// N0 - number of initial states with M[ti] = M0
+    int get_init_states_C(int L, double Temp, double h, int N0, int M_0, int *init_states, double **E, double **M, int *Nt, bool to_remember_EM, bool verbose)
+// N0 - number of initial states with M[ti] = M_0
 // M[ti-1] is not valid since we are doing MC, so there are no velocities and thus no memory of previous states.
 
 // init_states have to be pre-allocated (since it's possible to know its size in advance)
@@ -203,7 +203,7 @@ namespace Izing
         int M_current;
         double E_current;
         s = (int*) malloc(sizeof(int) * (L2));
-        generate_state(s, L, Izing::rng, 1); // allocate all spins = -1
+        generate_state(s, L, rng, 1); // allocate all spins = -1
         comp_E(s, L, h, &E_current); // remember the 1st energy
         comp_M(s, L, &M_current); // remember the 1st M
 
@@ -224,9 +224,9 @@ namespace Izing
                 (*E)[i] = E_current;
             }
 //            printf("E=%5.2lf, M=%5.2lf\n", E[i], M[i]);
-            if(M_current == M0){
+            if(M_current == M_0){
                 // We are doing MC (not MD), so there is no 'velocity' of the system,
-                // so we don't need to consider M[i-1] to see that the system came from 'M < M0'
+                // so we don't need to consider M[i-1] to see that the system came from 'M < M_0'
                 copy_state(s, &(init_states[N_init_states * L2]), L2);
                 ++N_init_states;
                 if(verbose){
@@ -234,7 +234,7 @@ namespace Izing
                 }
             }
 
-            get_flip_point(s, L, h, Temp, &ix, &iy, &dE, Izing::rng);
+            get_flip_point(s, L, h, Temp, &ix, &iy, &dE, rng);
             ++i;
             s[ix*L + iy] *= -1;
             M_current += 2 * s[ix*L + iy];
@@ -243,10 +243,9 @@ namespace Izing
         *Nt = i;
 
         if(verbose){
-            printf("cleaning memory\n");
+            printf("cleaning memory (get_init_states)\n");
         }
         free(s);
-//        gsl_rng_free(Izing::rng);
 
         if(verbose){
             if(to_remember_EM){
@@ -258,62 +257,57 @@ namespace Izing
         return 0;
     }
 
-//int run_state_C(int L, double Temp, int **s_init, int S_next, int S_0, int my_seed, double *E, double *M)
-//{
-//    int i;
-//    //double *E = (double*) malloc(sizeof(double) * Nt);
-//
-////    E[0] = 123;
-////    print_E(E, Nt, 'c');
-////    printf("L = %d\n", L);
-//
-//    gsl_rng_env_setup();
-//    const gsl_rng_type* T = gsl_rng_default;
-//    gsl_rng* rng = gsl_rng_alloc(T);
-//    gsl_rng_set(rng, my_seed);
-//
-//    int **s = (int**) malloc(sizeof(int*) * L);
-//    for(i = 0; i < L; ++i){
-//        s[i] = (int*) malloc(sizeof(int) * L);
-//    }
-//
-//    generate_state(s, L, rng, 1);
-//    comp_E(s, L, &(E[0])); // &(E[0]) == E
-//    comp_M(s, L, &(M[0]));
-//
-////    print_E(E, Nt, '0');
-//
-//    int ix, iy;
-//    double dE;
-//    int do_flip;
-//    for(i = 1; i < Nt; ++i){
-//        ix = gsl_rng_uniform_int(rng, L);
-//        iy = gsl_rng_uniform_int(rng, L);
-//
-//        dE = get_dE(s, L, ix, iy);
-//        do_flip = (dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- dE / Temp) ? 1 : 0));
-////        printf("%d, %lf\n", do_flip, dE);
-////        print_S(s, L, '0' + (i % 10));
-//        if(do_flip){
-//            M[i] = M[i-1] - 2 * s[ix][iy];
-//            E[i] = E[i-1] + dE;
-//            s[ix][iy] *= -1;
-//        } else {
-//            E[i] = E[i-1];
-//            M[i] = M[i-1];
-//        }
-//
-////        print_E(E, Nt, '0' + (i % 10));
-//    }
-//
-//    for(i = 0; i < L; ++i) free(s[i]);
-//    free(s);
-//    gsl_rng_free (rng);
-//
-////    print_E(E, Nt, 'C');
-//
-//    return 0;
-//}
+	int process_state(int *s, int L, double Temp, double h, int k, int M_0, int M_next, bool to_remember_EM, bool verbose)
+	{
+		int i_state;
+		int N_succ = 0;
+		for(i_state = 0; i_state < k; ++i_state){
+
+		}
+	}
+
+	bool run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, double **M, int *Nt, bool to_remember_EM, bool verbose)
+	{
+		int L2 = L*L;
+
+		int M_current;
+		double E_current;
+		comp_E(s, L, h, &E_current); // remember the 1st energy
+		comp_M(s, L, &M_current); // remember the 1st M
+
+		int ix, iy;
+		double dE;
+		int M_arr_len = 100;
+
+		while(1){
+			get_flip_point(s, L, h, Temp, &ix, &iy, &dE, rng);
+			++(*Nt);
+			s[ix*L + iy] *= -1;
+			M_current += 2 * s[ix*L + iy];
+			E_current += dE;
+
+			if(to_remember_EM){
+				if(*Nt >= M_arr_len){ // double the size of the time-index
+					M_arr_len *= 2;
+					*E = (double*) realloc (*E, sizeof(double) * M_arr_len);
+					*M = (double*) realloc (*M, sizeof(double) * M_arr_len);
+				}
+				(*M)[*Nt - 1] = M_current;
+				(*E)[*Nt - 1] = E_current;
+			}
+			if(M_current == M_0){
+				if(verbose){
+					printf("M_next = %d: 0\n", M_next);
+				}
+				return false;   // failed = gone to the initial state A
+			} else if(M_current == M_next){
+				if(verbose){
+					printf("M_next = %d: 1\n", M_next);
+				}
+				return true;   // succeeded = reached the interface 'M == M_next'
+			}
+		}
+	}
 
     int print_E(double *E, int Nt, char prefix, char suffix)
     {
@@ -332,7 +326,7 @@ namespace Izing
         return 0;
     }
 
-    int print_S(int **s, int L, char prefix)
+    int print_S(int *s, int L, char prefix)
     {
         int i, j;
 
@@ -342,7 +336,7 @@ namespace Izing
 
         for(i = 0; i < L; ++i){
             for(j = 0; j < L; ++j){
-                printf("%2d", s[i][j]);
+                printf("%2d", s[i*L + j]);
             }
             printf("\n");
         }
