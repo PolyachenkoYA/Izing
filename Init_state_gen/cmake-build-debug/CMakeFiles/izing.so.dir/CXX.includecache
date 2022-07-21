@@ -19,6 +19,8 @@ pybind11/cast.h
 -
 pybind11/stl.h
 -
+python3.8/Python.h
+-
 Izing.h
 /home/ypolyach/!Princeton/Izing/Init_state_gen/Izing.h
 
@@ -31,16 +33,6 @@ pybind11/numpy.h
 -
 pybind11/stl.h
 -
-
-/home/ypolyach/!Princeton/Izing/Init_state_gen/Izing_py.cpp
-pybind11/pybind11.h
--
-pybind11/stl.h
--
-ctime
--
-Izing.h
-/home/ypolyach/!Princeton/Izing/Init_state_gen/Izing.h
 
 /home/ypolyach/anaconda3/include/pybind11/attr.h
 cast.h

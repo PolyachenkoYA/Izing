@@ -19,20 +19,22 @@ int main(int argc, char** argv) {
     int i;
 
     int *init_states = (int*) malloc(sizeof(int) * N0 * L*L);
-    int Nt;
+    int Nt = 0;
+	int M_arr_len = N0;
     double **E;
     double **M;
     if(to_remember_EM){
         E = (double**) malloc(sizeof(double*) * 1);
-        *E = (double*) malloc(sizeof(double) * N0);
+        *E = (double*) malloc(sizeof(double) * M_arr_len);
         M = (double**) malloc(sizeof(double*) * 1);
-        *M = (double*) malloc(sizeof(double) * N0);
+        *M = (double*) malloc(sizeof(double) * M_arr_len);
 
     }
 //    printf("0: %d\n", Izing::get_seed_C());
     Izing::init_rand_C(my_seed);
 //    printf("1: %d\n", Izing::get_seed_C());
-    Izing::get_init_states_C(L, Temp, h, N0, M0, init_states, E, M, &Nt, to_remember_EM, verbose);
+
+    Izing::get_init_states_C(L, Temp, h, N0, M0, init_states, E, M, &Nt, &M_arr_len, to_remember_EM, verbose);
     printf("hi\n");
     printf("Nt = %d\n", Nt);
 
@@ -47,7 +49,7 @@ int main(int argc, char** argv) {
 //    fclose(output_file);
 
     if(to_remember_EM){
-        for(i = 0; i < fmin(10, Nt); ++i)  printf("%lf ", (*E)[i]);
+		if(verbose) for(i = 0; i < fmin(10, Nt); ++i)  printf("%lf ", (*E)[i]);
 
         free(*E);
         free(E);
@@ -55,8 +57,10 @@ int main(int argc, char** argv) {
         free(M);
     }
 
-    printf("\nI:");
-    for(i = 0; i < 10; ++i)  printf("%d ", init_states[i]);
+	if(verbose){
+		printf("\nI:");
+		for(i = 0; i < 10; ++i)  printf("%d ", init_states[i]);
+	}
     free(init_states);
 
     return 0;

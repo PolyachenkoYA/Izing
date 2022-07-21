@@ -15,26 +15,34 @@ namespace py = pybind11;
 
 #include "Izing.h"
 
-py::tuple get_init_states(int L, double Temp, double h, int N0, int M_0, std::optional<bool> _verbose, int to_get_EM)
+py::tuple get_init_states(int L, double Temp, double h, int N0, int M_0, int to_get_EM, std::optional<int> _verbose)
 {
     auto init_states = py::array_t<int>(N0 * L*L);
     py::buffer_info init_states_info = init_states.request();
     int *init_states_ptr = static_cast<int *>(init_states_info.ptr);
     int Nt;
+	int M_arr_len = N0;
 
-    bool verbose = (_verbose.has_value() ? _verbose.value() : Izing::verbose_dafault);
+	int verbose = (_verbose.has_value() ? _verbose.value() : Izing::verbose_dafault);
 
     double **_E;
     double **_M;
     if(to_get_EM){
         _E = (double**) malloc(sizeof(double*) * 1);
-        *_E = (double*) malloc(sizeof(double) * N0);
+        *_E = (double*) malloc(sizeof(double) * M_arr_len);
         _M = (double**) malloc(sizeof(double*) * 1);
-        *_M = (double*) malloc(sizeof(double) * N0);
+        *_M = (double*) malloc(sizeof(double) * M_arr_len);
     }
 
-    Izing::get_init_states_C(L, Temp, h, N0, M_0, init_states_ptr, _E, _M, &Nt, to_get_EM, verbose);
-    printf("Nt = %d\n", Nt);
+	if(verbose){
+		printf("using: L=%d  T=%lf  h=%lf  N0=%d  M0=%d  EM=%d  v=%d\n", L, Temp, h, N0, M_0, to_get_EM, verbose);
+	}
+
+    Izing::get_init_states_C(L, Temp, h, N0, M_0, init_states_ptr, _E, _M, &Nt, &M_arr_len, to_get_EM, verbose);
+
+    if(verbose){
+		printf("Nt = %d\n", Nt);
+	}
 
     py::array_t<double> E;
     py::array_t<double> M;
@@ -52,10 +60,15 @@ py::tuple get_init_states(int L, double Temp, double h, int N0, int M_0, std::op
         free(_E);
         free(*_M);
         free(_M);
+
+		if(verbose >= 2){
+			if(to_get_EM){
+				Izing::print_E(E_ptr, fmin(10, Nt), 'P');
+			}
+		}
     }
 
 
-//    print_E(E_ptr, Nt, 'P');
     py::tuple res = py::make_tuple(init_states, E, M);
     return res;
 }
@@ -93,12 +106,6 @@ namespace Izing
 //		srand(my_seed);
 
         seed = my_seed;
-        return 0;
-    }
-
-    int copy_state(int *src, int* dst, int N)
-    {
-        memcpy(dst, src, sizeof(int) * N);
         return 0;
     }
 
@@ -142,20 +149,33 @@ namespace Izing
 
     int generate_state(int *s, int L, gsl_rng *rng, int mode)
     {
-        int i, j;
+		int i, j;
+		int L2 = L*L;
 
-        if(mode == 0){ // random
-            for(i = 0; i < L; ++i){
-                for(j = 0; j < L; ++j) {
-                    s[i*L + j] = gsl_rng_uniform_int(rng, 2) * 2 - 1;
-                }
-            }
-        } else if(mode == 1) { // ordered
-            for(i = 0; i < L; ++i){
-                for(j = 0; j < L; ++j) {
-                    s[i*L + j] = -1;
-                }
-            }
+        if(mode >= 0){   // generate |mode| spins UP, and the rest spins DOWN
+			for(i = 0; i < L2; ++i) s[i] = -1;
+			if(mode < 0){
+				int N_down_spins = mode;
+				assert(N_down_spins <= L2);
+
+				int *indices_to_flip = (int*) malloc(sizeof(int) * L2);
+				for(i = 0; i < L2; ++i) indices_to_flip[i] = i;
+				int max = L2;
+				int next_rand;
+				int swap_var;
+				for(i = 0; i < N_down_spins; ++i){   // generate N_down_spins uniformly distributed indices in [0; L2-1]
+					next_rand = gsl_rng_uniform_int(rng, max);
+					swap_var = indices_to_flip[next_rand];
+					indices_to_flip[next_rand] = indices_to_flip[max - 1];
+					indices_to_flip[max - 1] = swap_var;
+					--max;
+
+					s[swap_var] = 1;
+				}
+				free(indices_to_flip);
+			}
+		} else if(mode == -1){ // random
+            for(i = 0; i < L2; ++i) s[i] = gsl_rng_uniform_int(rng, 2) * 2 - 1;
         }
 
         return 0;
@@ -188,123 +208,216 @@ namespace Izing
         return 0;
     }
 
-    int get_init_states_C(int L, double Temp, double h, int N0, int M_0, int *init_states, double **E, double **M, int *Nt, bool to_remember_EM, bool verbose)
+//    int get_init_states_C(int L, double Temp, double h, int N0, int M_0, int *init_states, double **E, double **M, int *Nt, double *flux0, bool to_remember_EM, int verbose)
+//// N0 - number of initial states with M[ti] = M_0
+//// M[ti-1] is not valid since we are doing MC, so there are no velocities and thus no memory of previous states.
+//
+//// init_states have to be pre-allocated (since it's possible to know its size in advance)
+//// E and M will be allocated (and possibly extended) inside the function
+//    {
+//        int L2 = L*L;
+//		int state_size = sizeof(int) * L2;
+//
+//        // create the state which will be evolving and sampling the A-region
+//        int *s;
+//        int M_current;
+//		int M_prev = L2 + 2;   // something that is impossible to happen in a simulation
+//        double E_current;
+//        s = (int*) malloc(state_size);
+//        generate_state(s, L, rng, 1); // allocate all spins = -1
+//        comp_E(s, L, h, &E_current); // remember the 1st energy
+//        comp_M(s, L, &M_current); // remember the 1st M
+//
+//        int ix, iy;
+//        double dE;
+////        int do_flip;
+//        int N_init_states = 0;
+//        int M_arr_len = N0;
+//        int i_t = 0;
+//		int time_inside_A = 0;
+//        while(N_init_states < N0){
+//            if(to_remember_EM){
+//                if(i_t >= M_arr_len){ // double the size of the time-index
+//                    M_arr_len *= 2;
+//                    *E = (double*) realloc (*E, sizeof(double) * M_arr_len);
+//                    *M = (double*) realloc (*M, sizeof(double) * M_arr_len);
+//                }
+//                (*M)[i_t] = M_current;
+//                (*E)[i_t] = E_current;
+//            }
+////            printf("E=%5.2lf, M=%5.2lf\n", E[i_t], M[i_t]);
+//			if(M_current <= M_0){
+//				++time_inside_A;
+//				if((M_current >= M_0) && (M_prev <= M_0)){   // here, the direction is important - we assume A to be for most negative M values, so we should come from 'M < M_0' to come from A
+//					// We are doing MC (not MD), so there is no 'velocity' of the system,
+//					// so we don't need to consider M[i_t-1] to see that the system came from 'M < M_0' - is that right?
+//					copy_state(s, &(init_states[N_init_states * L2]), state_size);
+//					++N_init_states;
+//					if(verbose){
+//						printf("N_states = %d\n", N_init_states);
+//					}
+//				}
+//			}
+//
+//            get_flip_point(s, L, h, Temp, &ix, &iy, &dE, rng);
+//            ++i_t;
+//            s[ix*L + iy] *= -1;
+//			M_prev = M_current;
+//            M_current += 2 * s[ix*L + iy];
+//            E_current += dE;
+//        }
+//        *Nt = i_t;
+//		*flux0 = (double)N_init_states / time_inside_A;
+//
+//        if(verbose){
+//            printf("cleaning memory (get_init_states)\n");
+//        }
+//        free(s);
+//
+//        if(verbose){
+//            if(to_remember_EM){
+//                print_E(*E, fmin(10, *Nt), 'E');
+//            }
+//            printf("exiting from get_init_states()\n");
+//            printf("Nt_in = %d\n", *Nt);
+//        }
+//        return 0;
+//    }
+
+	int get_init_states_C(int L, double Temp, double h, int N0, int M_0, int *init_states, double **E, double **M, int *Nt, int *M_arr_len, bool to_remember_EM, int verbose)
 // N0 - number of initial states with M[ti] = M_0
 // M[ti-1] is not valid since we are doing MC, so there are no velocities and thus no memory of previous states.
 
 // init_states have to be pre-allocated (since it's possible to know its size in advance)
 // E and M will be allocated (and possibly extended) inside the function
-    {
-        int L2 = L*L;
-        int i;
-
-        // create the state which will be evolving and sampling the A-region
-        int *s;
-        int M_current;
-        double E_current;
-        s = (int*) malloc(sizeof(int) * (L2));
-        generate_state(s, L, rng, 1); // allocate all spins = -1
-        comp_E(s, L, h, &E_current); // remember the 1st energy
-        comp_M(s, L, &M_current); // remember the 1st M
-
-        int ix, iy;
-        double dE;
-//        int do_flip;
-        int N_init_states = 0;
-        int M_arr_len = N0;
-        i = 0;
-        while(N_init_states < N0){
-            if(to_remember_EM){
-                if(i >= M_arr_len){ // double the size of the time-index
-                    M_arr_len *= 2;
-                    *E = (double*) realloc (*E, sizeof(double) * M_arr_len);
-                    *M = (double*) realloc (*M, sizeof(double) * M_arr_len);
-                }
-                (*M)[i] = M_current;
-                (*E)[i] = E_current;
-            }
-//            printf("E=%5.2lf, M=%5.2lf\n", E[i], M[i]);
-            if(M_current == M_0){
-                // We are doing MC (not MD), so there is no 'velocity' of the system,
-                // so we don't need to consider M[i-1] to see that the system came from 'M < M_0'
-                copy_state(s, &(init_states[N_init_states * L2]), L2);
-                ++N_init_states;
-                if(verbose){
-                    printf("N_states = %d\n", N_init_states);
-                }
-            }
-
-            get_flip_point(s, L, h, Temp, &ix, &iy, &dE, rng);
-            ++i;
-            s[ix*L + iy] *= -1;
-            M_current += 2 * s[ix*L + iy];
-            E_current += dE;
-        }
-        *Nt = i;
-
-        if(verbose){
-            printf("cleaning memory (get_init_states)\n");
-        }
-        free(s);
-
-        if(verbose){
-            if(to_remember_EM){
-                print_E(*E, fmin(10, *Nt), 'E');
-            }
-            printf("exiting from get_init_states()\n");
-            printf("Nt_in = %d\n", *Nt);
-        }
-        return 0;
-    }
-
-	int process_state(int *s, int L, double Temp, double h, int k, int M_0, int M_next, bool to_remember_EM, bool verbose)
 	{
-		int i_state;
-		int N_succ = 0;
-		for(i_state = 0; i_state < k; ++i_state){
+		int i;
+		int L2 = L*L;
+		int state_size = sizeof(int) * L2;
 
+		// generate N0 states in A
+		// Here they are identical, but I think it's better to generate them accordingly to equilibrium distribution in A
+		int *states_to_run = (int*) malloc(N0 * state_size);
+		for(i = 0; i < N0; ++i){
+			generate_state(&(states_to_run[i * L2]), L, rng, 0); // allocate all spins = -1
 		}
+		*Nt = 1;
+
+		// record initial state (all DOWN) E and M since run_state changes it before recording
+		(*M)[0] = -L;
+		(*E)[0] = -L2 * 2 + h * (*M)[0];
+
+		if(verbose >= 2){
+			printf("states generated\n");
+		}
+		process_step(states_to_run, init_states, E, M, Nt, M_arr_len, N0, L, Temp, h, -L2-1, M_0, to_remember_EM, verbose);
+
+        if(verbose) {
+			if (to_remember_EM) {
+				print_E(*E, fmin(10, *Nt), 'E');
+			}
+			printf("Nt_in = %d\n", *Nt);
+		}
+
+		free(states_to_run);
+
+		return 0;
 	}
 
-	bool run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, double **M, int *Nt, bool to_remember_EM, bool verbose)
+	double process_step(int *init_states, int *next_states, double **E, double **M, int *Nt, int *M_arr_len, int N_init_states, int L, double Temp, double h, int M_0, int M_next, bool to_remember_EM, int verbose)
+	/**
+	 *
+	 * @param init_states - are assumed to contain 'N0 * state_size' ints representing states to start simulations from
+	 * @param next_states - are assumed to be allocated to have 'N0 * state_size' ints
+	 * @param E - array of Energy values for all the runs, joined consequently; Is assumed to be preallocated with *M_arr_len of doubles
+	 * @param M - array of Magnetic moment values for all the runs, joined consequently; Is assumed to be preallocated with *M_arr_len of doubles
+	 * @param Nt - total number of simulation steps in this 'i -> i+1' part of the simulation
+	 * @param M_arr_len - size allocated for M and E arrays
+	 * @param N_init_states - the number of states with M==M_next to generate; the simulation is terminated when this number is reached
+	 * @param L - the side-size of the lattice
+	 * @param Temp - temperature of the system; units=J, so it's actually T/J
+	 * @param h - magnetic-field-induced multiplier; unit=J, so it's h/J
+	 * @param M_0 - the lower-border to stop the simulations at. If a simulation reaches this M==M_0, it's terminated and discarded
+	 * @param M_next - the upper-border to stop the simulations at. If a simulation reaches this M==M_0, it's stored to be a part of a init_states set of states for the next FFS step
+	 * @param to_remember_EM - T/F, determines whether the E and M evolution if stored
+	 * @param verbose - T/F, shows the progress
+	 * @return - the fraction of successful runs (the runs that reached M==M_next)
+	 */
 	{
 		int L2 = L*L;
+		int state_size = sizeof(int) * L2;
+		int N_succ = 0;
+		int N_runs = 0;
+		int *state_under_process = (int*) malloc(state_size);
+		while(N_succ < N_init_states){
+			int init_state_to_process_ID = gsl_rng_uniform_int(rng, N_init_states);
+			if(verbose >= 2){
+				printf("state %d:\n", N_succ);
+			}
+			memcpy(state_under_process, &(init_states[init_state_to_process_ID * L2]), state_size);   // get a copy of the chosen init state
+			if(run_state(state_under_process, L, Temp, h, M_0, M_next, E, M, Nt, M_arr_len, to_remember_EM, verbose)){   // run it until it reaches M_0 or M_next
+				// the run reached M_next
+				memcpy(&(next_states[N_succ * L2]), state_under_process, state_size);   // save the resulting system state for the next step
+				++N_succ;
+				if(verbose >= 2){
+					printf("state %d saved for future\n", N_succ-1);
+				}
+				if(verbose) {
+					if((N_succ % std::max(1, N_init_states / 1000) == 0) || (verbose >= 2)){
+						printf("%lf %%          \r", (double)N_succ/N_init_states * 100);
+						fflush(stdout);
+					}
+				}
+			}
+			++N_runs;
+		}
+		if(verbose >= 2) {
+			printf("\n");
+		}
 
+		free(state_under_process);
+
+		return (double)N_succ / N_runs;   // the probability P(i+i | i) to go from i to i+1
+	}
+
+	int run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, double **M, int *Nt, int *M_arr_len, bool to_remember_EM, int verbose)
+	{
 		int M_current;
 		double E_current;
 		comp_E(s, L, h, &E_current); // remember the 1st energy
 		comp_M(s, L, &M_current); // remember the 1st M
+		if(verbose >= 2){
+			printf("E=%lf, M=%d\n", E_current, M_current);
+		}
 
 		int ix, iy;
 		double dE;
-		int M_arr_len = 100;
-
 		while(1){
+			if(verbose >= 3) printf("doing Nt=%d\n", *Nt);
 			get_flip_point(s, L, h, Temp, &ix, &iy, &dE, rng);
+			if(verbose >= 3) printf("flip done\n");
 			++(*Nt);
 			s[ix*L + iy] *= -1;
 			M_current += 2 * s[ix*L + iy];
 			E_current += dE;
+			if(verbose >= 3) printf("state modified\n");
 
 			if(to_remember_EM){
-				if(*Nt >= M_arr_len){ // double the size of the time-index
-					M_arr_len *= 2;
-					*E = (double*) realloc (*E, sizeof(double) * M_arr_len);
-					*M = (double*) realloc (*M, sizeof(double) * M_arr_len);
+				if(*Nt >= *M_arr_len){ // double the size of the time-index
+					*M_arr_len *= 2;
+					*E = (double*) realloc (*E, sizeof(double) * *M_arr_len);
+					*M = (double*) realloc (*M, sizeof(double) * *M_arr_len);
 				}
 				(*M)[*Nt - 1] = M_current;
 				(*E)[*Nt - 1] = E_current;
 			}
+			if(verbose >= 3) printf("done Nt=%d\n", *Nt-1);
 			if(M_current == M_0){
-				if(verbose){
-					printf("M_next = %d: 0\n", M_next);
-				}
-				return false;   // failed = gone to the initial state A
+				if(verbose >= 2) printf("Fail run\n");
+				return 0;   // failed = gone to the initial state A
 			} else if(M_current == M_next){
-				if(verbose){
-					printf("M_next = %d: 1\n", M_next);
-				}
-				return true;   // succeeded = reached the interface 'M == M_next'
+				if(verbose >= 2) printf("Success run\n");
+				return 1;   // succeeded = reached the interface 'M == M_next'
 			}
 		}
 	}

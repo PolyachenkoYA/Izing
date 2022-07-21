@@ -438,6 +438,7 @@ CMakeFiles/izing.so.dir/Izing.cpp.o: ../Izing.cpp \
   /usr/include/c++/9/bits/indirect_array.h \
   /usr/include/c++/9/variant \
   /usr/include/c++/9/bits/parse_numbers.h \
+  /home/ypolyach/anaconda3/include/python3.8/Python.h \
   ../Izing.h \
   /home/ypolyach/anaconda3/include/pybind11/numpy.h \
   /home/ypolyach/anaconda3/include/pybind11/complex.h \

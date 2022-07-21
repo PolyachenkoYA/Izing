@@ -10,6 +10,10 @@
 
 namespace py = pybind11;
 
+// input: 11 3.0 0.0 4 -117 1 1 12345
+// input: 11 2.0 -0.01 100000 -101 1 1 2
+// input: 11 2.0 -0.01 10 121 1 1 2
+
 PYBIND11_MODULE(izing, m)
 {
 // py::tuple get_init_states(int L, double Temp, double h, int N0, int M0, int verbose, int to_get_EM)
@@ -20,8 +24,8 @@ PYBIND11_MODULE(izing, m)
           py::arg("h"),
           py::arg("N_init_states"),
           py::arg("M0"),
-          py::arg("verbose")=py::none(),
-          py::arg("to_get_EM")=0
+		  py::arg("to_get_EM")=0,
+		  py::arg("verbose")=py::none()
     );
 
 // py::int_ init_rand(int my_seed)
