@@ -19,6 +19,9 @@ namespace Izing
     extern int seed;
     extern int verbose_dafault;
 
+	int md(int i, int L);
+	template <typename T> T sqr(T x) { return x * x; }
+
 	int print_E(double *E, int Nt, char prefix=0, char suffix='\n');
 	int print_S(int *s, int L, char prefix=0);
 
@@ -26,11 +29,10 @@ namespace Izing
     int comp_E(int* s, int N, double h, double *E);
     int comp_M(int* s, int N, int *M);
     int generate_state(int *s, int L, gsl_rng *rng, int mode=1);
-    int md(int i, int L);
     double get_dE(int *s, int L, double h, int ix, int iy);
-	int get_init_states_C(int L, double Temp, double h, int N0, int M_0, int *init_states, double **E, double **M, int *Nt, int *M_arr_len, bool to_remember_EM, int verbose);
-	int run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, double **M, int *Nt, int *M_arr_len, bool to_remember_EM, int verbose);
-	double process_step(int *init_states, int *next_states, double **E, double **M, int *Nt, int *M_arr_len, int N_init_states, int L, double Temp, double h, int M_0, int M_next, bool to_remember_EM, int verbose);
+	int get_init_states_C(int L, double Temp, double h, int N_init_states, int M_0, int *init_states, double **E, int **M, int *Nt, int *M_arr_len, bool to_remember_EM, int verbose);
+	int run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, int **M, int *Nt, int *M_arr_len, bool to_remember_EM, int verbose);
+	double process_step(int *init_states, int *next_states, double **E, int **M, int *Nt, int *M_arr_len, int N_init_states, int N_next_states, int L, double Temp, double h, int M_0, int M_next, int to_save_next_states, bool to_remember_EM, int verbose);
 }
 
 py::tuple get_init_states(int L, double Temp, double h, int N0, int M_0, int to_get_EM, std::optional<int> _verbose);

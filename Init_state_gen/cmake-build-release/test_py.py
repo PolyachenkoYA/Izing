@@ -174,10 +174,10 @@ to_get_EM = 1
 L = 11
 
 # -------- T < Tc, transitions ---------
-M0 = L**2
+M0 = L**2   # this insludes the whole range [-L^2; L^2] into a single simulation
 N0 = 10
 Temp = 2.0   # T_c = 2.27
-h = -0.010
+h = -0.010   # arbitrary small number that gives nice pictures
 
 # -------- T > Tc, fluctuations around 0 ---------
 #N0 = 30
