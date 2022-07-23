@@ -63,7 +63,7 @@ py::tuple get_init_states(int L, double Temp, double h, int N_init_states, int M
 
 		if(verbose >= 2){
 			if(to_get_EM){
-				Izing::print_E(E_ptr, fmin(10, Nt), 'P');
+				Izing::print_E(E_ptr, Nt < 10 ? Nt : 10, 'P');
 			}
 		}
     }
@@ -255,7 +255,7 @@ namespace Izing
 //
 //        if(verbose) {
 //			if (to_remember_EM) {
-//				print_E(*E, fmin(10, *Nt), 'E');
+//				print_E(*E, *Nt < 10 ? *Nt : 10, 'E');
 //			}
 //			printf("Nt_in = %d\n", *Nt);
 //		}

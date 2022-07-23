@@ -19,16 +19,16 @@ int main(int argc, char** argv) {
     int verbose = atoi(argv[9]);
     int my_seed = atoi(argv[10]);
 
-	L = 11;
-	Temp = 2.0;
-	h = -0.01;
-	N_init_states_default = 10;
-	M_0 = -L*L + 20;
-	M_max = -M_0;
-	N_M_interfaces = 10;
-	to_remember_EM = 0;
-	verbose = 1;
-	my_seed = 2;
+//	L = 11;
+//	Temp = 2.0;
+//	h = -0.01;
+//	N_init_states_default = 10;
+//	M_0 = -L*L + 20;
+//	M_max = -M_0;
+//	N_M_interfaces = 10;
+//	to_remember_EM = 1;
+//	verbose = 1;
+//	my_seed = 2;
 
     int i, j;
 	int L2 = L*L;
@@ -43,6 +43,8 @@ int main(int argc, char** argv) {
 	int *M_interfaces = (int*) malloc((sizeof(int) * (N_M_interfaces + 2)));
 	int *N_init_states = (int*) malloc(sizeof(int) * (N_M_interfaces + 2));
 	int **states = (int**) malloc(sizeof(int*) * (N_M_interfaces + 1));   // techically there are N+2 states' sets, but we are not interested in the first and the last sets
+	double *probs = (double*) malloc(sizeof (double) * (N_M_interfaces + 1));
+	double *d_probs = (double*) malloc(sizeof (double) * (N_M_interfaces + 1));
 
 	M_interfaces[0] = -L2-1;   // here I want runs to finish only on exiting from A to M_0
 	N_init_states[0] = N_init_states_default;
@@ -55,6 +57,7 @@ int main(int argc, char** argv) {
 		N_init_states[i+1] = N_init_states_default;
 		M_interfaces[i+1] = (i < N_M_interfaces ? M_0 + (int)((M_max - M_0) * (double)(i) / (N_M_interfaces - 1) / 2) * 2 : L2);   // TODO: check if I can put 'L2+1' here
 		assert(M_interfaces[i+1] > M_interfaces[i]);
+		assert((M_interfaces[i+1] - M_0) % 2 == 0);   // M_step = 2, so there must be integer number of M_steps between all the M-s on interfaces
 	}
 
 	double ***E;
@@ -79,46 +82,41 @@ int main(int argc, char** argv) {
     printf("hi\n");
     printf("Nt = %d\n", Nt[0]);
 
-	double *probs = (double*) malloc(sizeof (double) * (N_M_interfaces + 1));
-	double *d_probs = (double*) malloc(sizeof (double) * (N_M_interfaces + 1));
+	double flux0;
+	double d_flux0;
 	for(i = 0; i <= N_M_interfaces; ++i){
 		probs[i] = Izing::process_step(states[i], states[i == N_M_interfaces ? 0 : i+1], E[i], M[i], &(Nt[i]), &(M_arr_len[i]), N_init_states[i], N_init_states[i+1], L, Temp, h, M_interfaces[i], M_interfaces[i+1], i < N_M_interfaces, to_remember_EM, verbose);
 		//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
 		d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] * (1 - probs[i])));
 
+		if(i == 0){
+			// we know that 'probs[0] == 1' because M_0 = -L2-1 for run[0]. Thus we can compute the flux
+			flux0 = (double)N_init_states[0] / Nt[0];
+			d_flux0 = flux0 / sqrt(Nt[0]);   // TODO: use 'Nt/memory_time' instead of 'Nt'
+		}
+
 		if(verbose){
-			if(i > 0){
-				printf("-ln(p_%d) = (%lf +- %lf)\n", i, -log(probs[i]), d_probs[i] / probs[i]);
+			if(i == 0){
+				printf("flux0 = (%e +- %e) 1/step\n", flux0, d_flux0);
+			} else {
+				printf("-ln(p_%d) = (%lf +- %lf)\n", i, -log(probs[i]), d_probs[i] / probs[i]);   // this assumes p<<1
 			}
 			if(verbose >= 2){
-				printf("\nI:");
+				printf("\nstate[%d] beginning: ", i);
 				for(j = 0; j < (Nt[i] > 10 ? 10 : Nt[i]); ++j)  printf("%d ", states[i][j]);
 			}
 		}
 	}
 
-	// we know that 'probs[0] == 1' because M_0 = -L2-1 for run[0]. Thus we can compute the flux
-	double flux0 = (double)N_init_states[0] / Nt[0];
-	double d_flux0 = flux0 / sqrt(Nt[0]);
-	double ln_k_AB = log(flux0);
+	double ln_k_AB = log(flux0 * 1);   // flux has units = 1/time; Here, time is in steps, so it's not a problem. But generally speaking it's not clear what time to use here.
 	double d_ln_k_AB = Izing::sqr(d_flux0 / flux0);
 	for(i = 1; i <= N_M_interfaces; ++i){
 		ln_k_AB += log(probs[i]);
-		d_ln_k_AB += Izing::sqr(d_probs[i] / probs[i]);
+		d_ln_k_AB += Izing::sqr(d_probs[i] / probs[i]);   // this assumes p<<1
 	}
 	d_ln_k_AB = sqrt(d_ln_k_AB);
 
-	printf("-log(k_AB) = (%lf +- %lf) (1/step)", -ln_k_AB, d_ln_k_AB);
-	
-//    char filename[80];
-//    sprintf(filename, "N%d_T%lf_Nt%d_seed%d.dat", N, Temp, Nt, my_seed);
-//
-//    FILE *output_file;
-//    output_file = fopen(filename, "w");
-//    for(i = 0; i < Nt; ++i) {
-//        fprintf(output_file, "%lf ", E[i]);
-//    }
-//    fclose(output_file);
+	printf("-log(k_AB * [1 step]) = (%lf +- %lf)", -ln_k_AB, d_ln_k_AB);
 
     if(to_remember_EM){
 		for(i = 0; i <= N_M_interfaces; ++i){
@@ -135,6 +133,12 @@ int main(int argc, char** argv) {
 		free(states[i]);
 	}
     free(states);
+	free(probs);
+	free(d_probs);
+	free(Nt);
+	free(M_arr_len);
+	free(M_interfaces);
+	free(N_init_states);
 
     return 0;
 }
