@@ -37,6 +37,7 @@ namespace Izing
 }
 
 //py::tuple get_init_states(int L, double Temp, double h, int N0, int M_0, int to_get_EM, std::optional<int> _verbose);
+py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> M_interfaces, int to_get_EM, std::optional<int> _verbose);
 py::int_ init_rand(int my_seed);
 py::int_ set_verbose(int new_verbose);
 py::int_ get_seed();

@@ -74,16 +74,78 @@ namespace py = pybind11;
 //}
 
 // int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt, int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M, int to_remember_EM, int verbose)
-py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> M_interfaces, int to_get_EM, std::optional<int> _verbose)
-// TODO: the upper line (the declaration) is done; DO the implemenration == 'copy' the main.cpp here
+py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> M_interfaces, int to_get_EM, std::optional<int> _verbose)
+/**
+ *
+ * @param L - the side-size of the lattice
+ * @param Temp - temperature of the system; units=J, so it's actually T/J
+ * @param h - magnetic-field-induced multiplier; unit=J, so it's h/J
+ * @param N_init_states - array of ints [N_M_interfaces+2], how many states do I want on each interface
+ * @param M_interfaces - array of ints [N_M_interfaces+2], contains values of M for interfaces. The map is [-L2; M_0](; M_1](...](; M_n-1](; L2]
+ * @param to_get_EM - T/F, determines whether the E and M evolution if stored
+ * @param _verbose - int number >= 0 or py::none(), shows how load is the process; If it's None (py::none()), then the default state 'verbose' is used
+ * @return :
+ * 	flux0, d_flux0 - the flux from A to M_0
+ * 	Nt - array in ints [N_M_interfaces + 1], the number of MC-steps between each pair of interfaces
+ * 		Nt[interface_ID]
+ * 	M_arr_len - memory allocated for storing E and M data
+ * 	probs, d_probs - array of ints [N_M_interfaces - 1], probs[i] - probability to go from i to i+1
+ * 		probs[interface_ID]
+ * 	states - all the states in a 1D array. Mapping is the following:
+ * 		states[0               ][0...L2-1] U states[1               ][0...L2-1] U ... U states[N_init_states[0]                 -1][0...L2-1]   U  ...\
+ * 		states[N_init_states[0]][0...L2-1] U states[N_init_states[0]][0...L2-1] U ... U states[N_init_states[1]+N_init_states[0]-1][0...L2-1]   U  ...\
+ * 		states[N_init_states[1]+N_init_states[0]][0...L2-1] U   ...\
+ * 		... \
+ * 		... states[sum_{k=0..N_M_interfaces}(N_init_states[k])][0...L2-1]
+ * 	E, M - Energy and Magnetization data from all the simulations. Mapping - indices changes from last to first:
+ * 		M[interface_ID][state_ID][time_ID]
+ * 		Nt[interface_ID][state_ID] is used here
+ * 		M[0][0][0...Nt[0][0]] U M[0][1][0...Nt[0][1]] U ...
+ */
 {
-    auto init_states = py::array_t<int>(N_init_states * L*L);
-    py::buffer_info init_states_info = init_states.request();
-    int *init_states_ptr = static_cast<int *>(init_states_info.ptr);
-    int Nt;
-	int M_arr_len = N_init_states;
+	int i, j;
+	int L2 = L*L;
+	int state_size_in_bytes = L2 * sizeof(int);
 
+// -------------- check input ----------------
+	assert(L > 0);
+	assert(Temp > 0);
+	py::buffer_info M_interfaces_info = M_interfaces.request();
+	py::buffer_info N_init_states_info = N_init_states.request();
+	int *M_interfaces_ptr = static_cast<int *>(M_interfaces_info.ptr);
+	int *N_init_states_ptr = static_cast<int *>(N_init_states_info.ptr);
+
+	int N_M_interfaces = M_interfaces_info.shape[0] - 2;
+	assert(N_M_interfaces + 2 == N_init_states_info.shape[0]);
+	for(i = 0; i <= N_M_interfaces; ++i) {
+		assert(M_interfaces_ptr[i+1] > M_interfaces_ptr[i]);
+		assert((M_interfaces_ptr[i+1] - M_interfaces_ptr[0]) % 2 == 0);   // M_step = 2, so there must be integer number of M_steps between all the M-s on interfaces
+	}
 	int verbose = (_verbose.has_value() ? _verbose.value() : Izing::verbose_dafault);
+
+// ----------------- create return objects --------------
+	double flux0, d_flux0;
+	int M_arr_len = 128;   // the initial value that will be doubling when necessary
+// [(-L2)---M_0](---M_1](---...---M_n-2](---M_n-1](---L2]
+//        A       1       2 ...n-1       n-1        B
+//        0       1       2 ...n-1       n-1       n
+	auto Nt = py::array_t<int>(N_M_interfaces + 1);
+	auto probs = py::array_t<double>(N_M_interfaces + 1);
+	auto d_probs = py::array_t<double>(N_M_interfaces + 1);
+	py::buffer_info Nt_info = Nt.request();
+	py::buffer_info probs_info = probs.request();
+	py::buffer_info d_probs_info = d_probs.request();
+	int *Nt_ptr = static_cast<int *>(Nt_info.ptr);
+	double *probs_ptr = static_cast<double *>(probs_info.ptr);
+	double *d_probs_ptr = static_cast<double *>(d_probs_info.ptr);
+
+	int N_states_total = 0;
+	for(i = 0; i < N_M_interfaces + 2; ++i) {
+		N_states_total += N_init_states_ptr[i];
+	}
+	auto states = py::array_t<int>(N_states_total * L2);   // technically there are N+2 states' sets, but we are not interested in the first and the last sets
+	py::buffer_info states_info = Nt.request();
+	int *states_ptr = static_cast<int *>(Nt_info.ptr);
 
     double **_E;
     int **_M;
@@ -95,26 +157,29 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> M_interfa
     }
 
 	if(verbose){
-		printf("using: L=%d  T=%lf  h=%lf  N_init_states=%d  M_0=%d  EM=%d  v=%d\n", L, Temp, h, N_init_states, M_0, to_get_EM, verbose);
+		printf("using: L=%d  T=%lf  h=%lf  EM=%d  v=%d\n", L, Temp, h, to_get_EM, verbose);
+		for(i = 1; i <= N_M_interfaces; ++i){
+			printf("%d ", M_interfaces_ptr[i]);
+		}
+		printf("\n");
 	}
 
-    Izing::get_init_states_C(L, Temp, h, N_init_states, init_states_ptr, _E, _M, &Nt, to_get_EM, verbose);
+	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states_ptr, N_init_states_ptr, Nt_ptr, &M_arr_len, M_interfaces_ptr, N_M_interfaces, probs_ptr, d_probs_ptr, _E, _M, to_get_EM, verbose);
 
-    if(verbose){
-		printf("Nt = %d\n", Nt);
-	}
+	int Nt_total = 0;
+	for(i = 0; i < N_M_interfaces + 1; ++i) Nt_total += Nt_ptr[i];
 
-    py::array_t<double> E;
-    py::array_t<double> M;
+	py::array_t<double> E;
+    py::array_t<int> M;
     if(to_get_EM){
-        E = py::array_t<double>(Nt);
-        M = py::array_t<double>(Nt);
+        E = py::array_t<double>(Nt_total);
+        M = py::array_t<double>(Nt_total);
         py::buffer_info E_info = E.request();
         py::buffer_info M_info = M.request();
         double *E_ptr = static_cast<double *>(E_info.ptr);
-        double *M_ptr = static_cast<double *>(M_info.ptr);
-        memcpy(E_ptr, *_E, sizeof(double) * Nt);
-        memcpy(M_ptr, *_M, sizeof(double) * Nt);
+        int *M_ptr = static_cast<int *>(M_info.ptr);
+        memcpy(E_ptr, *_E, sizeof(double) * Nt_total);
+        memcpy(M_ptr, *_M, sizeof(int) * Nt_total);
 
         free(*_E);
         free(_E);
@@ -123,13 +188,12 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> M_interfa
 
 		if(verbose >= 2){
 			if(to_get_EM){
-				Izing::print_E(E_ptr, Nt < 10 ? Nt : 10, 'P');
+				Izing::print_E(E_ptr, Nt_total < 10 ? Nt_total : 10, 'P');
 			}
 		}
     }
 
-
-    py::tuple res = py::make_tuple(init_states, E, M);
+    py::tuple res = py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M);
     return res;
 }
 
