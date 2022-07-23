@@ -15,7 +15,67 @@ namespace py = pybind11;
 
 #include "Izing.h"
 
-py::tuple get_init_states(int L, double Temp, double h, int N_init_states, int M_0, int to_get_EM, std::optional<int> _verbose)
+//py::tuple get_init_states(int L, double Temp, double h, int N_init_states, int M_0, int to_get_EM, std::optional<int> _verbose)
+//{
+//    auto init_states = py::array_t<int>(N_init_states * L*L);
+//    py::buffer_info init_states_info = init_states.request();
+//    int *init_states_ptr = static_cast<int *>(init_states_info.ptr);
+//    int Nt;
+//	int M_arr_len = N_init_states;
+//
+//	int verbose = (_verbose.has_value() ? _verbose.value() : Izing::verbose_dafault);
+//
+//    double **_E;
+//    int **_M;
+//    if(to_get_EM){
+//        _E = (double**) malloc(sizeof(double*) * 1);
+//        *_E = (double*) malloc(sizeof(double) * M_arr_len);
+//        _M = (int**) malloc(sizeof(int*) * 1);
+//        *_M = (int*) malloc(sizeof(int) * M_arr_len);
+//    }
+//
+//	if(verbose){
+//		printf("using: L=%d  T=%lf  h=%lf  N_init_states=%d  M_0=%d  EM=%d  v=%d\n", L, Temp, h, N_init_states, M_0, to_get_EM, verbose);
+//	}
+//
+//    Izing::get_init_states_C(L, Temp, h, N_init_states, init_states_ptr, _E, _M, &Nt, to_get_EM, verbose);
+//
+//    if(verbose){
+//		printf("Nt = %d\n", Nt);
+//	}
+//
+//    py::array_t<double> E;
+//    py::array_t<double> M;
+//    if(to_get_EM){
+//        E = py::array_t<double>(Nt);
+//        M = py::array_t<double>(Nt);
+//        py::buffer_info E_info = E.request();
+//        py::buffer_info M_info = M.request();
+//        double *E_ptr = static_cast<double *>(E_info.ptr);
+//        double *M_ptr = static_cast<double *>(M_info.ptr);
+//        memcpy(E_ptr, *_E, sizeof(double) * Nt);
+//        memcpy(M_ptr, *_M, sizeof(double) * Nt);
+//
+//        free(*_E);
+//        free(_E);
+//        free(*_M);
+//        free(_M);
+//
+//		if(verbose >= 2){
+//			if(to_get_EM){
+//				Izing::print_E(E_ptr, Nt < 10 ? Nt : 10, 'P');
+//			}
+//		}
+//    }
+//
+//
+//    py::tuple res = py::make_tuple(init_states, E, M);
+//    return res;
+//}
+
+// int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt, int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M, int to_remember_EM, int verbose)
+py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> M_interfaces, int to_get_EM, std::optional<int> _verbose)
+// TODO: the upper line (the declaration) is done; DO the implemenration == 'copy' the main.cpp here
 {
     auto init_states = py::array_t<int>(N_init_states * L*L);
     py::buffer_info init_states_info = init_states.request();
@@ -38,7 +98,7 @@ py::tuple get_init_states(int L, double Temp, double h, int N_init_states, int M
 		printf("using: L=%d  T=%lf  h=%lf  N_init_states=%d  M_0=%d  EM=%d  v=%d\n", L, Temp, h, N_init_states, M_0, to_get_EM, verbose);
 	}
 
-    Izing::get_init_states_C(L, Temp, h, N_init_states, M_0, init_states_ptr, _E, _M, &Nt, &M_arr_len, to_get_EM, verbose);
+    Izing::get_init_states_C(L, Temp, h, N_init_states, init_states_ptr, _E, _M, &Nt, to_get_EM, verbose);
 
     if(verbose){
 		printf("Nt = %d\n", Nt);
@@ -72,6 +132,7 @@ py::tuple get_init_states(int L, double Temp, double h, int N_init_states, int M
     py::tuple res = py::make_tuple(init_states, E, M);
     return res;
 }
+
 
 py::int_ init_rand(int my_seed)
 {
@@ -109,21 +170,16 @@ namespace Izing
         return 0;
     }
 
-    int comp_M(int *s, int L, int *M)
+    int comp_M(int *s, int L)
     {
         int i, j;
         int _M = 0;
-        for(i = 0; i < L; ++i){
-            for(j = 0; j < L; ++j){
-                _M += s[i*L + j];
-            }
-        }
-
-        *M = _M;
-        return 0;
+		int L2 = L*L;
+		for(i = 0; i < L2; ++i) _M += s[i];
+        return _M;
     }
 
-    int comp_E(int* s, int L, double h, double *E)
+    double comp_E(int* s, int L, double h)
     {
         int i, j;
         double _E = 0;
@@ -138,13 +194,11 @@ namespace Izing
         }
         _E += s[(L-1)*L + (L-1)] * (s[0*L + (L-1)] + s[(L-1)*L + 0]);
 
-        int _M;
-        comp_M(s, L, &_M);
+        int _M = comp_M(s, L);
+		_E *= -1;   // J > 0 -> {++ > +-} -> we need to *(-1) because we search for a minimum
+		// energy is measured in [E]=J, so J==1, or we store E/J value
 
-        *E = h * (_M) - _E; // J > 0 -> {++ > +-} -> we need to *(-1) because we search for a minimum
-        // energy is measured in [E]=J, so J==1, or we store E/J value
-
-        return 0;
+        return h * _M + _E;
     }
 
     int generate_state(int *s, int L, gsl_rng *rng, int mode)
@@ -202,17 +256,76 @@ namespace Izing
             *ix = gsl_rng_uniform_int(rng, L);
             *iy = gsl_rng_uniform_int(rng, L);
 
-            dE[0] = get_dE(s, L, h, *ix, *iy);
-        }while(!(dE[0] <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- dE[0] / Temp) ? 1 : 0)));
+            *dE = get_dE(s, L, h, *ix, *iy);
+        }while(!(*dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- *dE / Temp) ? 1 : 0)));
 
         return 0;
     }
 
-	int get_init_states_C(int L, double Temp, double h, int N_init_states, int M_0, int *init_states, double **E, int **M, int *Nt, int *M_arr_len, bool to_remember_EM, int verbose)
+	int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt, int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M, int to_remember_EM, int verbose)
+	{
+		int i, j;
+		int Nt_total = 0;
+// get the initial states; they should be sampled from the distribution in [-L^2; M_0], but they are all set to have M == -L^2 because then they all will fall into the local optimum and almost forget the initial state, so it's almost equivalent to sampling from the proper distribution if 'F(M_0) - F_min >~ T'
+		get_init_states_C(L, Temp, h, N_init_states[0], states, E, M, &Nt_total, to_remember_EM, verbose);
+		printf("hi\n");
+		printf("Nt = %d\n", Nt_total);
+
+		int N_states_analyzed = 0;
+		int L2 = L*L;
+		int state_size_in_bytes = sizeof(int) * L2;
+
+		for(i = 0; i <= N_M_interfaces; ++i){
+			probs[i] = process_step(&(states[L2 * N_states_analyzed]), &(states[i == N_M_interfaces ? 0 : L2 * (N_states_analyzed + N_init_states[i])]), E, M, &Nt_total, M_arr_len, N_init_states[i], N_init_states[i+1], L, Temp, h, M_interfaces[i], M_interfaces[i+1], i < N_M_interfaces, to_remember_EM, verbose);
+			//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
+			d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] * (1 - probs[i])));
+
+			N_states_analyzed += N_init_states[0];
+			if(i == 0){
+				// we know that 'probs[0] == 1' because M_0 = -L2-1 for run[0]. Thus we can compute the flux
+				Nt[0] = Nt_total;
+				*flux0 = (double)N_init_states[0] / Nt[0];
+				*d_flux0 = *flux0 / sqrt(Nt[0]);   // TODO: use 'Nt/memory_time' instead of 'Nt'
+			} else {
+				Nt[i] = Nt_total - Nt[i - 1];
+			}
+
+			if(verbose){
+				if(i == 0){
+					printf("flux0 = (%e +- %e) 1/step\n", flux0, d_flux0);
+				} else {
+					printf("-ln(p_%d) = (%lf +- %lf)\n", i, -log(probs[i]), d_probs[i] / probs[i]);   // this assumes p<<1
+				}
+				if(verbose >= 2){
+					if(i < N_M_interfaces){
+						printf("\nstate[%d] beginning: ", i);
+						for(j = 0; j < (Nt[i] > 10 ? 10 : Nt[i]); ++j)  printf("%d ", states[L2 * N_states_analyzed - N_init_states[i] + j]);
+					}
+					printf("\n");
+				}
+			}
+		}
+
+		double ln_k_AB = log(*flux0 * 1);   // flux has units = 1/time; Here, time is in steps, so it's not a problem. But generally speaking it's not clear what time to use here.
+		double d_ln_k_AB = Izing::sqr(*d_flux0 / *flux0);
+		for(i = 1; i <= N_M_interfaces; ++i){
+			ln_k_AB += log(probs[i]);
+			d_ln_k_AB += Izing::sqr(d_probs[i] / probs[i]);   // this assumes p<<1
+		}
+		d_ln_k_AB = sqrt(d_ln_k_AB);
+
+		if(verbose){
+			printf("-log(k_AB * [1 step]) = (%lf +- %lf)\n", - ln_k_AB, d_ln_k_AB);
+		}
+
+		return 0;
+	}
+
+	int get_init_states_C(int L, double Temp, double h, int N_init_states, int *init_states, double **E, int **M, int *Nt, bool to_remember_EM, int verbose)
 	{
 		int i;
 		int L2 = L*L;
-		int state_size = sizeof(int) * L2;
+//		int state_size_in_bytes = sizeof(int) * L2;
 
 		// generate N_init_states states in A
 		// Here they are identical, but I think it's better to generate them accordingly to equilibrium distribution in A
@@ -223,53 +336,18 @@ namespace Izing
 		*Nt += 1;
 		// record initial state (all DOWN) E and M since run_state changes it before recording
 		if(to_remember_EM){
-			comp_M(init_states, L, &((*M)[*Nt - 1]));
-			comp_E(init_states, L, h, &((*E)[*Nt - 1]));
+			(*M)[*Nt - 1] = comp_M(init_states, L);
+			(*E)[*Nt - 1] = comp_E(init_states, L, h);
 		}
 
 		return 0;
 	}
 
-//	int get_init_states_C(int L, double Temp, double h, int N_init_states, int M_0, int *init_states, double **E, int **M, int *Nt, int *M_arr_len, bool to_remember_EM, int verbose)
-//	{
-//		int i;
-//		int L2 = L*L;
-//		int state_size = sizeof(int) * L2;
-//
-//		// generate N_init_states states in A
-//		// Here they are identical, but I think it's better to generate them accordingly to equilibrium distribution in A
-//		int *states_to_run = (int*) malloc(N_init_states * state_size);
-//		for(i = 0; i < N_init_states; ++i){
-//			generate_state(&(states_to_run[i * L2]), L, rng, 0); // allocate all spins = -1
-//		}
-//		*Nt += 1;
-//
-//		// record initial state (all DOWN) E and M since run_state changes it before recording
-//		comp_M(states_to_run, L, &((*M)[*Nt - 1]));
-//		comp_E(states_to_run, L, h, &((*E)[*Nt - 1]));
-//
-//		if(verbose >= 2){
-//			printf("states generated\n");
-//		}
-//		process_step(states_to_run, init_states, E, M, Nt, M_arr_len, N_init_states, L, Temp, h, -L2-1, M_0, to_remember_EM, verbose);
-//
-//        if(verbose) {
-//			if (to_remember_EM) {
-//				print_E(*E, *Nt < 10 ? *Nt : 10, 'E');
-//			}
-//			printf("Nt_in = %d\n", *Nt);
-//		}
-//
-//		free(states_to_run);
-//
-//		return 0;
-//	}
-
 	double process_step(int *init_states, int *next_states, double **E, int **M, int *Nt, int *M_arr_len, int N_init_states, int N_next_states, int L, double Temp, double h, int M_0, int M_next, int to_save_next_states, bool to_remember_EM, int verbose)
 	/**
 	 *
-	 * @param init_states - are assumed to contain 'N_init_states * state_size' ints representing states to start simulations from
-	 * @param next_states - are assumed to be allocated to have 'N_init_states * state_size' ints
+	 * @param init_states - are assumed to contain 'N_init_states * state_size_in_bytes' ints representing states to start simulations from
+	 * @param next_states - are assumed to be allocated to have 'N_init_states * state_size_in_bytes' ints
 	 * @param E - array of Energy values for all the runs, joined consequently; Is assumed to be preallocated with *M_arr_len of doubles
 	 * @param M - array of Magnetic moment values for all the runs, joined consequently; Is assumed to be preallocated with *M_arr_len of doubles
 	 * @param Nt - total number of simulation steps in this 'i -> i+1' part of the simulation
@@ -286,37 +364,40 @@ namespace Izing
 	 */
 	{
 		int L2 = L*L;
-		int state_size = sizeof(int) * L2;
+		int state_size_in_bytes = sizeof(int) * L2;
 		int N_succ = 0;
 		int N_runs = 0;
-		int *state_under_process = (int*) malloc(state_size);
+		int *state_under_process = (int*) malloc(state_size_in_bytes);
 		if(verbose){
 			printf("doing step:(%d; %d]\n", M_0, M_next);
 			if(verbose >= 2){
 				getchar();
 			}
 		}
+		int init_state_to_process_ID;
 		while(N_succ < N_next_states){
-			int init_state_to_process_ID = gsl_rng_uniform_int(rng, N_init_states);
+			init_state_to_process_ID = gsl_rng_uniform_int(rng, N_init_states);
 			if(verbose >= 2){
 				printf("state %d:\n", N_succ);
 			}
-			memcpy(state_under_process, &(init_states[init_state_to_process_ID * L2]), state_size);   // get a copy of the chosen init state
+			memcpy(state_under_process, &(init_states[init_state_to_process_ID * L2]), state_size_in_bytes);   // get a copy of the chosen init state
 			if(run_state(state_under_process, L, Temp, h, M_0, M_next, E, M, Nt, M_arr_len, to_remember_EM, verbose)){   // run it until it reaches M_0 or M_next
 				// Nt is not reinitialized to 0 and that's correct because it shows the total number of EM datapoints
 				// the run reached M_next
 
 				++N_succ;
 				if(to_save_next_states) {
-					memcpy(&(next_states[(N_succ - 1) * L2]), state_under_process, state_size);   // save the resulting system state for the next step
+					memcpy(&(next_states[(N_succ - 1) * L2]), state_under_process, state_size_in_bytes);   // save the resulting system state for the next step
 				}
 				if(verbose) {
 					if(verbose >= 2){
 						printf("state %d saved for future\n", N_succ - 1);
-					}
-					if((N_succ % (N_next_states / 1000 + 1) == 0) || (verbose >= 2)){
-						printf("%lf %%          \r", (double)N_succ/N_next_states * 100);
-						fflush(stdout);
+						printf("%lf %%\n", (double)N_succ/N_next_states * 100);
+					} else { // verbose == 1
+						if(N_succ % (N_next_states / 1000 + 1) == 0){
+							printf("%lf %%          \r", (double)N_succ/N_next_states * 100);
+							fflush(stdout);
+						}
 					}
 				}
 			}
@@ -335,8 +416,8 @@ namespace Izing
 	{
 		int M_current;
 		double E_current;
-		comp_E(s, L, h, &E_current); // remember the 1st energy
-		comp_M(s, L, &M_current); // remember the 1st M
+		M_current = comp_M(s, L); // remember the 1st M
+		E_current = comp_E(s, L, h); // remember the 1st energy
 		if(verbose >= 2){
 			printf("E=%lf, M=%d\n", E_current, M_current);
 		}
@@ -358,9 +439,21 @@ namespace Izing
 					*M_arr_len *= 2;
 					*E = (double*) realloc (*E, sizeof(double) * *M_arr_len);
 					*M = (int*) realloc (*M, sizeof(int) * *M_arr_len);
+					assert(*E);
+					assert(*M);
+					if(verbose >= 2){
+						printf("realloced to %d\n", *M_arr_len);
+					}
 				}
-				(*M)[*Nt - 1] = M_current;
+				if(*Nt == 22036){
+					printf("hi1\n");
+				} else if(*Nt == 22037) {
+					printf("hi2\n");
+				}else if(*Nt == 22038) {
+					printf("hi4\n");
+				}
 				(*E)[*Nt - 1] = E_current;
+				(*M)[*Nt - 1] = M_current;
 			}
 			if(verbose >= 3) printf("done Nt=%d\n", *Nt-1);
 			if(M_current == M_0){
