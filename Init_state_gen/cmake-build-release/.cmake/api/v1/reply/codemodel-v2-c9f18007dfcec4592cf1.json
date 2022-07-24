@@ -41,14 +41,14 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "Izing::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-Izing-Release-7c37377cd447c8fa884b.json",
+					"jsonFile" : "target-Izing-Release-9adfc550abb4a0e75010.json",
 					"name" : "Izing",
 					"projectIndex" : 0
 				},
 				{
 					"directoryIndex" : 0,
 					"id" : "izing.so::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-izing.so-Release-e04cf2db3900ed07536e.json",
+					"jsonFile" : "target-izing.so-Release-47f61eddfa1f76b0475b.json",
 					"name" : "izing.so",
 					"projectIndex" : 0
 				}

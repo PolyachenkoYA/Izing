@@ -6,5 +6,5 @@ CXX_DEFINES = -Dizing_so_EXPORTS
 
 CXX_INCLUDES = -I/home/ypolyach/anaconda3/include -I/home/ypolyach/anaconda3/include/python3.8 -I/usr/include/python3.8
 
-CXX_FLAGS = -Wall -Wextra -O3 -fPIC -fvisibility=hidden -flto -fno-fat-lto-objects -std=gnu++17
+CXX_FLAGS = -Wall -Wextra -O2 -fPIC -fvisibility=hidden -flto -fno-fat-lto-objects -std=gnu++17
 

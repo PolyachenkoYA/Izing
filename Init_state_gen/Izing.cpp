@@ -114,12 +114,16 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 	py::buffer_info N_init_states_info = N_init_states.request();
 	int *M_interfaces_ptr = static_cast<int *>(M_interfaces_info.ptr);
 	int *N_init_states_ptr = static_cast<int *>(N_init_states_info.ptr);
+	assert(M_interfaces_info.ndim == 1);
+	assert(N_init_states_info.ndim == 1);
 
+	printf("M: %ld;\n", M_interfaces_info.shape[0]);
+	printf("N: %ld;\n", N_init_states_info.shape[0]);
 	int N_M_interfaces = M_interfaces_info.shape[0] - 2;
 	assert(N_M_interfaces + 2 == N_init_states_info.shape[0]);
 	for(i = 0; i <= N_M_interfaces; ++i) {
 		assert(M_interfaces_ptr[i+1] > M_interfaces_ptr[i]);
-		assert((M_interfaces_ptr[i+1] - M_interfaces_ptr[0]) % 2 == 0);   // M_step = 2, so there must be integer number of M_steps between all the M-s on interfaces
+		assert((M_interfaces_ptr[i+1] - M_interfaces_ptr[1]) % 2 == 0);   // M_step = 2, so there must be integer number of M_steps between all the M-s on interfaces
 	}
 	int verbose = (_verbose.has_value() ? _verbose.value() : Izing::verbose_dafault);
 
@@ -135,9 +139,12 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 	py::buffer_info Nt_info = Nt.request();
 	py::buffer_info probs_info = probs.request();
 	py::buffer_info d_probs_info = d_probs.request();
-	int *Nt_ptr = static_cast<int *>(Nt_info.ptr);
-	double *probs_ptr = static_cast<double *>(probs_info.ptr);
-	double *d_probs_ptr = static_cast<double *>(d_probs_info.ptr);
+//	int *Nt_ptr = static_cast<int *>(Nt_info.ptr);
+//	double *probs_ptr = static_cast<double *>(probs_info.ptr);
+//	double *d_probs_ptr = static_cast<double *>(d_probs_info.ptr);
+	int *Nt_ptr = (int*)Nt_info.ptr;
+	double *probs_ptr = (double*)probs_info.ptr;
+	double *d_probs_ptr = (double*)d_probs_info.ptr;
 
 	int N_states_total = 0;
 	for(i = 0; i < N_M_interfaces + 2; ++i) {
@@ -164,10 +171,30 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 		printf("\n");
 	}
 
-	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states_ptr, N_init_states_ptr, Nt_ptr, &M_arr_len, M_interfaces_ptr, N_M_interfaces, probs_ptr, d_probs_ptr, _E, _M, to_get_EM, verbose);
+	printf("p1: %d\n", probs_info.shape[0]);
+	printf("d1: %d\n", d_probs_info.shape[0]);
 
+	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states_ptr, N_init_states_ptr, Nt_ptr, &M_arr_len, M_interfaces_ptr, N_M_interfaces, probs_ptr, d_probs_ptr, _E, _M, to_get_EM, verbose);
+	printf("hi\n");
+
+	probs_info = probs.request();
+	d_probs_info = d_probs.request();
+	printf("p2: %d\n", probs_info.shape[0]);
+	printf("d2: %d\n", d_probs_info.shape[0]);
+
+	if(verbose){
+		printf("FFS core done\nNt: ");
+	}
 	int Nt_total = 0;
-	for(i = 0; i < N_M_interfaces + 1; ++i) Nt_total += Nt_ptr[i];
+	for(i = 0; i < N_M_interfaces + 1; ++i) {
+		if(verbose){
+			printf("%d ", Nt_ptr[i]);
+		}
+		Nt_total += Nt_ptr[i];
+	}
+	if(verbose){
+		printf("\n");
+	}
 
 	py::array_t<double> E;
     py::array_t<int> M;
@@ -187,14 +214,17 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
         free(_M);
 
 		if(verbose >= 2){
+			printf("internal memory for EM freed\n");
 			if(to_get_EM){
 				Izing::print_E(E_ptr, Nt_total < 10 ? Nt_total : 10, 'P');
 			}
 		}
     }
 
-    py::tuple res = py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M);
-    return res;
+	if(verbose){
+		printf("exiting py::run_FFS\n");
+	}
+    return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M);
 }
 
 
@@ -332,8 +362,9 @@ namespace Izing
 		int Nt_total = 0;
 // get the initial states; they should be sampled from the distribution in [-L^2; M_0], but they are all set to have M == -L^2 because then they all will fall into the local optimum and almost forget the initial state, so it's almost equivalent to sampling from the proper distribution if 'F(M_0) - F_min >~ T'
 		get_init_states_C(L, Temp, h, N_init_states[0], states, E, M, &Nt_total, to_remember_EM, verbose);
-		printf("hi\n");
-		printf("Nt = %d\n", Nt_total);
+		if(verbose){
+			printf("Init states generated; Nt = %d\n", Nt_total);
+		}
 
 		int N_states_analyzed = 0;
 		int L2 = L*L;
@@ -356,7 +387,7 @@ namespace Izing
 
 			if(verbose){
 				if(i == 0){
-					printf("flux0 = (%e +- %e) 1/step\n", flux0, d_flux0);
+					printf("flux0 = (%e +- %e) 1/step\n", *flux0, *d_flux0);
 				} else {
 					printf("-ln(p_%d) = (%lf +- %lf)\n", i, -log(probs[i]), d_probs[i] / probs[i]);   // this assumes p<<1
 				}
@@ -372,7 +403,7 @@ namespace Izing
 
 		double ln_k_AB = log(*flux0 * 1);   // flux has units = 1/time; Here, time is in steps, so it's not a problem. But generally speaking it's not clear what time to use here.
 		double d_ln_k_AB = Izing::sqr(*d_flux0 / *flux0);
-		for(i = 1; i <= N_M_interfaces; ++i){
+		for(i = 1; i < N_M_interfaces; ++i){   // we don't need the last prob since it's a P from M=M_last to M=L2
 			ln_k_AB += log(probs[i]);
 			d_ln_k_AB += Izing::sqr(d_probs[i] / probs[i]);   // this assumes p<<1
 		}
@@ -380,6 +411,9 @@ namespace Izing
 
 		if(verbose){
 			printf("-log(k_AB * [1 step]) = (%lf +- %lf)\n", - ln_k_AB, d_ln_k_AB);
+			if(verbose >= 2){
+
+			}
 		}
 
 		return 0;
@@ -509,13 +543,13 @@ namespace Izing
 						printf("realloced to %d\n", *M_arr_len);
 					}
 				}
-				if(*Nt == 22036){
-					printf("hi1\n");
-				} else if(*Nt == 22037) {
-					printf("hi2\n");
-				}else if(*Nt == 22038) {
-					printf("hi4\n");
-				}
+//				if(*Nt == 22036){
+//					printf("hi1\n");
+//				} else if(*Nt == 22037) {
+//					printf("hi2\n");
+//				}else if(*Nt == 22038) {
+//					printf("hi4\n");
+//				}
 				(*E)[*Nt - 1] = E_current;
 				(*M)[*Nt - 1] = M_current;
 			}
