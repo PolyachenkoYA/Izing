@@ -73,6 +73,18 @@ namespace py = pybind11;
 //    return res;
 //}
 
+
+void test_my(int k, py::array_t<int> *_Nt, py::array_t<double> *_probs, py::array_t<double> *_d_probs)
+{
+	printf("checking step %d\n", k);
+	py::buffer_info Nt_info = (*_Nt).request();
+	py::buffer_info probs_info = (*_probs).request();
+	py::buffer_info d_probs_info = (*_d_probs).request();
+	printf("n%d: %d\n", k, Nt_info.shape[0]);
+	printf("p%d: %d\n", k, probs_info.shape[0]);
+	printf("d%d: %d\n", k, d_probs_info.shape[0]);
+}
+
 // int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt, int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M, int to_remember_EM, int verbose)
 py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> M_interfaces, int to_get_EM, std::optional<int> _verbose)
 /**
@@ -133,26 +145,23 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 // [(-L2)---M_0](---M_1](---...---M_n-2](---M_n-1](---L2]
 //        A       1       2 ...n-1       n-1        B
 //        0       1       2 ...n-1       n-1       n
-	auto Nt = py::array_t<int>(N_M_interfaces + 1);
-	auto probs = py::array_t<double>(N_M_interfaces + 1);
-	auto d_probs = py::array_t<double>(N_M_interfaces + 1);
+	py::array_t<int> Nt = py::array_t<int>(N_M_interfaces + 1);
+	py::array_t<double> probs = py::array_t<double>(N_M_interfaces + 1);
+	py::array_t<double> d_probs = py::array_t<double>(N_M_interfaces + 1);
 	py::buffer_info Nt_info = Nt.request();
 	py::buffer_info probs_info = probs.request();
 	py::buffer_info d_probs_info = d_probs.request();
-//	int *Nt_ptr = static_cast<int *>(Nt_info.ptr);
-//	double *probs_ptr = static_cast<double *>(probs_info.ptr);
-//	double *d_probs_ptr = static_cast<double *>(d_probs_info.ptr);
-	int *Nt_ptr = (int*)Nt_info.ptr;
-	double *probs_ptr = (double*)probs_info.ptr;
-	double *d_probs_ptr = (double*)d_probs_info.ptr;
+	int *Nt_ptr = static_cast<int *>(Nt_info.ptr);
+	double *probs_ptr = static_cast<double *>(probs_info.ptr);
+	double *d_probs_ptr = static_cast<double *>(d_probs_info.ptr);
 
 	int N_states_total = 0;
 	for(i = 0; i < N_M_interfaces + 2; ++i) {
 		N_states_total += N_init_states_ptr[i];
 	}
-	auto states = py::array_t<int>(N_states_total * L2);   // technically there are N+2 states' sets, but we are not interested in the first and the last sets
-	py::buffer_info states_info = Nt.request();
-	int *states_ptr = static_cast<int *>(Nt_info.ptr);
+	py::array_t<int> states = py::array_t<int>(N_states_total * L2);   // technically there are N+2 states' sets, but we are not interested in the first and the last sets
+	py::buffer_info states_info = states.request();
+	int *states_ptr = static_cast<int *>(states_info.ptr);
 
     double **_E;
     int **_M;
@@ -171,16 +180,21 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 		printf("\n");
 	}
 
-	printf("p1: %d\n", probs_info.shape[0]);
-	printf("d1: %d\n", d_probs_info.shape[0]);
+//	printf("p1: %d\n", probs_info.shape[0]);
+//	printf("d1: %d\n", d_probs_info.shape[0]);
+	test_my(1, &Nt, &probs, &d_probs);
 
-	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states_ptr, N_init_states_ptr, Nt_ptr, &M_arr_len, M_interfaces_ptr, N_M_interfaces, probs_ptr, d_probs_ptr, _E, _M, to_get_EM, verbose);
+	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states_ptr, N_init_states_ptr,
+					 Nt_ptr, &M_arr_len, M_interfaces_ptr, N_M_interfaces,
+					 probs_ptr, d_probs_ptr, _E, _M, to_get_EM, verbose,
+					 &Nt, &probs, &d_probs);
 	printf("hi\n");
 
-	probs_info = probs.request();
-	d_probs_info = d_probs.request();
-	printf("p2: %d\n", probs_info.shape[0]);
-	printf("d2: %d\n", d_probs_info.shape[0]);
+//	probs_info = probs.request();
+//	d_probs_info = d_probs.request();
+//	printf("p2: %d\n", probs_info.shape[0]);
+//	printf("d2: %d\n", d_probs_info.shape[0]);
+	test_my(100000, &Nt, &probs, &d_probs);
 
 	if(verbose){
 		printf("FFS core done\nNt: ");
@@ -251,7 +265,17 @@ namespace Izing
     int seed;
     int verbose_dafault;
 
-    int init_rand_C(int my_seed)
+	int state_is_valid(const int *s, int L, int k=0, char prefix=0)
+	{
+		for(int i = 0; i < L*L; ++i) if(abs(s[i]) != 1) {
+				printf("%d\n", k);
+				print_S(s, L, prefix);
+				return 0;
+		}
+		return 1;
+	}
+
+	int init_rand_C(int my_seed)
     {
         // initialize random generator
         gsl_rng_env_setup();
@@ -264,7 +288,7 @@ namespace Izing
         return 0;
     }
 
-    int comp_M(int *s, int L)
+    int comp_M(const int *s, int L)
     {
         int i, j;
         int _M = 0;
@@ -273,7 +297,7 @@ namespace Izing
         return _M;
     }
 
-    double comp_E(int* s, int L, double h)
+    double comp_E(const int* s, int L, double h)
     {
         int i, j;
         double _E = 0;
@@ -356,8 +380,12 @@ namespace Izing
         return 0;
     }
 
-	int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt, int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M, int to_remember_EM, int verbose)
+	int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt,
+				  int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M,
+				  int to_remember_EM, int verbose,
+				  py::array_t<int> *_Nt, py::array_t<double> *_probs, py::array_t<double> *_d_probs)
 	{
+		test_my(2, _Nt, _probs, _d_probs);
 		int i, j;
 		int Nt_total = 0;
 // get the initial states; they should be sampled from the distribution in [-L^2; M_0], but they are all set to have M == -L^2 because then they all will fall into the local optimum and almost forget the initial state, so it's almost equivalent to sampling from the proper distribution if 'F(M_0) - F_min >~ T'
@@ -370,12 +398,33 @@ namespace Izing
 		int L2 = L*L;
 		int state_size_in_bytes = sizeof(int) * L2;
 
+		test_my(10, _Nt, _probs, _d_probs);
+
 		for(i = 0; i <= N_M_interfaces; ++i){
-			probs[i] = process_step(&(states[L2 * N_states_analyzed]), &(states[i == N_M_interfaces ? 0 : L2 * (N_states_analyzed + N_init_states[i])]), E, M, &Nt_total, M_arr_len, N_init_states[i], N_init_states[i+1], L, Temp, h, M_interfaces[i], M_interfaces[i+1], i < N_M_interfaces, to_remember_EM, verbose);
+			test_my(1000 * (i+1), _Nt, _probs, _d_probs);
+			for(j = 0; j < N_init_states[i]; ++j){
+				assert(state_is_valid(&(states[L2 * (N_states_analyzed + j)]), L, j, 'F'));
+			}
+//			if(i == 4) print_S()
+			probs[i] = process_step(&(states[L2 * N_states_analyzed]),
+									&(states[i == N_M_interfaces ? 0 : L2 * (N_states_analyzed + N_init_states[i])]),
+									E, M, &Nt_total, M_arr_len, N_init_states[i],
+									N_init_states[i+1], L, Temp, h, M_interfaces[i], M_interfaces[i+1],
+									i < N_M_interfaces, to_remember_EM, verbose,
+									_Nt, _probs, _d_probs);
 			//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
 			d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] * (1 - probs[i])));
 
-			N_states_analyzed += N_init_states[0];
+			printf("probs: %lf +- %lf\n", probs[i], d_probs[i]);
+			test_my(1000 * (i+1) + 950, _Nt, _probs, _d_probs);
+
+			N_states_analyzed += N_init_states[i];
+			if(i < N_M_interfaces){
+				for(j = 0; j < N_init_states[i+1]; ++j){
+					assert(state_is_valid(&(states[L2 * (N_states_analyzed + i)]), L, j, 'f'));
+				}
+			}
+
 			if(i == 0){
 				// we know that 'probs[0] == 1' because M_0 = -L2-1 for run[0]. Thus we can compute the flux
 				Nt[0] = Nt_total;
@@ -416,6 +465,7 @@ namespace Izing
 			}
 		}
 
+		test_my(99999, _Nt, _probs, _d_probs);
 		return 0;
 	}
 
@@ -441,7 +491,10 @@ namespace Izing
 		return 0;
 	}
 
-	double process_step(int *init_states, int *next_states, double **E, int **M, int *Nt, int *M_arr_len, int N_init_states, int N_next_states, int L, double Temp, double h, int M_0, int M_next, int to_save_next_states, bool to_remember_EM, int verbose)
+	double process_step(int *init_states, int *next_states, double **E, int **M, int *Nt, int *M_arr_len,
+						int N_init_states, int N_next_states, int L, double Temp, double h, int M_0, int M_next,
+						int to_save_next_states, bool to_remember_EM, int verbose,
+						py::array_t<int> *_Nt, py::array_t<double> *_probs, py::array_t<double> *_d_probs)
 	/**
 	 *
 	 * @param init_states - are assumed to contain 'N_init_states * state_size_in_bytes' ints representing states to start simulations from
@@ -461,8 +514,14 @@ namespace Izing
 	 * @return - the fraction of successful runs (the runs that reached M==M_next)
 	 */
 	{
+		int i;
 		int L2 = L*L;
 		int state_size_in_bytes = sizeof(int) * L2;
+		for(i = 0; i < N_init_states; ++i){
+			assert(state_is_valid(&(init_states[i * L2]), L, i, 'R'));
+		}
+		test_my(15, _Nt, _probs, _d_probs);
+
 		int N_succ = 0;
 		int N_runs = 0;
 		int *state_under_process = (int*) malloc(state_size_in_bytes);
@@ -474,18 +533,37 @@ namespace Izing
 		}
 		int init_state_to_process_ID;
 		while(N_succ < N_next_states){
+			test_my(100 * (N_succ+1), _Nt, _probs, _d_probs);
+			if(N_succ == 4) printf("Nr = %d\n", N_runs);
+			for(i = 0; i < N_succ; ++i){
+				assert(state_is_valid(&(next_states[i * L2]), L, i, 'Z'));
+			}
 			init_state_to_process_ID = gsl_rng_uniform_int(rng, N_init_states);
+//			assert(init_state_to_process_ID < N_init_states);
 			if(verbose >= 2){
-				printf("state %d:\n", N_succ);
+				printf("state[%d] (id in set = %d):\n", N_succ, init_state_to_process_ID);
 			}
 			memcpy(state_under_process, &(init_states[init_state_to_process_ID * L2]), state_size_in_bytes);   // get a copy of the chosen init state
+			assert(state_is_valid(state_under_process, L, init_state_to_process_ID, 'S'));
 			if(run_state(state_under_process, L, Temp, h, M_0, M_next, E, M, Nt, M_arr_len, to_remember_EM, verbose)){   // run it until it reaches M_0 or M_next
 				// Nt is not reinitialized to 0 and that's correct because it shows the total number of EM datapoints
 				// the run reached M_next
-
+				assert(state_is_valid(state_under_process, L, N_succ, 'X'));
 				++N_succ;
+				test_my(100 * (N_succ) + 15, _Nt, _probs, _d_probs);
 				if(to_save_next_states) {
+					print_S(state_under_process, L, 'z');
+					assert(state_is_valid(state_under_process, L, N_succ, 'x'));
+					test_my(100 * (N_succ) + 17, _Nt, _probs, _d_probs);
+
 					memcpy(&(next_states[(N_succ - 1) * L2]), state_under_process, state_size_in_bytes);   // save the resulting system state for the next step
+
+					test_my(100 * (N_succ) + 20, _Nt, _probs, _d_probs);
+					for(i = 0; i < N_succ; ++i){
+						assert(state_is_valid(&(next_states[i * L2]), L, i, 'v'));
+						printf("checked %d\n", i);
+					}
+					test_my(100 * (N_succ) + 30, _Nt, _probs, _d_probs);
 				}
 				if(verbose) {
 					if(verbose >= 2){
@@ -505,19 +583,33 @@ namespace Izing
 			printf("\n");
 		}
 
+		for(i = 0; i < N_next_states; ++i){
+			assert(state_is_valid(&(next_states[i * L2]), L, i, 'V'));
+		}
+
 		free(state_under_process);
+
+		for(i = 0; i < N_next_states; ++i){
+			assert(state_is_valid(&(next_states[i * L2]), L, i, 'C'));
+		}
+		test_my(949, _Nt, _probs, _d_probs);
 
 		return (double)N_succ / N_runs;   // the probability P(i+i | i) to go from i to i+1
 	}
 
 	int run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, int **M, int *Nt, int *M_arr_len, bool to_remember_EM, int verbose)
 	{
+		int L2 = L*L;
 		int M_current;
 		double E_current;
 		M_current = comp_M(s, L); // remember the 1st M
 		E_current = comp_E(s, L, h); // remember the 1st energy
 		if(verbose >= 2){
 			printf("E=%lf, M=%d\n", E_current, M_current);
+			if(abs(M_current) > L2){
+				printf("state: %d\n", state_is_valid(s, L, 0, 'r'));
+				getchar();
+			}
 		}
 
 		int ix, iy;
@@ -564,7 +656,7 @@ namespace Izing
 		}
 	}
 
-    int print_E(double *E, int Nt, char prefix, char suffix)
+    int print_E(const double *E, int Nt, char prefix, char suffix)
     {
         if(prefix > 0){
             printf("%c\n", prefix);
@@ -581,7 +673,7 @@ namespace Izing
         return 0;
     }
 
-    int print_S(int *s, int L, char prefix)
+    int print_S(const int *s, int L, char prefix)
     {
         int i, j;
 
