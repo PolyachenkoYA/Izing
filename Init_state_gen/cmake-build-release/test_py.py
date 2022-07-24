@@ -1,11 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import scipy
 
 import mylib as my
 
-my.run_it('make izing.so')
-my.run_it('mv izing.so.cpython-38-x86_64-linux-gnu.so izing.so')
+to_recompile = False
+if(to_recompile):
+	my.run_it('make izing.so')
+	my.run_it('mv izing.so.cpython-38-x86_64-linux-gnu.so izing.so')
 
 import izing
 #exit()
@@ -44,9 +47,7 @@ def proc_FFS(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_tim
 			M.append(_M[np.sum(Nt[:i]) : np.sum(Nt[:(i+1)])])
 		del _M
 		
-		M = M / L**2
-		E = E / L**2
-		Nt = len(E)
+		Nt_total = len(E)
 		
 		steps = np.arange(Nt)
 		dE_step = 8   # the maximum dE possible for 1 step = 'change in a spin' * 'max neighb spin' = 2*4 = 8
@@ -122,7 +123,30 @@ def proc_FFS(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_tim
 
 		return E_mean, d_E_mean, M_mean, d_M_mean, C
 
-def proc_T(L, Temp, h, Nt, verbose=None, max_flip_time=None, to_plot=True):
+def exp_integrate(x, f):
+	# integrates \int_{exp(f(x))dx}
+	dx = x[1:] - x[:-1]
+	b = (f[1:] - f[:-1]) / dx
+	return np.sum(np.exp(f[:-1]) * (np.exp(b * dx) - 1) / b)
+
+def exp2_integrate(fit2, x1):
+	# integrate \int{fit2(x)}_{x1}^{x0}, where:
+	# fit2(x) - quadratic 'c + a*(x-x0)^2'
+	# x0 = peak of fit2(x)
+	# x1 < x0
+	# a > 0
+	
+	a = fit2[0]
+	assert(a > 0)
+	
+	x0 = -fit2[1] / (2 * a)
+	assert(x0 > x1)
+	
+	c = fit2[2] - a * x0**2
+	
+	return np.exp(c) / 2 * np.sqrt(np.pi / a) * scipy.special.erfi((x0 - x1) * np.sqrt(a))
+
+def proc_T(L, Temp, h, Nt, verbose=None, max_flip_time=None, to_plot_time_evol=True, to_plot_F=True, M_peak_guess=0, M_fit2_width=0.5):
 	(E, M) = izing.run_bruteforce(L, Temp, h, Nt, verbose=verbose)
 	
 	M = M / L**2
@@ -174,12 +198,24 @@ def proc_T(L, Temp, h, Nt, verbose=None, max_flip_time=None, to_plot=True):
 	F = -Temp * np.log(rho * M_hist_lens)
 	d_F = Temp * d_rho / rho
 	
+	M_fit2_Mmin_ind = np.argmax(M_hist_centers > M_peak_guess - M_fit2_width)
+	assert(M_fit2_Mmin_ind > 0), 'issues finding analytical border'
+	M_fit2_inds = (M_fit2_Mmin_ind <= np.arange(len(M_hist_centers))) & (M_hist_centers < M_peak_guess + M_fit2_width)
+	M_fit2 = np.polyfit(M_hist_centers[M_fit2_inds], F[M_fit2_inds], 2, w = 1/d_F[M_fit2_inds])
+	M_peak = -M_fit2[1] / (2 * M_fit2[0])
+	F_max = np.polyval(M_fit2, M_peak)
+	#M_peak_ind = np.argmin(M_hist_centers - M_peak)
+	bc_Z = exp_integrate(M_hist_centers[ : M_fit2_Mmin_ind + 1], -F[ : M_fit2_Mmin_ind + 1] / Temp) + exp2_integrate(- M_fit2 / Temp, M_hist_centers[M_fit2_Mmin_ind])
+	k_bc_AB = np.exp(-F_max / Temp) / 2 / L**2 / bc_Z
+	
+	print('k_bc_AB =', my.f2s(k_bc_AB))
+	
 	C = E_std**2 / Temp**2 * L**2
 
 	d_E_mean = E_std / np.sqrt(Nt_stab / memory_time)
 	d_M_mean = M_std / np.sqrt(Nt_stab / memory_time)
 	
-	if(to_plot):
+	if(to_plot_time_evol):
 		fig_E, ax_E = my.get_fig('step', '$E / L^2$', title='E(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
 		ax_E.plot(steps, E, label='data')
 		ax_E.plot([stab_step] * 2, [min(E), max(E)], label='equilibr')
@@ -192,13 +228,15 @@ def proc_T(L, Temp, h, Nt, verbose=None, max_flip_time=None, to_plot=True):
 		ax_M.plot([stab_step, Nt], [M_mean] * 2, label=('$<M> = ' + my.errorbar_str(M_mean, d_M_mean) + '$'))
 		ax_M.legend()
 		
+	if(to_plot_F):
 		fig_Mhist, ax_Mhist = my.get_fig(r'$m = M / L^2$', r'$\rho(m)$', title=r'$\rho(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
 		ax_Mhist.bar(M_hist_centers, rho, yerr=d_rho, width=M_hist_lens, align='center')
 		#ax_Mhist.legend()
 		
 		fig_F, ax_F = my.get_fig(r'$m = M / L^2$', r'$F(m) = -T \ln(\rho(m))$', title=r'$F(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-		ax_F.errorbar(M_hist_centers, F, yerr=d_F)
-		#ax_F.legend()
+		ax_F.errorbar(M_hist_centers, F, yerr=d_F, fmt='.', label='data')
+		ax_F.plot(M_hist_centers[M_fit2_inds], np.polyval(M_fit2, M_hist_centers[M_fit2_inds]), label='fit2; $M_0 = ' + my.f2s(M_peak) + '$')
+		ax_F.legend()
 
 	return E_mean, d_E_mean, M_mean, d_M_mean, C
 
@@ -277,53 +315,59 @@ def proc_T(L, Temp, h, Nt, verbose=None, max_flip_time=None, to_plot=True):
 #T_table = 1 / Izing_data.data[:, 0]
 #E_table = Izing_data.data[:, 1]
 
-my_seed = 2
-recomp = 0
-mode = 0
-to_get_EM = 0
-verbose = 1
 
-L = 11
-Temp = 2.0   # T_c = 2.27
-h = -0.010   # arbitrary small number that gives nice pictures
+def main():
+	my_seed = 2
+	recomp = 0
+	mode = 'FFS'
+	to_get_EM = 0
+	verbose = 1
 
-izing.init_rand(my_seed)
-izing.set_verbose(verbose)
+	L = 11
+	h = -0.010   # arbitrary small number that gives nice pictures
 
-if(mode == 0):
 	# -------- T < Tc, transitions ---------
-	Nt = 5000000
-
+	Temp = 2.0   # T_c = 2.27
 	# -------- T > Tc, fluctuations around 0 ---------
 	#Temp = 3.0
-	#h = 0.05
-	
-	proc_T(L, Temp, h, Nt)
-elif(mode == 1):
-	N_M_interfaces = 10
-	M_0 = -L**2 + 20
-	M_max = -M_0
-	N_init_states = np.ones(N_M_interfaces + 2, dtype=np.intc).T * 10
-	M_interfaces = np.array([-L**2 - 1] + list(M_0 + np.round(np.arange(N_M_interfaces) * (M_max - M_0) / (N_M_interfaces - 1) / 2) * 2) + [L**2], dtype=np.intc).T
-	
-	proc_FFS(L, Temp, h, N_init_states, M_interfaces)
-elif(mode == 99):
-	fig_E, ax_E = my.get_fig('T', '$E/L^2$', xscl='log')
-	fig_M, ax_M = my.get_fig('T', '$M/L^2$', xscl='log')
-	fig_C, ax_C = my.get_fig('T', '$C/L^2$', xscl='log', yscl='log')
-	fig_M2, ax_M2 = my.get_fig('T', '$(M/L^2)^2$')
-	
-	T_arr = np.power(10, np.linspace(T_min_log10, T_max_log10, N_T))
-	
-	for n in N_s:
-		T_arr = proc_N(n, Nt, my_seed, ax_C=ax_C, ax_E=ax_E, ax_M=ax_M, ax_M2=ax_M2, recomp=recomp, T_min_log10=T_min_log10, T_max_log10=T_max_log10, N_T=N_T)
-	
-	ax_E.plot(T_arr, -np.tanh(1/T_arr)*2, '--', label='$-2 th(1/T)$')
-	T_simulated_ind = (min(T_arr) < T_table) & (T_table < max(T_arr))
-	ax_E.plot(T_table[T_simulated_ind], E_table[T_simulated_ind], '.', label='Onsager')
+	#Temp = 2.5   # looks like Tc for L=16
 
-	ax_C.legend()
-	ax_E.legend()
-	ax_M.legend()
+	izing.init_rand(my_seed)
+	izing.set_verbose(verbose)
 
-plt.show()
+	if(mode == 'BF'):
+		Nt = 5000000   # enough sampling grows rapidly with L. 5e6 is enought for L=11, but not for >= 13
+		proc_T(L, Temp, h, Nt, to_plot_time_evol=False)
+		
+	elif(mode == 'FFS'):
+		N_M_interfaces = 10
+		M_0 = -L**2 + 20
+		M_max = -M_0
+		N_init_states = np.ones(N_M_interfaces + 2, dtype=np.intc).T * 10
+		M_interfaces = np.array([-L**2 - 1] + list(M_0 + np.round(np.arange(N_M_interfaces) * (M_max - M_0) / (N_M_interfaces - 1) / 2) * 2) + [L**2], dtype=np.intc).T
+		
+		proc_FFS(L, Temp, h, N_init_states, M_interfaces)
+		
+	elif(mode == 'XXX'):
+		fig_E, ax_E = my.get_fig('T', '$E/L^2$', xscl='log')
+		fig_M, ax_M = my.get_fig('T', '$M/L^2$', xscl='log')
+		fig_C, ax_C = my.get_fig('T', '$C/L^2$', xscl='log', yscl='log')
+		fig_M2, ax_M2 = my.get_fig('T', '$(M/L^2)^2$')
+		
+		T_arr = np.power(10, np.linspace(T_min_log10, T_max_log10, N_T))
+		
+		for n in N_s:
+			T_arr = proc_N(n, Nt, my_seed, ax_C=ax_C, ax_E=ax_E, ax_M=ax_M, ax_M2=ax_M2, recomp=recomp, T_min_log10=T_min_log10, T_max_log10=T_max_log10, N_T=N_T)
+		
+		ax_E.plot(T_arr, -np.tanh(1/T_arr)*2, '--', label='$-2 th(1/T)$')
+		T_simulated_ind = (min(T_arr) < T_table) & (T_table < max(T_arr))
+		ax_E.plot(T_table[T_simulated_ind], E_table[T_simulated_ind], '.', label='Onsager')
+
+		ax_C.legend()
+		ax_E.legend()
+		ax_M.legend()
+
+	plt.show()
+
+if(__name__ == "__main__"):
+    main()

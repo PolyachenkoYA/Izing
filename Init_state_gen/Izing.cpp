@@ -41,7 +41,6 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional
 {
 	int i, j;
 	int L2 = L*L;
-	int state_size_in_bytes = L2 * sizeof(int);
 
 // -------------- check input ----------------
 	assert(L > 0);
@@ -63,7 +62,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional
 	*_M = (int*) malloc(sizeof(int) * M_arr_len);
 
 	if(verbose){
-		printf("using: L=%d  T=%lf  h=%lf  v=%d\n", L, Temp, h, verbose);
+		printf("using: L=%d  T=%lf  h=%lf  verbose=%d\n", L, Temp, h, verbose);
 	}
 
 	Izing::get_init_states_C(L, Temp, h, 1, state_ptr, _E, _M, &Nt, 1, verbose, 0); // allocate all spins = -1
@@ -75,16 +74,16 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional
 	}
 
 	py::array_t<double> E = py::array_t<double>(Nt);
-	py::array_t<int> M = py::array_t<double>(Nt);
 	py::buffer_info E_info = E.request();
-	py::buffer_info M_info = M.request();
 	double *E_ptr = static_cast<double *>(E_info.ptr);
-	int *M_ptr = static_cast<int *>(M_info.ptr);
 	memcpy(E_ptr, *_E, sizeof(double) * Nt);
-	memcpy(M_ptr, *_M, sizeof(int) * Nt);
-
 	free(*_E);
 	free(_E);
+
+	py::array_t<int> M = py::array_t<double>(Nt);
+	py::buffer_info M_info = M.request();
+	int *M_ptr = static_cast<int *>(M_info.ptr);
+	memcpy(M_ptr, *_M, sizeof(int) * Nt);
 	free(*_M);
 	free(_M);
 
@@ -189,7 +188,6 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 		}
 		printf("\n");
 	}
-
 
 	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states_ptr, N_init_states_ptr,
 					 Nt_ptr, &M_arr_len, M_interfaces_ptr, N_M_interfaces,
@@ -440,7 +438,7 @@ namespace Izing
 		d_ln_k_AB = sqrt(d_ln_k_AB);
 
 		if(verbose){
-			printf("-log(k_AB * [1 step]) = (%lf +- %lf)\n", - ln_k_AB, d_ln_k_AB);
+			printf("-ln(k_AB * [1 step]) = (%lf +- %lf)\n", - ln_k_AB, d_ln_k_AB);
 			if(verbose >= 2){
 
 			}
