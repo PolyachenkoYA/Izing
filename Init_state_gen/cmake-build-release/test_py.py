@@ -23,11 +23,16 @@ def proc_FFS(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_tim
 		states.append(_states[np.sum(N_init_states[:i]) * L2 : np.sum(N_init_states[:(i+1)] * L2)].reshape((N_init_states[i], L, L)))
 	del _states
 	
+	ln_k_AB = np.log(flux0 * 1) + np.sum(np.log(probs[1:-1]))   # [flux0 * 1] = 1, because [flux] = 1/time = 1/step
+	ln_d_k_AB = np.sqrt((d_flux0 / flux0)**2 + np.sum((d_probs[1:-1] / probs[1:-1])**2))
+	k_AB = np.exp(ln_k_AB)
+	d_k_AB = k_AB * ln_d_k_AB / abs(ln_k_AB)
+	
 	print('Nt:', Nt)
 	print('flux0 = (%lf +- %lf) 1/step' % (flux0, d_flux0))
-	print('-log(P):', -np.log(probs))
-	print('d_P / P:', d_probs / probs)
-	print('k_AB =', flux0 * np.prod(probs[1:-1]), ' 1/step')   # probs[0] == 1 because its the probability to go from A to M_0
+	print('-log(P):', -np.log(probs[1:-1]))
+	print('d_P / P:', d_probs[1:-1] / probs[1:-1])
+	print('k_AB = (', my.f2s(k_AB), '+-', my.f2s(d_k_AB), ') 1/step')   # probs[0] == 1 because its the probability to go from A to M_0
 	
 	if(to_get_EM):
 		E = [_E[ : Nt[0]]]
@@ -278,7 +283,7 @@ my_seed = 2
 recomp = 0
 mode = 1
 to_get_EM = 0
-verbose = 2
+verbose = 1
 
 L = 11
 Temp = 2.0   # T_c = 2.27
