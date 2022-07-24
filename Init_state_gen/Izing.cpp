@@ -15,66 +15,8 @@ namespace py = pybind11;
 
 #include "Izing.h"
 
-//py::tuple get_init_states(int L, double Temp, double h, int N_init_states, int M_0, int to_get_EM, std::optional<int> _verbose)
-//{
-//    auto init_states = py::array_t<int>(N_init_states * L*L);
-//    py::buffer_info init_states_info = init_states.request();
-//    int *init_states_ptr = static_cast<int *>(init_states_info.ptr);
-//    int Nt;
-//	int M_arr_len = N_init_states;
-//
-//	int verbose = (_verbose.has_value() ? _verbose.value() : Izing::verbose_dafault);
-//
-//    double **_E;
-//    int **_M;
-//    if(to_get_EM){
-//        _E = (double**) malloc(sizeof(double*) * 1);
-//        *_E = (double*) malloc(sizeof(double) * M_arr_len);
-//        _M = (int**) malloc(sizeof(int*) * 1);
-//        *_M = (int*) malloc(sizeof(int) * M_arr_len);
-//    }
-//
-//	if(verbose){
-//		printf("using: L=%d  T=%lf  h=%lf  N_init_states=%d  M_0=%d  EM=%d  v=%d\n", L, Temp, h, N_init_states, M_0, to_get_EM, verbose);
-//	}
-//
-//    Izing::get_init_states_C(L, Temp, h, N_init_states, init_states_ptr, _E, _M, &Nt, to_get_EM, verbose);
-//
-//    if(verbose){
-//		printf("Nt = %d\n", Nt);
-//	}
-//
-//    py::array_t<double> E;
-//    py::array_t<double> M;
-//    if(to_get_EM){
-//        E = py::array_t<double>(Nt);
-//        M = py::array_t<double>(Nt);
-//        py::buffer_info E_info = E.request();
-//        py::buffer_info M_info = M.request();
-//        double *E_ptr = static_cast<double *>(E_info.ptr);
-//        double *M_ptr = static_cast<double *>(M_info.ptr);
-//        memcpy(E_ptr, *_E, sizeof(double) * Nt);
-//        memcpy(M_ptr, *_M, sizeof(double) * Nt);
-//
-//        free(*_E);
-//        free(_E);
-//        free(*_M);
-//        free(_M);
-//
-//		if(verbose >= 2){
-//			if(to_get_EM){
-//				Izing::print_E(E_ptr, Nt < 10 ? Nt : 10, 'P');
-//			}
-//		}
-//    }
-//
-//
-//    py::tuple res = py::make_tuple(init_states, E, M);
-//    return res;
-//}
-
-
 void test_my(int k, py::array_t<int> *_Nt, py::array_t<double> *_probs, py::array_t<double> *_d_probs, int l)
+// A function for DEBUG purposes
 {
 	printf("checking step %d\n", k);
 	py::buffer_info Nt_info = (*_Nt).request();
@@ -83,6 +25,76 @@ void test_my(int k, py::array_t<int> *_Nt, py::array_t<double> *_probs, py::arra
 	printf("n%d: %d\n", k, Nt_info.shape[0]);
 	printf("p%d: %d\n", k, probs_info.shape[0]);
 	printf("d%d: %d\n", k, d_probs_info.shape[0]);
+}
+
+py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional<int> _verbose)
+/**
+ *
+ * @param L - the side-size of the lattice
+ * @param Temp - temperature of the system; units=J, so it's actually T/J
+ * @param h - magnetic-field-induced multiplier; unit=J, so it's h/J
+ * @param Nt - for many succesful MC steps I want
+ * @param _verbose - int number >= 0 or py::none(), shows how load is the process; If it's None (py::none()), then the default state 'verbose' is used
+ * @return :
+ * 	E, M - double arrays [Nt], Energy and Magnetization data from all the simulations
+ */
+{
+	int i, j;
+	int L2 = L*L;
+	int state_size_in_bytes = L2 * sizeof(int);
+
+// -------------- check input ----------------
+	assert(L > 0);
+	assert(Temp > 0);
+	int verbose = (_verbose.has_value() ? _verbose.value() : Izing::verbose_dafault);
+
+// ----------------- create return objects --------------
+	int Nt = 0;
+	int M_arr_len = 128;   // the initial value that will be doubling when necessary
+	py::array_t<int> state = py::array_t<int>(L2);   // technically there are N+2 states' sets, but we are not interested in the first and the last sets
+	py::buffer_info state_info = state.request();
+	int *state_ptr = static_cast<int *>(state_info.ptr);
+
+	double **_E;
+	int **_M;
+	_E = (double**) malloc(sizeof(double*) * 1);
+	*_E = (double*) malloc(sizeof(double) * M_arr_len);
+	_M = (int**) malloc(sizeof(int*) * 1);
+	*_M = (int*) malloc(sizeof(int) * M_arr_len);
+
+	if(verbose){
+		printf("using: L=%d  T=%lf  h=%lf  v=%d\n", L, Temp, h, verbose);
+	}
+
+	Izing::get_init_states_C(L, Temp, h, 1, state_ptr, _E, _M, &Nt, 1, verbose, 0); // allocate all spins = -1
+
+	Izing::run_state(state_ptr, L, Temp, h, -L2-1, L2+1, _E, _M, &Nt, &M_arr_len, 1, verbose, Nt_max);
+
+	if(verbose >= 2){
+		printf("Brute-force core done\n");
+	}
+
+	py::array_t<double> E = py::array_t<double>(Nt);
+	py::array_t<int> M = py::array_t<double>(Nt);
+	py::buffer_info E_info = E.request();
+	py::buffer_info M_info = M.request();
+	double *E_ptr = static_cast<double *>(E_info.ptr);
+	int *M_ptr = static_cast<int *>(M_info.ptr);
+	memcpy(E_ptr, *_E, sizeof(double) * Nt);
+	memcpy(M_ptr, *_M, sizeof(int) * Nt);
+
+	free(*_E);
+	free(_E);
+	free(*_M);
+	free(_M);
+
+	if(verbose >= 2){
+		printf("internal memory for EM freed\n");
+		Izing::print_E(E_ptr, Nt < 10 ? Nt : 10, 'P');
+		printf("exiting py::run_bruteforce\n");
+	}
+
+	return py::make_tuple(E, M);
 }
 
 // int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt, int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M, int to_remember_EM, int verbose)
@@ -129,8 +141,6 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 	assert(M_interfaces_info.ndim == 1);
 	assert(N_init_states_info.ndim == 1);
 
-//	printf("M: %ld;\n", M_interfaces_info.shape[0]);
-//	printf("N: %ld;\n", N_init_states_info.shape[0]);
 	int N_M_interfaces = M_interfaces_info.shape[0] - 2;
 	assert(N_M_interfaces + 2 == N_init_states_info.shape[0]);
 	for(i = 0; i <= N_M_interfaces; ++i) {
@@ -180,14 +190,10 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 		printf("\n");
 	}
 
-//	test_my(1, &Nt, &probs, &d_probs);
 
 	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states_ptr, N_init_states_ptr,
 					 Nt_ptr, &M_arr_len, M_interfaces_ptr, N_M_interfaces,
 					 probs_ptr, d_probs_ptr, _E, _M, to_get_EM, verbose);
-//	printf("hi\n");
-
-//	test_my(100000, &Nt, &probs, &d_probs);
 
 	if(verbose >= 2){
 		printf("FFS core done\nNt: ");
@@ -377,11 +383,10 @@ namespace Izing
 				  int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M,
 				  int to_remember_EM, int verbose)
 	{
-//		test_my(2, _Nt, _probs, _d_probs);
 		int i, j;
 		int Nt_total = 0;
 // get the initial states; they should be sampled from the distribution in [-L^2; M_0], but they are all set to have M == -L^2 because then they all will fall into the local optimum and almost forget the initial state, so it's almost equivalent to sampling from the proper distribution if 'F(M_0) - F_min >~ T'
-		get_init_states_C(L, Temp, h, N_init_states[0], states, E, M, &Nt_total, to_remember_EM, verbose);
+		get_init_states_C(L, Temp, h, N_init_states[0], states, E, M, &Nt_total, to_remember_EM, verbose, 0); // allocate all spins = -1
 		if(verbose){
 			printf("Init states generated; Nt = %d\n", Nt_total);
 		}
@@ -390,13 +395,7 @@ namespace Izing
 		int L2 = L*L;
 		int state_size_in_bytes = sizeof(int) * L2;
 
-//		test_my(10, _Nt, _probs, _d_probs);
-
 		for(i = 0; i <= N_M_interfaces; ++i){
-//			test_my(1000 * (i+1), _Nt, _probs, _d_probs);
-//			for(j = 0; j < N_init_states[i]; ++j){
-//				assert(state_is_valid(&(states[L2 * (N_states_analyzed + j)]), L, j, 'F'));
-//			}
 			probs[i] = process_step(&(states[L2 * N_states_analyzed]),
 									&(states[i == N_M_interfaces ? 0 : L2 * (N_states_analyzed + N_init_states[i])]),
 									E, M, &Nt_total, M_arr_len, N_init_states[i],
@@ -405,15 +404,7 @@ namespace Izing
 			//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
 			d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] * (1 - probs[i])));
 
-//			printf("probs: %lf +- %lf\n", probs[i], d_probs[i]);
-//			test_my(1000 * (i+1) + 950, _Nt, _probs, _d_probs);
-
 			N_states_analyzed += N_init_states[i];
-//			if(i < N_M_interfaces){
-//				for(j = 0; j < N_init_states[i+1]; ++j){
-//					assert(state_is_valid(&(states[L2 * (N_states_analyzed + i)]), L, j, 'f'));
-//				}
-//			}
 
 			if(i == 0){
 				// we know that 'probs[0] == 1' because M_0 = -L2-1 for run[0]. Thus we can compute the flux
@@ -455,11 +446,10 @@ namespace Izing
 			}
 		}
 
-//		test_my(99999, _Nt, _probs, _d_probs);
 		return 0;
 	}
 
-	int get_init_states_C(int L, double Temp, double h, int N_init_states, int *init_states, double **E, int **M, int *Nt, bool to_remember_EM, int verbose)
+	int get_init_states_C(int L, double Temp, double h, int N_init_states, int *init_states, double **E, int **M, int *Nt, bool to_remember_EM, int verbose, int mode)
 	{
 		int i;
 		int L2 = L*L;
@@ -468,7 +458,7 @@ namespace Izing
 		// generate N_init_states states in A
 		// Here they are identical, but I think it's better to generate them accordingly to equilibrium distribution in A
 		for(i = 0; i < N_init_states; ++i){
-			generate_state(&(init_states[i * L2]), L, rng, 0); // allocate all spins = -1
+			generate_state(&(init_states[i * L2]), L, rng, mode);
 		}
 
 		*Nt += 1;
@@ -506,10 +496,6 @@ namespace Izing
 		int i;
 		int L2 = L*L;
 		int state_size_in_bytes = sizeof(int) * L2;
-//		for(i = 0; i < N_init_states; ++i){
-//			assert(state_is_valid(&(init_states[i * L2]), L, i, 'R'));
-//		}
-//		test_my(15, _Nt, _probs, _d_probs);
 
 		int N_succ = 0;
 		int N_runs = 0;
@@ -523,36 +509,17 @@ namespace Izing
 		}
 		int init_state_to_process_ID;
 		while(N_succ < N_next_states){
-//			test_my(100 * (N_succ+1), _Nt, _probs, _d_probs);
-//			for(i = 0; i < N_succ; ++i){
-//				assert(state_is_valid(&(next_states[i * L2]), L, i, 'Z'));
-//			}
 			init_state_to_process_ID = gsl_rng_uniform_int(rng, N_init_states);
-//			assert(init_state_to_process_ID < N_init_states);
 			if(verbose >= 2){
 				printf("state[%d] (id in set = %d):\n", N_succ, init_state_to_process_ID);
 			}
 			memcpy(state_under_process, &(init_states[init_state_to_process_ID * L2]), state_size_in_bytes);   // get a copy of the chosen init state
-//			assert(state_is_valid(state_under_process, L, init_state_to_process_ID, 'S'));
 			if(run_state(state_under_process, L, Temp, h, M_0, M_next, E, M, Nt, M_arr_len, to_remember_EM, verbose)){   // run it until it reaches M_0 or M_next
 				// Nt is not reinitialized to 0 and that's correct because it shows the total number of EM datapoints
 				// the run reached M_next
-//				assert(state_is_valid(state_under_process, L, N_succ, 'X'));
 				++N_succ;
-//				test_my(100 * (N_succ) + 15, _Nt, _probs, _d_probs);
 				if(to_save_next_states) {
-//					print_S(state_under_process, L, 'z');
-//					assert(state_is_valid(state_under_process, L, N_succ, 'x'));
-//					test_my(100 * (N_succ) + 17, _Nt, _probs, _d_probs);
-
 					memcpy(&(next_states[(N_succ - 1) * L2]), state_under_process, state_size_in_bytes);   // save the resulting system state for the next step
-
-//					test_my(100 * (N_succ) + 20, _Nt, _probs, _d_probs);
-//					for(i = 0; i < N_succ; ++i){
-//						assert(state_is_valid(&(next_states[i * L2]), L, i, 'v'));
-//						printf("checked %d\n", i);
-//					}
-//					test_my(100 * (N_succ) + 30, _Nt, _probs, _d_probs);
 				}
 				if(verbose) {
 					if(verbose >= 2){
@@ -572,21 +539,12 @@ namespace Izing
 			printf("\n");
 		}
 
-//		for(i = 0; i < N_next_states; ++i){
-//			assert(state_is_valid(&(next_states[i * L2]), L, i, 'V'));
-//		}
-
 		free(state_under_process);
-
-//		for(i = 0; i < N_next_states; ++i){
-//			assert(state_is_valid(&(next_states[i * L2]), L, i, 'C'));
-//		}
-//		test_my(949, _Nt, _probs, _d_probs);
 
 		return (double)N_succ / N_runs;   // the probability P(i+i | i) to go from i to i+1
 	}
 
-	int run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, int **M, int *Nt, int *M_arr_len, bool to_remember_EM, int verbose)
+	int run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, int **M, int *Nt, int *M_arr_len, bool to_remember_EM, int verbose, int Nt_max)
 	{
 		int L2 = L*L;
 		int M_current;
@@ -628,12 +586,19 @@ namespace Izing
 				(*M)[*Nt - 1] = M_current;
 			}
 			if(verbose >= 3) printf("done Nt=%d\n", *Nt-1);
-			if(M_current == M_0){
-				if(verbose >= 2) printf("Fail run\n");
-				return 0;   // failed = gone to the initial state A
-			} else if(M_current == M_next){
-				if(verbose >= 2) printf("Success run\n");
-				return 1;   // succeeded = reached the interface 'M == M_next'
+			if(Nt_max > 0){
+				if(*Nt >= Nt_max){
+					if(verbose >= 2) printf("Reached desired Nt >= Nt_max (= %d)\n", Nt_max);
+					return 1;
+				}
+			} else {
+				if(M_current == M_0){
+					if(verbose >= 2) printf("Fail run\n");
+					return 0;   // failed = gone to the initial state A
+				} else if(M_current == M_next){
+					if(verbose >= 2) printf("Success run\n");
+					return 1;   // succeeded = reached the interface 'M == M_next'
+				}
 			}
 		}
 	}

@@ -122,87 +122,85 @@ def proc_FFS(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_tim
 
 		return E_mean, d_E_mean, M_mean, d_M_mean, C
 
-def proc_T(L, Temp, h, N0, M0, my_seed, verbose=None, max_flip_time=None, to_get_EM=False, to_plot=True):
-	(init_states, E, M) = izing.get_init_states(L, Temp, h, N0, M0, verbose=verbose, to_get_EM=to_get_EM)
+def proc_T(L, Temp, h, Nt, verbose=None, max_flip_time=None, to_plot=True):
+	(E, M) = izing.run_bruteforce(L, Temp, h, Nt, verbose=verbose)
 	
-	if(to_get_EM):
-		M = M / L**2
-		E = E / L**2
-		Nt = len(E)
+	M = M / L**2
+	E = E / L**2
+	
+	steps = np.arange(Nt)
+	dE_step = 8   # the maximum dE possible for 1 step = 'change in a spin' * 'max neighb spin' = 2*4 = 8
+	dM_step = 2   # the magnitude of the spin flip, from -1 to 1
+	if(max_flip_time is None):
+		#max_flip_time = np.exp(dE_step / Temp)
+		# The upper-bound estimate on the number of steps for 1 flip to happen
+		# This would be true if I had all the attempts (even unsuccesful ones) to flip
 		
-		steps = np.arange(Nt)
-		dE_step = 8   # the maximum dE possible for 1 step = 'change in a spin' * 'max neighb spin' = 2*4 = 8
-		dM_step = 2   # the magnitude of the spin flip, from -1 to 1
-		if(max_flip_time is None):
-			#max_flip_time = np.exp(dE_step / Temp)
-			# The upper-bound estimate on the number of steps for 1 flip to happen
-			# This would be true if I had all the attempts (even unsuccesful ones) to flip
-			
-			max_flip_time = 1.0
-			# we save only succesful flips, so <flip time> = 1
-		
-		stab_step = int(min(L**2 * max_flip_time, Nt / 2)) * 5
-		# Each spin has a good chance to flip during this time
-		# This does not guarantee the global stable state, but it is sufficient to be sure-enough we are in the optimum of the local metastable-state.
-		# The approximation for a global ebulibration would be '1/k_AB', where k_AB is the rate constant. But it's hard to estimate on that stage.
-		stab_ind = (steps > stab_step)
-		
-		M_stab = M[stab_ind]
-		Nt_stab = len(M_stab)
-		M_mean = np.mean(M_stab)
-		M_std = np.std(M_stab)
-		memory_time = max(1, (M_std * L**2) / dM_step * max_flip_time)   
-		# Time of statistical decorelation of the system state.
-		# 'the number of flips necessary to cover the typical system states range' * 'the upper-bound estimate on the number of steps for 1 flip to happen'
-		print('memory time =', my.f2s(memory_time))
+		max_flip_time = 1.0
+		# we save only succesful flips, so <flip time> = 1
+	
+	stab_step = int(min(L**2 * max_flip_time, Nt / 2)) * 5
+	# Each spin has a good chance to flip during this time
+	# This does not guarantee the global stable state, but it is sufficient to be sure-enough we are in the optimum of the local metastable-state.
+	# The approximation for a global ebulibration would be '1/k_AB', where k_AB is the rate constant. But it's hard to estimate on that stage.
+	stab_ind = (steps > stab_step)
+	
+	M_stab = M[stab_ind]
+	Nt_stab = len(M_stab)
+	M_mean = np.mean(M_stab)
+	M_std = np.std(M_stab)
+	memory_time = max(1, (M_std * L**2) / dM_step * max_flip_time)   
+	# Time of statistical decorelation of the system state.
+	# 'the number of flips necessary to cover the typical system states range' * 'the upper-bound estimate on the number of steps for 1 flip to happen'
+	print('memory time =', my.f2s(memory_time))
 
-		E_stab = E[stab_ind]
-		E_mean = np.mean(E_stab)
-		E_std = np.std(E_stab)
-		
-		M_hist_edges = L**2 + 1   # auto-build for edges
-		M_hist_edges = (np.arange(L**2 + 2) * 2 - (L**2 + 1)) / L**2
-		M_hist, M_hist_edges = np.histogram(M_stab, bins=M_hist_edges)
-		# The number of bins cannot be arbitrary because M is descrete, thus it's a good idea if all the bins have 1 descrete value inside or all the bins have 2 or etc. 
-		# It's not good if some bins have e.g. 1 possible M value, and others have 2 possible values. 
-		# There are 'L^2 + 1' possible values of M, because '{M \in [-L^2; L^2]} and {dM = 2}'
-		# Thus, we need edges which cover [-1-1/L^2; 1+1/L^2] with step=2/L^2
-		M_hist_lens = (M_hist_edges[1:] - M_hist_edges[:-1])
-		M_hist[M_hist == 0] = 1   # to not get errors for log(hist)
-		M_hist = M_hist / memory_time
-		M_hist_centers = (M_hist_edges[1:] + M_hist_edges[:-1]) / 2
-		rho = M_hist / M_hist_lens / Nt_stab
-		d_rho = np.sqrt(M_hist * (1 - M_hist / Nt_stab)) / M_hist_lens / Nt_stab
-		F = -Temp * np.log(rho * M_hist_lens)
-		d_F = Temp * d_rho / rho
-		
-		C = E_std**2 / Temp**2 * L**2
+	E_stab = E[stab_ind]
+	E_mean = np.mean(E_stab)
+	E_std = np.std(E_stab)
+	
+	M_hist_edges = L**2 + 1   # auto-build for edges
+	M_hist_edges = (np.arange(L**2 + 2) * 2 - (L**2 + 1)) / L**2
+	M_hist, M_hist_edges = np.histogram(M_stab, bins=M_hist_edges)
+	# The number of bins cannot be arbitrary because M is descrete, thus it's a good idea if all the bins have 1 descrete value inside or all the bins have 2 or etc. 
+	# It's not good if some bins have e.g. 1 possible M value, and others have 2 possible values. 
+	# There are 'L^2 + 1' possible values of M, because '{M \in [-L^2; L^2]} and {dM = 2}'
+	# Thus, we need edges which cover [-1-1/L^2; 1+1/L^2] with step=2/L^2
+	M_hist_lens = (M_hist_edges[1:] - M_hist_edges[:-1])
+	M_hist[M_hist == 0] = 1   # to not get errors for log(hist)
+	M_hist = M_hist / memory_time
+	M_hist_centers = (M_hist_edges[1:] + M_hist_edges[:-1]) / 2
+	rho = M_hist / M_hist_lens / Nt_stab
+	d_rho = np.sqrt(M_hist * (1 - M_hist / Nt_stab)) / M_hist_lens / Nt_stab
+	F = -Temp * np.log(rho * M_hist_lens)
+	d_F = Temp * d_rho / rho
+	
+	C = E_std**2 / Temp**2 * L**2
 
-		d_E_mean = E_std / np.sqrt(Nt_stab / memory_time)
-		d_M_mean = M_std / np.sqrt(Nt_stab / memory_time)
+	d_E_mean = E_std / np.sqrt(Nt_stab / memory_time)
+	d_M_mean = M_std / np.sqrt(Nt_stab / memory_time)
+	
+	if(to_plot):
+		fig_E, ax_E = my.get_fig('step', '$E / L^2$', title='E(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		ax_E.plot(steps, E, label='data')
+		ax_E.plot([stab_step] * 2, [min(E), max(E)], label='equilibr')
+		ax_E.plot([stab_step, Nt], [E_mean] * 2, label=('$<E> = ' + my.errorbar_str(E_mean, d_E_mean) + '$'))
+		ax_E.legend()
 		
-		if(to_plot):
-			fig_E, ax_E = my.get_fig('step', '$E / L^2$', title='E(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			ax_E.plot(steps, E, label='data')
-			ax_E.plot([stab_step] * 2, [min(E), max(E)], label='equilibr')
-			ax_E.plot([stab_step, Nt], [E_mean] * 2, label=('$<E> = ' + my.errorbar_str(E_mean, d_E_mean) + '$'))
-			ax_E.legend()
-			
-			fig_M, ax_M = my.get_fig('step', '$M / L^2$', title='M(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			ax_M.plot(steps, M, label='data')
-			ax_M.plot([stab_step] * 2, [min(M), max(M)], label='equilibr')
-			ax_M.plot([stab_step, Nt], [M_mean] * 2, label=('$<M> = ' + my.errorbar_str(M_mean, d_M_mean) + '$'))
-			ax_M.legend()
-			
-			fig_Mhist, ax_Mhist = my.get_fig(r'$m = M / L^2$', r'$\rho(m)$', title=r'$\rho(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			ax_Mhist.bar(M_hist_centers, rho, yerr=d_rho, width=M_hist_lens, align='center')
-			#ax_Mhist.legend()
-			
-			fig_F, ax_F = my.get_fig(r'$m = M / L^2$', r'$F(m) = -T \ln(\rho(m))$', title=r'$F(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			ax_F.errorbar(M_hist_centers, F, yerr=d_F)
-			#ax_F.legend()
+		fig_M, ax_M = my.get_fig('step', '$M / L^2$', title='M(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		ax_M.plot(steps, M, label='data')
+		ax_M.plot([stab_step] * 2, [min(M), max(M)], label='equilibr')
+		ax_M.plot([stab_step, Nt], [M_mean] * 2, label=('$<M> = ' + my.errorbar_str(M_mean, d_M_mean) + '$'))
+		ax_M.legend()
+		
+		fig_Mhist, ax_Mhist = my.get_fig(r'$m = M / L^2$', r'$\rho(m)$', title=r'$\rho(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		ax_Mhist.bar(M_hist_centers, rho, yerr=d_rho, width=M_hist_lens, align='center')
+		#ax_Mhist.legend()
+		
+		fig_F, ax_F = my.get_fig(r'$m = M / L^2$', r'$F(m) = -T \ln(\rho(m))$', title=r'$F(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		ax_F.errorbar(M_hist_centers, F, yerr=d_F)
+		#ax_F.legend()
 
-		return E_mean, d_E_mean, M_mean, d_M_mean, C
+	return E_mean, d_E_mean, M_mean, d_M_mean, C
 
 # def get_E_T(box, Nt, my_seed, T_arr, time_verb=0, E_verb=0):
 	# N_T = len(T_arr)
@@ -281,7 +279,7 @@ def proc_T(L, Temp, h, N0, M0, my_seed, verbose=None, max_flip_time=None, to_get
 
 my_seed = 2
 recomp = 0
-mode = 1
+mode = 0
 to_get_EM = 0
 verbose = 1
 
@@ -294,15 +292,13 @@ izing.set_verbose(verbose)
 
 if(mode == 0):
 	# -------- T < Tc, transitions ---------
-	M0 = L**2   # this insludes the whole range [-L^2; L^2] into a single simulation
-	N0 = 10
+	Nt = 5000000
 
 	# -------- T > Tc, fluctuations around 0 ---------
-	#N0 = 30
 	#Temp = 3.0
 	#h = 0.05
 	
-	proc_T(L, Temp, h, N0, M0, my_seed, to_get_EM=to_get_EM)
+	proc_T(L, Temp, h, Nt)
 elif(mode == 1):
 	N_M_interfaces = 10
 	M_0 = -L**2 + 20

@@ -16,18 +16,6 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(izing, m)
 {
-// py::tuple get_init_states(int L, double Temp, double h, int N0, int M0, int verbose, int to_get_EM)
-//    m.def("get_init_states", &get_init_states,
-//          "get a tuple (init_states[N0 * L*L], E[Nt], M[Nt]); init with my_seed (default=time(NULL))",
-//          py::arg("grid_size"),
-//          py::arg("Temp"),
-//          py::arg("h"),
-//          py::arg("N_init_states"),
-//          py::arg("M0"),
-//		  py::arg("to_get_EM")=0,
-//		  py::arg("verbose")=py::none()
-//    );
-
 // py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> M_interfaces, int to_get_EM, std::optional<int> _verbose)
     m.def("run_FFS", &run_FFS,
           "run FFS for the 2D Ising model",
@@ -39,6 +27,16 @@ PYBIND11_MODULE(izing, m)
 		  py::arg("to_get_EM")=0,
 		  py::arg("verbose")=py::none()
     );
+
+// py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional<int> _verbose)
+	m.def("run_bruteforce", &run_bruteforce,
+		  "run Brute-force simulation for the 2D Ising model for Nt_max steps, starting from M=-L^2",
+		  py::arg("grid_size"),
+		  py::arg("Temp"),
+		  py::arg("h"),
+		  py::arg("Nt_max"),
+		  py::arg("verbose")=py::none()
+	);
 
 // py::int_ init_rand(int my_seed)
     m.def("init_rand", &init_rand,
