@@ -97,7 +97,7 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "-Wall -Wextra -O2 -fPIC -fvisibility=hidden"
+					"fragment" : "-Wall -Wextra -O3 -fPIC -fvisibility=hidden"
 				},
 				{
 					"backtrace" : 7,

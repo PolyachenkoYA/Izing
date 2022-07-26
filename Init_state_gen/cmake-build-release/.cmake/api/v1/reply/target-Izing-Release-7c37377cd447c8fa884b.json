@@ -62,7 +62,7 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "-Wall -Wextra -O2"
+					"fragment" : "-Wall -Wextra -O3"
 				},
 				{
 					"fragment" : "-std=gnu++17"
@@ -101,7 +101,7 @@
 		"commandFragments" : 
 		[
 			{
-				"fragment" : "-Wall -Wextra -O2",
+				"fragment" : "-Wall -Wextra -O3",
 				"role" : "flags"
 			},
 			{

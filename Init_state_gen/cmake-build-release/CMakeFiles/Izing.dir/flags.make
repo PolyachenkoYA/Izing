@@ -6,5 +6,5 @@ CXX_DEFINES =
 
 CXX_INCLUDES = -I/home/ypolyach/anaconda3/include -I/home/ypolyach/anaconda3/include/python3.8
 
-CXX_FLAGS = -Wall -Wextra -O2 -std=gnu++17
+CXX_FLAGS = -Wall -Wextra -O3 -std=gnu++17
 

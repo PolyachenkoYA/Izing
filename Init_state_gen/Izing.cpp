@@ -27,6 +27,23 @@ void test_my(int k, py::array_t<int> *_Nt, py::array_t<double> *_probs, py::arra
 	printf("d%d: %d\n", k, d_probs_info.shape[0]);
 }
 
+py::int_ init_rand(int my_seed)
+{
+	Izing::init_rand_C(my_seed);
+	return 0;
+}
+
+py::int_ get_seed()
+{
+	return Izing::seed;
+}
+
+py::int_ set_verbose(int new_verbose)
+{
+	Izing::verbose_dafault = new_verbose;
+	return 0;
+}
+
 py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional<int> _verbose)
 /**
  *
@@ -54,42 +71,42 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional
 	py::buffer_info state_info = state.request();
 	int *state_ptr = static_cast<int *>(state_info.ptr);
 
-	double **_E;
-	int **_M;
-	_E = (double**) malloc(sizeof(double*) * 1);
-	*_E = (double*) malloc(sizeof(double) * M_arr_len);
-	_M = (int**) malloc(sizeof(int*) * 1);
-	*_M = (int*) malloc(sizeof(int) * M_arr_len);
+	double *_E;
+	int *_M;
+	_E = (double*) malloc(sizeof(double) * M_arr_len);
+	_M = (int*) malloc(sizeof(int) * M_arr_len);
 
 	if(verbose){
 		printf("using: L=%d  T=%lf  h=%lf  verbose=%d\n", L, Temp, h, verbose);
 	}
 
-	Izing::get_init_states_C(L, Temp, h, 1, state_ptr, _E, _M, &Nt, 1, verbose, 0); // allocate all spins = -1
+	Izing::get_init_states_C(L, Temp, h, 1, state_ptr, &_E, &_M, &Nt, 1, verbose, 0); // allocate all spins = -1
 
-	Izing::run_state(state_ptr, L, Temp, h, -L2-1, L2+1, _E, _M, &Nt, &M_arr_len, 1, verbose, Nt_max);
+	Izing::run_state(state_ptr, L, Temp, h, -L2-1, L2+1, &_E, &_M, &Nt, &M_arr_len, 1, verbose, Nt_max);
 
+	int N_last_elements_to_print = std::min(Nt, 10);
 	if(verbose >= 2){
 		printf("Brute-force core done\n");
+		Izing::print_E(&(_E[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+		Izing::print_M(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 	}
 
 	py::array_t<double> E = py::array_t<double>(Nt);
 	py::buffer_info E_info = E.request();
 	double *E_ptr = static_cast<double *>(E_info.ptr);
-	memcpy(E_ptr, *_E, sizeof(double) * Nt);
-	free(*_E);
+	memcpy(E_ptr, _E, sizeof(double) * Nt);
 	free(_E);
 
 	py::array_t<int> M = py::array_t<double>(Nt);
 	py::buffer_info M_info = M.request();
 	int *M_ptr = static_cast<int *>(M_info.ptr);
-	memcpy(M_ptr, *_M, sizeof(int) * Nt);
-	free(*_M);
+	memcpy(M_ptr, _M, sizeof(int) * Nt);
 	free(_M);
 
 	if(verbose >= 2){
 		printf("internal memory for EM freed\n");
-		Izing::print_E(E_ptr, Nt < 10 ? Nt : 10, 'P');
+		Izing::print_E(&(E_ptr[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'P');
+		Izing::print_M(&(M_ptr[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'P');
 		printf("exiting py::run_bruteforce\n");
 	}
 
@@ -172,13 +189,11 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 	py::buffer_info states_info = states.request();
 	int *states_ptr = static_cast<int *>(states_info.ptr);
 
-    double **_E;
-    int **_M;
+    double *_E;
+    int *_M;
     if(to_get_EM){
-        _E = (double**) malloc(sizeof(double*) * 1);
-        *_E = (double*) malloc(sizeof(double) * M_arr_len);
-        _M = (int**) malloc(sizeof(int*) * 1);
-        *_M = (int*) malloc(sizeof(int) * M_arr_len);
+        _E = (double*) malloc(sizeof(double) * M_arr_len);
+        _M = (int*) malloc(sizeof(int) * M_arr_len);
     }
 
 	if(verbose){
@@ -191,7 +206,7 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 
 	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states_ptr, N_init_states_ptr,
 					 Nt_ptr, &M_arr_len, M_interfaces_ptr, N_M_interfaces,
-					 probs_ptr, d_probs_ptr, _E, _M, to_get_EM, verbose);
+					 probs_ptr, d_probs_ptr, &_E, &_M, to_get_EM, verbose);
 
 	if(verbose >= 2){
 		printf("FFS core done\nNt: ");
@@ -203,32 +218,48 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 		}
 		Nt_total += Nt_ptr[i];
 	}
+	int N_last_elements_to_print = 10;
 	if(verbose >= 2){
-		printf("\n");
+		Izing::print_E(&(_E[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+		Izing::print_M(&(_M[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 	}
 
 	py::array_t<double> E;
     py::array_t<int> M;
     if(to_get_EM){
+		if(verbose >= 2){
+			printf("allocating EM, Nt_total = %d\n", Nt_total);
+		}
         E = py::array_t<double>(Nt_total);
         M = py::array_t<double>(Nt_total);
         py::buffer_info E_info = E.request();
         py::buffer_info M_info = M.request();
         double *E_ptr = static_cast<double *>(E_info.ptr);
-        int *M_ptr = static_cast<int *>(M_info.ptr);
-        memcpy(E_ptr, *_E, sizeof(double) * Nt_total);
-        memcpy(M_ptr, *_M, sizeof(int) * Nt_total);
+		int *M_ptr = static_cast<int *>(M_info.ptr);
 
-        free(*_E);
+		if(verbose >= 2){
+			printf("numpy arrays created\n", Nt_total);
+		}
+
+        memcpy(E_ptr, _E, sizeof(double) * Nt_total);
+
+		if(verbose >= 2){
+			printf("E copied\n", Nt_total);
+		}
+
+        memcpy(M_ptr, _M, sizeof(int) * Nt_total);
+
+		if(verbose >= 2){
+			printf("data copied\n", Nt_total);
+		}
+
         free(_E);
-        free(*_M);
         free(_M);
 
 		if(verbose >= 2){
 			printf("internal memory for EM freed\n");
-			if(to_get_EM){
-				Izing::print_E(E_ptr, Nt_total < 10 ? Nt_total : 10, 'P');
-			}
+			Izing::print_E(E_ptr, Nt_total < 10 ? Nt_total : 10, 'P');
+			Izing::print_M(M_ptr, Nt_total < 10 ? Nt_total : 10, 'P');
 		}
     }
 
@@ -238,144 +269,11 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
     return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M);
 }
 
-
-py::int_ init_rand(int my_seed)
-{
-    Izing::init_rand_C(my_seed);
-    return 0;
-}
-
-py::int_ get_seed()
-{
-	return Izing::seed;
-}
-
-py::int_ set_verbose(int new_verbose)
-{
-    Izing::verbose_dafault = new_verbose;
-    return 0;
-}
-
 namespace Izing
 {
     gsl_rng *rng;
     int seed;
     int verbose_dafault;
-
-	int state_is_valid(const int *s, int L, int k=0, char prefix=0)
-	{
-		for(int i = 0; i < L*L; ++i) if(abs(s[i]) != 1) {
-				printf("%d\n", k);
-				print_S(s, L, prefix);
-				return 0;
-		}
-		return 1;
-	}
-
-	int init_rand_C(int my_seed)
-    {
-        // initialize random generator
-        gsl_rng_env_setup();
-        const gsl_rng_type* T = gsl_rng_default;
-        rng = gsl_rng_alloc(T);
-        gsl_rng_set(rng, my_seed);
-//		srand(my_seed);
-
-        seed = my_seed;
-        return 0;
-    }
-
-    int comp_M(const int *s, int L)
-    {
-        int i, j;
-        int _M = 0;
-		int L2 = L*L;
-		for(i = 0; i < L2; ++i) _M += s[i];
-        return _M;
-    }
-
-    double comp_E(const int* s, int L, double h)
-    {
-        int i, j;
-        double _E = 0;
-        for(i = 0; i < L-1; ++i){
-            for(j = 0; j < L-1; ++j){
-                _E += s[i*L + j] * (s[(i+1)*L + j] + s[i*L + (j+1)]);
-            }
-            _E += s[i*L + (L-1)] * (s[(i+1)*L + (L-1)] + s[i*L + 0]);
-        }
-        for(j = 0; j < L-1; ++j){
-            _E += s[(L-1)*L + j] * (s[0*L + j] + s[(L-1)*L + (j+1)]);
-        }
-        _E += s[(L-1)*L + (L-1)] * (s[0*L + (L-1)] + s[(L-1)*L + 0]);
-
-        int _M = comp_M(s, L);
-		_E *= -1;   // J > 0 -> {++ > +-} -> we need to *(-1) because we search for a minimum
-		// energy is measured in [E]=J, so J==1, or we store E/J value
-
-        return h * _M + _E;
-    }
-
-    int generate_state(int *s, int L, gsl_rng *rng, int mode)
-    {
-		int i, j;
-		int L2 = L*L;
-
-        if(mode >= 0){   // generate |mode| spins UP, and the rest spins DOWN
-			for(i = 0; i < L2; ++i) s[i] = -1;
-			if(mode > 0){
-				int N_down_spins = mode;
-				assert(N_down_spins <= L2);
-
-				int *indices_to_flip = (int*) malloc(sizeof(int) * L2);
-				for(i = 0; i < L2; ++i) indices_to_flip[i] = i;
-				int max = L2;
-				int next_rand;
-				int swap_var;
-				for(i = 0; i < N_down_spins; ++i){   // generate N_down_spins uniformly distributed indices in [0; L2-1]
-					next_rand = gsl_rng_uniform_int(rng, max);
-					swap_var = indices_to_flip[next_rand];
-					indices_to_flip[next_rand] = indices_to_flip[max - 1];
-					indices_to_flip[max - 1] = swap_var;
-					--max;
-
-					s[swap_var] = 1;
-				}
-				free(indices_to_flip);
-			}
-		} else if(mode == -1){ // random
-            for(i = 0; i < L2; ++i) s[i] = gsl_rng_uniform_int(rng, 2) * 2 - 1;
-        }
-
-        return 0;
-    }
-
-    int md(int i, int L)
-    {
-        return i >= 0 ? (i < L ? i : 0) : (L-1);   // i mod L for i \in [-1; L]
-    }
-
-    double get_dE(int *s, int L, double h, int ix, int iy)
-// the difference between the current energy and energy with s[ix][iy] flipped
-    {
-        return 2 * s[ix*L + iy] * (s[md(ix + 1, L)*L + iy]
-                                   + s[ix*L + md(iy + 1, L)]
-                                   + s[md(ix - 1, L)*L + iy]
-                                   + s[ix*L + md(iy - 1, L)] + h);
-        // units [E] = J, so spins are just 's', not s*J
-    }
-
-    int get_flip_point(int *s, int L, double h, double Temp, int *ix, int *iy, double *dE, gsl_rng *rng)
-    {
-        do{
-            *ix = gsl_rng_uniform_int(rng, L);
-            *iy = gsl_rng_uniform_int(rng, L);
-
-            *dE = get_dE(s, L, h, *ix, *iy);
-        }while(!(*dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- *dE / Temp) ? 1 : 0)));
-
-        return 0;
-    }
 
 	int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt,
 				  int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M,
@@ -383,6 +281,7 @@ namespace Izing
 	{
 		int i, j;
 		int Nt_total = 0;
+		int Nt_total_prev;
 // get the initial states; they should be sampled from the distribution in [-L^2; M_0], but they are all set to have M == -L^2 because then they all will fall into the local optimum and almost forget the initial state, so it's almost equivalent to sampling from the proper distribution if 'F(M_0) - F_min >~ T'
 		get_init_states_C(L, Temp, h, N_init_states[0], states, E, M, &Nt_total, to_remember_EM, verbose, 0); // allocate all spins = -1
 		if(verbose){
@@ -394,23 +293,22 @@ namespace Izing
 		int state_size_in_bytes = sizeof(int) * L2;
 
 		for(i = 0; i <= N_M_interfaces; ++i){
+			Nt_total_prev = Nt_total;
 			probs[i] = process_step(&(states[L2 * N_states_analyzed]),
 									&(states[i == N_M_interfaces ? 0 : L2 * (N_states_analyzed + N_init_states[i])]),
-									E, M, &Nt_total, M_arr_len, N_init_states[i],
-									N_init_states[i+1], L, Temp, h, M_interfaces[i], M_interfaces[i+1],
+									E, M, &Nt_total, M_arr_len, N_init_states[i], N_init_states[i+1],
+									L, Temp, h, M_interfaces[i], M_interfaces[i+1],
 									i < N_M_interfaces, to_remember_EM, verbose);
 			//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
 			d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] * (1 - probs[i])));
 
 			N_states_analyzed += N_init_states[i];
 
+			Nt[i] = Nt_total - Nt_total_prev;
 			if(i == 0){
 				// we know that 'probs[0] == 1' because M_0 = -L2-1 for run[0]. Thus we can compute the flux
-				Nt[0] = Nt_total;
 				*flux0 = (double)N_init_states[0] / Nt[0];
 				*d_flux0 = *flux0 / sqrt(Nt[0]);   // TODO: use 'Nt/memory_time' instead of 'Nt'
-			} else {
-				Nt[i] = Nt_total - Nt[i - 1];
 			}
 
 			if(verbose){
@@ -419,6 +317,7 @@ namespace Izing
 				} else {
 					printf("-ln(p_%d) = (%lf +- %lf)\n", i, -log(probs[i]), d_probs[i] / probs[i]);   // this assumes p<<1
 				}
+				printf("Nt[%d] = %d; Nt_total = %d\n", i, Nt[i], Nt_total);
 				if(verbose >= 2){
 					if(i < N_M_interfaces){
 						printf("\nstate[%d] beginning: ", i);
@@ -440,30 +339,14 @@ namespace Izing
 		if(verbose){
 			printf("-ln(k_AB * [1 step]) = (%lf +- %lf)\n", - ln_k_AB, d_ln_k_AB);
 			if(verbose >= 2){
-
+				int N_last_elements_to_print = 10;
+				printf("Nt_total = %d\n", Nt_total);
+				print_E(&((*E)[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'f');
+				print_M(&((*M)[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'f');
+				printf("Nt: ");
+				for(i = 0; i < N_M_interfaces + 1; ++i) printf("%d ", Nt[i]);
+				printf("\n");
 			}
-		}
-
-		return 0;
-	}
-
-	int get_init_states_C(int L, double Temp, double h, int N_init_states, int *init_states, double **E, int **M, int *Nt, bool to_remember_EM, int verbose, int mode)
-	{
-		int i;
-		int L2 = L*L;
-//		int state_size_in_bytes = sizeof(int) * L2;
-
-		// generate N_init_states states in A
-		// Here they are identical, but I think it's better to generate them accordingly to equilibrium distribution in A
-		for(i = 0; i < N_init_states; ++i){
-			generate_state(&(init_states[i * L2]), L, rng, mode);
-		}
-
-		*Nt += 1;
-		// record initial state (all DOWN) E and M since run_state changes it before recording
-		if(to_remember_EM){
-			(*M)[*Nt - 1] = comp_M(init_states, L);
-			(*E)[*Nt - 1] = comp_E(init_states, L, h);
 		}
 
 		return 0;
@@ -500,10 +383,10 @@ namespace Izing
 		int *state_under_process = (int*) malloc(state_size_in_bytes);
 		if(verbose){
 			printf("doing step:(%d; %d]\n", M_0, M_next);
-			if(verbose >= 2){
-				printf("press any key to continue...\n");
-				getchar();
-			}
+//			if(verbose >= 2){
+//				printf("press any key to continue...\n");
+//				getchar();
+//			}
 		}
 		int init_state_to_process_ID;
 		while(N_succ < N_next_states){
@@ -551,7 +434,7 @@ namespace Izing
 		E_current = comp_E(s, L, h); // remember the 1st energy
 		if(verbose >= 2){
 			printf("E=%lf, M=%d\n", E_current, M_current);
-			if(abs(M_current) > L2){
+			if(abs(M_current) > L2){   // check for sanity
 				printf("state: %d\n", state_is_valid(s, L, 0, 'r'));
 				getchar();
 			}
@@ -559,14 +442,29 @@ namespace Izing
 
 		int ix, iy;
 		double dE;
+
+		double Emin = -(2 + abs(h)) * L2;
+		double Emax = 2 * L2;
+
 		while(1){
 			if(verbose >= 3) printf("doing Nt=%d\n", *Nt);
-			get_flip_point(s, L, h, Temp, &ix, &iy, &dE, rng);
+			get_flip_point(s, L, h, Temp, &ix, &iy, &dE);
 			if(verbose >= 3) printf("flip done\n");
 			++(*Nt);
 			s[ix*L + iy] *= -1;
 			M_current += 2 * s[ix*L + iy];
 			E_current += dE;
+//			if(*Nt % 10000){   // the error accumulates, so we need to recompute form scratch time to time
+//				E_current += dE;
+//			} else {
+//				E_current = comp_E(s, L, h);
+//			}
+			if(abs(E_current - comp_E(s, L, h)) > 1e-6){
+				printf("E_current = %lf, dE = %lf, Nt = %d, E = %lf\n", E_current, dE, *Nt, comp_E(s, L, h));
+				print_E(&((*E)[*Nt - 10]), 10);
+				print_S(s, L, 'r');
+				getchar();
+			}
 			if(verbose >= 3) printf("state modified\n");
 
 			if(to_remember_EM){
@@ -580,8 +478,16 @@ namespace Izing
 						printf("realloced to %d\n", *M_arr_len);
 					}
 				}
+
 				(*E)[*Nt - 1] = E_current;
 				(*M)[*Nt - 1] = M_current;
+
+				if((E_current < Emin * (1 + 1e-6)) || (E_current > Emax * (1 + 1e-6))){
+					printf("E_current = %lf, dE = %lf, Nt = %d, E = %lf\n", E_current, dE, *Nt, comp_E(s, L, h));
+					print_E(&((*E)[*Nt - 10]), 10);
+					print_S(s, L, 'r');
+					getchar();
+				}
 			}
 			if(verbose >= 3) printf("done Nt=%d\n", *Nt-1);
 			if(Nt_max > 0){
@@ -601,22 +507,141 @@ namespace Izing
 		}
 	}
 
-    int print_E(const double *E, int Nt, char prefix, char suffix)
+	int get_init_states_C(int L, double Temp, double h, int N_init_states, int *init_states, double **E, int **M, int *Nt, bool to_remember_EM, int verbose, int mode)
+	{
+		int i;
+		int L2 = L*L;
+//		int state_size_in_bytes = sizeof(int) * L2;
+
+		// generate N_init_states states in A
+		// Here they are identical, but I think it's better to generate them accordingly to equilibrium distribution in A
+		for(i = 0; i < N_init_states; ++i){
+			generate_state(&(init_states[i * L2]), L, mode);
+		}
+
+		*Nt += 1;
+		// record initial state (all DOWN) E and M since run_state changes it before recording
+		if(to_remember_EM){
+			(*M)[*Nt - 1] = comp_M(init_states, L);
+			(*E)[*Nt - 1] = comp_E(init_states, L, h);
+		}
+
+		return 0;
+	}
+
+	int init_rand_C(int my_seed)
+	{
+		// initialize random generator
+		gsl_rng_env_setup();
+		const gsl_rng_type* T = gsl_rng_default;
+		rng = gsl_rng_alloc(T);
+		gsl_rng_set(rng, my_seed);
+//		srand(my_seed);
+
+		seed = my_seed;
+		return 0;
+	}
+
+	int comp_M(const int *s, int L)
+	{
+		int i, j;
+		int _M = 0;
+		int L2 = L*L;
+		for(i = 0; i < L2; ++i) _M += s[i];
+		return _M;
+	}
+
+	double comp_E(const int* s, int L, double h)
+	{
+		int i, j;
+		double _E = 0;
+		for(i = 0; i < L-1; ++i){
+			for(j = 0; j < L-1; ++j){
+				_E += s[i*L + j] * (s[(i+1)*L + j] + s[i*L + (j+1)]);
+			}
+			_E += s[i*L + (L-1)] * (s[(i+1)*L + (L-1)] + s[i*L + 0]);
+		}
+		for(j = 0; j < L-1; ++j){
+			_E += s[(L-1)*L + j] * (s[0*L + j] + s[(L-1)*L + (j+1)]);
+		}
+		_E += s[(L-1)*L + (L-1)] * (s[0*L + (L-1)] + s[(L-1)*L + 0]);
+
+		int _M = comp_M(s, L);
+		_E *= -1;   // J > 0 -> {++ > +-} -> we need to *(-1) because we search for a minimum
+		// energy is measured in [E]=J, so J==1, or we store E/J value
+
+		return h * _M + _E;
+	}
+
+	int generate_state(int *s, int L, int mode)
+	{
+		int i, j;
+		int L2 = L*L;
+
+		if(mode >= 0){   // generate |mode| spins UP, and the rest spins DOWN
+			for(i = 0; i < L2; ++i) s[i] = -1;
+			if(mode > 0){
+				int N_down_spins = mode;
+				assert(N_down_spins <= L2);
+
+				int *indices_to_flip = (int*) malloc(sizeof(int) * L2);
+				for(i = 0; i < L2; ++i) indices_to_flip[i] = i;
+				int max = L2;
+				int next_rand;
+				int swap_var;
+				for(i = 0; i < N_down_spins; ++i){   // generate N_down_spins uniformly distributed indices in [0; L2-1]
+					next_rand = gsl_rng_uniform_int(rng, max);
+					swap_var = indices_to_flip[next_rand];
+					indices_to_flip[next_rand] = indices_to_flip[max - 1];
+					indices_to_flip[max - 1] = swap_var;
+					--max;
+
+					s[swap_var] = 1;
+				}
+				free(indices_to_flip);
+			}
+		} else if(mode == -1){ // random
+			for(i = 0; i < L2; ++i) s[i] = gsl_rng_uniform_int(rng, 2) * 2 - 1;
+		}
+
+		return 0;
+	}
+
+	double get_dE(int *s, int L, double h, int ix, int iy)
+// the difference between the current energy and energy with s[ix][iy] flipped
+	{
+		return 2 * s[ix*L + iy] * (s[md(ix + 1, L)*L + iy]
+								   + s[ix*L + md(iy + 1, L)]
+								   + s[md(ix - 1, L)*L + iy]
+								   + s[ix*L + md(iy - 1, L)] - h);
+		// units [E] = J, so spins are just 's', not s*J
+	}
+
+	int get_flip_point(int *s, int L, double h, double Temp, int *ix, int *iy, double *dE)
+	{
+		do{
+			*ix = gsl_rng_uniform_int(rng, L);
+			*iy = gsl_rng_uniform_int(rng, L);
+
+			*dE = get_dE(s, L, h, *ix, *iy);
+		}while(!(*dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- *dE / Temp) ? 1 : 0)));
+
+		return 0;
+	}
+
+    void print_E(const double *E, int Nt, char prefix, char suffix)
     {
-        if(prefix > 0){
-            printf("%c\n", prefix);
-        }
-
-        for(int i = 0; i < Nt; ++i){
-            printf("%lf ", E[i]);
-        }
-
-        if(suffix > 0){
-            printf("%c", suffix);
-        }
-
-        return 0;
+        if(prefix > 0) printf("Es: %c\n", prefix);
+        for(int i = 0; i < Nt; ++i) printf("%lf ", E[i]);
+        if(suffix > 0) printf("%c", suffix);
     }
+
+	void print_M(const int *M, int Nt, char prefix, char suffix)
+	{
+		if(prefix > 0) printf("Ms: %c\n", prefix);
+		for(int i = 0; i < Nt; ++i) printf("%d ", M[i]);
+		if(suffix > 0) printf("%c", suffix);
+	}
 
     int print_S(const int *s, int L, char prefix)
     {
@@ -635,5 +660,31 @@ namespace Izing
 
         return 0;
     }
+
+	int state_is_valid(const int *s, int L, int k, char prefix)
+	{
+		for(int i = 0; i < L*L; ++i) if(abs(s[i]) != 1) {
+				printf("%d\n", k);
+				print_S(s, L, prefix);
+				return 0;
+			}
+		return 1;
+	}
+
+	int E_is_valid(const double *E, const double E1, const double E2, int N, int k, char prefix)
+	{
+		for(int i = 0; i < N; ++i) if((E[i] < E1) || (E[i] > E2)) {
+				printf("%c%d\n", prefix, k);
+				printf("pos: %d\n", i);
+				print_E(&(E[std::max(i - 5, 0)]), std::min(i, 5), 'b');
+				printf("E_err = %lf\n", E[i]);
+//				print_S();
+				print_E(&(E[std::min(i + 5, N - 1)]), std::min(N - i, 5), 'a');
+				return 0;
+			}
+		return 1;
+	}
+
+	int md(int i, int L){ return i >= 0 ? (i < L ? i : 0) : (L-1); }   // i mod L for i \in [-1; L]
 }
 

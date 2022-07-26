@@ -5,7 +5,7 @@ import scipy
 
 import mylib as my
 
-to_recompile = False
+to_recompile = True
 if(to_recompile):
 	my.run_it('make izing.so')
 	my.run_it('mv izing.so.cpython-38-x86_64-linux-gnu.so izing.so')
@@ -13,7 +13,66 @@ if(to_recompile):
 import izing
 #exit()
 
-def proc_FFS(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_time=None, to_get_EM=False, to_plot=True):
+def log_norm_err(l, dl):
+	return np.exp(l), np.exp(l - dl), np.exp(l + dl), np.exp(l) * dl
+
+def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces, verbose=None, max_flip_time=None, to_plot_hists=True):
+	probs_AB, d_probs_AB, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, rho_AB, d_rho_AB, M_hist_centers_AB, M_hist_lens_AB = \
+		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces, verbose=verbose, max_flip_time=max_flip_time, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False)
+
+	probs_BA, d_probs_BA, ln_k_BA, d_ln_k_BA, flux0_BA, d_flux0_BA, rho_BA, d_rho_BA, M_hist_centers_BA, M_hist_lens_BA = \
+		proc_FFS_AB(L, Temp, -h, N_init_states_BA, M_interfaces, verbose=verbose, max_flip_time=max_flip_time, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False)
+	probs_BA = np.flip(probs_BA)
+	d_probs_BA = np.flip(d_probs_BA)
+	rho_BA = np.flip(rho_BA)
+	d_rho_BA = np.flip(d_rho_BA)
+	#M_hist_centers_BA = np.flip(M_hist_centers_BA)
+	#M_hist_lens_BA = np.flip(M_hist_lens_BA)
+	
+	assert(np.all(abs(M_hist_centers_AB - M_hist_centers_BA) < 1 / L**2 * 1e-3))
+	assert(np.all(abs(M_hist_lens_AB - M_hist_lens_BA) < 1 / L**2 * 1e-3))
+	
+	steps_used = 1   # 1 step, because [k] = 1/step, and 1 step is used to ln(k)
+	k_AB, k_AB_low, k_AB_up, d_k_AB = log_norm_err(ln_k_AB, d_ln_k_AB)
+	k_BA, k_BA_low, k_BA_up, d_k_BA = log_norm_err(ln_k_BA, d_ln_k_BA)
+	
+	k_min = min(k_AB, k_BA)
+	k_max = max(k_AB, k_BA)
+	ln_p_min = -np.log(1 + k_max / k_min)
+	d_ln_p_min = np.sqrt(d_ln_k_AB**2 + d_ln_k_BA**2) / (1 + k_min / k_max)
+	
+	confidence_thr = 0.3
+	if(d_ln_p_min > confidence_thr):
+		print('WARNING: poor sampling for p_min, dp/p = ' + my.f2s(d_ln_p_min) + ' > ' + str(confidence_thr))
+	
+	p_min, p_min_low, p_min_up, d_p_min = log_norm_err(ln_p_min, d_ln_p_min)
+	p_max = 1 - p_min
+	p_max_low = 1 - p_min_up
+	p_max_up = 1 - p_min_low
+	d_p_max = d_p_min
+	
+	if(k_AB > k_BA):
+		p_AB, p_AB_low, p_AB_up, d_p_AB = p_min, p_min_low, p_min_up, d_p_min
+		p_BA, p_BA_low, p_BA_up, d_p_BA = p_max, p_max_low, p_max_up, d_p_max
+	else:
+		p_AB, p_AB_low, p_AB_up, d_p_AB = p_max, p_max_low, p_max_up, d_p_max
+		p_BA, p_BA_low, p_BA_up, d_p_BA = p_min, p_min_low, p_min_up, d_p_min
+	
+	rho = p_AB * flux0_AB * rho_AB + p_BA * flux0_BA * rho_BA
+	d_rho = np.sqrt((p_AB * flux0_AB * rho_AB)**2 * ((d_p_AB / p_AB)**2 + (d_flux0_AB / flux0_AB)**2 + (d_rho_AB / rho_AB)**2) + \
+			  (p_BA * flux0_BA * rho_BA)**2 * ((d_p_BA / p_BA)**2 + (d_flux0_BA / flux0_BA)**2 + (d_rho_BA / rho_BA)**2))
+	
+	F = -Temp * np.log(rho * M_hist_lens_AB)
+	d_F = Temp * d_rho / rho
+	
+	if(to_plot_hists):
+		fig_F, ax_F = my.get_fig(r'$m = M / L^2$', r'$F(m) = -T \ln(\rho(m))$', title=r'$F(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		ax_F.errorbar(M_hist_centers_AB, F, yerr=d_F, fmt='.', label='data')
+
+
+def proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_time=None, to_get_EM=False, to_plot_time_evol=True, to_plot_hists=True, EM_stride=None):
+	print('=============== running h = %s ==================' % (my.f2s(h)))
+	
 	# py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> M_interfaces, int to_get_EM, std::optional<int> _verbose)
 	# return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M);
 	(_states, probs, d_probs, Nt, flux0, d_flux0, _E, _M) = izing.run_FFS(L, Temp, h, N_init_states, M_interfaces, verbose=verbose, to_get_EM=to_get_EM)
@@ -27,101 +86,117 @@ def proc_FFS(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_tim
 	del _states
 	
 	ln_k_AB = np.log(flux0 * 1) + np.sum(np.log(probs[1:-1]))   # [flux0 * 1] = 1, because [flux] = 1/time = 1/step
-	ln_d_k_AB = np.sqrt((d_flux0 / flux0)**2 + np.sum((d_probs[1:-1] / probs[1:-1])**2))
-	k_AB = np.exp(ln_k_AB)
-	d_k_AB = k_AB * ln_d_k_AB / abs(ln_k_AB)
+	d_ln_k_AB = np.sqrt((d_flux0 / flux0)**2 + np.sum((d_probs[1:-1] / probs[1:-1])**2))
+	k_AB, k_AB_low, k_AB_up, d_k_AB = log_norm_err(ln_k_AB, d_ln_k_AB)
 	
 	print('Nt:', Nt)
+	print('N_init_guess: ', np.exp(np.mean(np.log(Nt))) / Nt)
 	print('flux0 = (%lf +- %lf) 1/step' % (flux0, d_flux0))
 	print('-log(P):', -np.log(probs[1:-1]))
 	print('d_P / P:', d_probs[1:-1] / probs[1:-1])
-	print('k_AB = (', my.f2s(k_AB), '+-', my.f2s(d_k_AB), ') 1/step')   # probs[0] == 1 because its the probability to go from A to M_0
+	print('<k_AB> = ', my.f2s(k_AB), ' 1/step')   # probs[0] == 1 because its the probability to go from A to M_0
+	print('k_AB \\in [', my.f2s(k_AB_low), ';', my.f2s(k_AB_up), '] 1/step with 68% prob')
 	
+	dE_step = 8   # the maximum dE possible for 1 step = 'change in a spin' * 'max neighb spin' = 2*4 = 8
+	dM_step = 2   # the magnitude of the spin flip, from -1 to 1
+	if(max_flip_time is None):
+		#max_flip_time = np.exp(dE_step / Temp)
+		# The upper-bound estimate on the number of steps for 1 flip to happen
+		# This would be true if I had all the attempts (even unsuccesful ones) to flip
+			
+		max_flip_time = 1.0
+		# we save only succesful flips, so <flip time> = 1
+	M_std = 2   # appromixation, overestimation
+	memory_time = max(1, (M_std * L2) / dM_step * max_flip_time)
+
+	rho_s = np.zeros((L2 + 1, N_M_interfaces + 1))
+	d_rho_s = np.zeros((L2 + 1, N_M_interfaces + 1))
+	timesteps = []
+	M_hist_centers = []
+	rho = None
 	if(to_get_EM):
-		E = [_E[ : Nt[0]]]
+		_M = _M / L2
+		_E = _E / L2
+		
+		Nt_total = len(_E)
+		Nt_totals = np.empty(N_M_interfaces + 1, dtype=np.intc)
+		Nt_totals[0] = Nt[0]
+		E = [_E[ : Nt_totals[0]]]
 		for i in range(1, N_M_interfaces + 1):
-			E.append(_E[np.sum(Nt[:i]) : np.sum(Nt[:(i+1)])])
+			Nt_totals[i] = Nt_totals[i-1] + Nt[i]
+			E.append(_E[Nt_totals[i-1] : Nt_totals[i]])
 		del _E
-		M = [_M[ : Nt[0]]]
+		assert(Nt_total == Nt_totals[-1])
+		M = [_M[ : Nt_totals[0]]]
 		for i in range(1, N_M_interfaces + 1):
-			M.append(_M[np.sum(Nt[:i]) : np.sum(Nt[:(i+1)])])
+			M.append(_M[Nt_totals[i-1] : Nt_totals[i]])
 		del _M
 		
-		Nt_total = len(E)
 		
-		steps = np.arange(Nt)
-		dE_step = 8   # the maximum dE possible for 1 step = 'change in a spin' * 'max neighb spin' = 2*4 = 8
-		dM_step = 2   # the magnitude of the spin flip, from -1 to 1
-		if(max_flip_time is None):
-			#max_flip_time = np.exp(dE_step / Temp)
-			# The upper-bound estimate on the number of steps for 1 flip to happen
-			# This would be true if I had all the attempts (even unsuccesful ones) to flip
-			
-			max_flip_time = 1.0
-			# we save only succesful flips, so <flip time> = 1
-		
-		stab_step = int(min(L**2 * max_flip_time, Nt / 2)) * 5
-		# Each spin has a good chance to flip during this time
-		# This does not guarantee the global stable state, but it is sufficient to be sure-enough we are in the optimum of the local metastable-state.
-		# The approximation for a global ebulibration would be '1/k_AB', where k_AB is the rate constant. But it's hard to estimate on that stage.
-		stab_ind = (steps > stab_step)
-		
-		M_stab = M[stab_ind]
-		Nt_stab = len(M_stab)
-		M_mean = np.mean(M_stab)
-		M_std = np.std(M_stab)
-		memory_time = max(1, (M_std * L**2) / dM_step * max_flip_time)   
-		# Time of statistical decorelation of the system state.
-		# 'the number of flips necessary to cover the typical system states range' * 'the upper-bound estimate on the number of steps for 1 flip to happen'
-		print('memory time =', my.f2s(memory_time))
-
-		E_stab = E[stab_ind]
-		E_mean = np.mean(E_stab)
-		E_std = np.std(E_stab)
-		
-		M_hist_edges = L**2 + 1   # auto-build for edges
-		M_hist_edges = (np.arange(L**2 + 2) * 2 - (L**2 + 1)) / L**2
-		M_hist, M_hist_edges = np.histogram(M_stab, bins=M_hist_edges)
+		M_hist_edges = L2 + 1   # auto-build for edges
+		M_hist_edges = (np.arange(L2 + 2) * 2 - (L2 + 1)) / L2
 		# The number of bins cannot be arbitrary because M is descrete, thus it's a good idea if all the bins have 1 descrete value inside or all the bins have 2 or etc. 
 		# It's not good if some bins have e.g. 1 possible M value, and others have 2 possible values. 
 		# There are 'L^2 + 1' possible values of M, because '{M \in [-L^2; L^2]} and {dM = 2}'
 		# Thus, we need edges which cover [-1-1/L^2; 1+1/L^2] with step=2/L^2
 		M_hist_lens = (M_hist_edges[1:] - M_hist_edges[:-1])
-		M_hist[M_hist == 0] = 1   # to not get errors for log(hist)
-		M_hist = M_hist / memory_time
 		M_hist_centers = (M_hist_edges[1:] + M_hist_edges[:-1]) / 2
-		rho = M_hist / M_hist_lens / Nt_stab
-		d_rho = np.sqrt(M_hist * (1 - M_hist / Nt_stab)) / M_hist_lens / Nt_stab
+
+		rho = np.empty((L2 + 1, N_M_interfaces + 1))
+		d_rho = np.zeros((L2 + 1, N_M_interfaces + 1))
+		for i in range(N_M_interfaces + 1):
+			timesteps.append(np.arange(Nt[i]) + (0 if(i == 0) else Nt_totals[i-1]))
+			M_hist, _ = np.histogram(M[i], bins=M_hist_edges)
+			M_hist = M_hist / memory_time
+			M_hist_ok_inds = (M_hist > 0)
+			rho_s[M_hist_ok_inds, i] = M_hist[M_hist_ok_inds] / M_hist_lens[M_hist_ok_inds] / Nt[i]   # \pi(q, l_i)
+			d_rho_s[M_hist_ok_inds, i] = np.sqrt(M_hist[M_hist_ok_inds] * (1 - M_hist[M_hist_ok_inds] / Nt[i])) / M_hist_lens[M_hist_ok_inds] / Nt[i]
+			
+			rho[:, i] = rho_s[:, i] * (1 if(i == 0) else np.prod(probs[:i]))
+			d_rho[M_hist_ok_inds, i] = rho[M_hist_ok_inds, i] * np.sqrt((d_rho_s[M_hist_ok_inds, i] / rho_s[M_hist_ok_inds, i])**2 + (0 if(i == 0) else np.sum((d_probs[:i] / probs[:i])**2)))
+		
+		rho = np.sum(rho, axis=1)
+		d_rho = np.sqrt(np.sum(d_rho**2, axis=1))
 		F = -Temp * np.log(rho * M_hist_lens)
 		d_F = Temp * d_rho / rho
 		
-		C = E_std**2 / Temp**2 * L**2
-
-		d_E_mean = E_std / np.sqrt(Nt_stab / memory_time)
-		d_M_mean = M_std / np.sqrt(Nt_stab / memory_time)
+		# stab_step = int(min(L**2 * max_flip_time, Nt / 2)) * 5
+		# # Each spin has a good chance to flip during this time
+		# # This does not guarantee the global stable state, but it is sufficient to be sure-enough we are in the optimum of the local metastable-state.
+		# # The approximation for a global ebulibration would be '1/k_AB', where k_AB is the rate constant. But it's hard to estimate on that stage.
+		# stab_ind = (steps > stab_step)
 		
-		if(to_plot):
+# -----------
+		
+		if(to_plot_time_evol):
+			if(EM_stride is None):
+				EM_stride = np.int_(Nt_total / 1000)
+			
 			fig_E, ax_E = my.get_fig('step', '$E / L^2$', title='E(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			ax_E.plot(steps, E, label='data')
-			ax_E.plot([stab_step] * 2, [min(E), max(E)], label='equilibr')
-			ax_E.plot([stab_step, Nt], [E_mean] * 2, label=('$<E> = ' + my.errorbar_str(E_mean, d_E_mean) + '$'))
-			ax_E.legend()
-			
 			fig_M, ax_M = my.get_fig('step', '$M / L^2$', title='M(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			ax_M.plot(steps, M, label='data')
-			ax_M.plot([stab_step] * 2, [min(M), max(M)], label='equilibr')
-			ax_M.plot([stab_step, Nt], [M_mean] * 2, label=('$<M> = ' + my.errorbar_str(M_mean, d_M_mean) + '$'))
-			ax_M.legend()
 			
-			fig_Mhist, ax_Mhist = my.get_fig(r'$m = M / L^2$', r'$\rho(m)$', title=r'$\rho(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			ax_Mhist.bar(M_hist_centers, rho, yerr=d_rho, width=M_hist_lens, align='center')
-			#ax_Mhist.legend()
+			for i in range(N_M_interfaces + 1):
+				ax_E.plot(timesteps[i][::EM_stride], E[i][::EM_stride], label='data, i=%d' % (i))
+				# ax_E.plot([stab_step] * 2, [min(E), max(E)], label='equilibr')
+				# ax_E.plot([stab_step, Nt], [E_mean] * 2, label=('$<E> = ' + my.errorbar_str(E_mean, d_E_mean) + '$'))
+				
+				ax_M.plot(timesteps[i][::EM_stride], M[i][::EM_stride], label='data, i=%d' % (i))
+				# ax_M.plot([stab_step] * 2, [min(M), max(M)], label='equilibr')
+				# ax_M.plot([stab_step, Nt], [M_mean] * 2, label=('$<M> = ' + my.errorbar_str(M_mean, d_M_mean) + '$'))
+			
+			ax_E.legend()
+			ax_M.legend()
+		
+		if(to_plot_hists):
+			fig_Mhists, ax_Mhists = my.get_fig(r'$m = M / L^2$', r'$\rho(m)$', title=r'$\rho(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h), yscl='log')
+			for i in range(N_M_interfaces + 1):
+				ax_Mhists.bar(M_hist_centers, rho_s[:, i], yerr=d_rho_s[:, i], width=M_hist_lens, align='center', label=str(i))
+			ax_Mhists.legend()
 			
 			fig_F, ax_F = my.get_fig(r'$m = M / L^2$', r'$F(m) = -T \ln(\rho(m))$', title=r'$F(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			ax_F.errorbar(M_hist_centers, F, yerr=d_F)
-			#ax_F.legend()
+			ax_F.errorbar(M_hist_centers, F, yerr=d_F, fmt='.', label='data')
 
-		return E_mean, d_E_mean, M_mean, d_M_mean, C
+	return probs, d_probs, ln_k_AB, d_ln_k_AB, flux0, d_flux0, rho, d_rho, M_hist_centers, M_hist_lens
 
 def exp_integrate(x, f):
 	# integrates \int_{exp(f(x))dx}
@@ -315,12 +390,16 @@ def proc_T(L, Temp, h, Nt, verbose=None, max_flip_time=None, to_plot_time_evol=T
 #T_table = 1 / Izing_data.data[:, 0]
 #E_table = Izing_data.data[:, 1]
 
+def get_init_states(Ns, N0):
+	# first value is '1' because it's the size of the states' set from which the initial states for simulations in A will be picked. 
+	# Currently we start all the simulations from 'all spins -1', so there is really only 1 initial state, so values >1 will just mean storing copies of the same state
+	return np.array([1] + list(Ns / min(Ns) * N0), dtype=np.intc)
 
 def main():
 	my_seed = 2
 	recomp = 0
 	mode = 'FFS'
-	to_get_EM = 0
+	to_get_EM = 1
 	verbose = 1
 
 	L = 11
@@ -337,17 +416,68 @@ def main():
 
 	if(mode == 'BF'):
 		Nt = 5000000   # enough sampling grows rapidly with L. 5e6 is enought for L=11, but not for >= 13
-		proc_T(L, Temp, h, Nt, to_plot_time_evol=False)
+		proc_T(L, Temp, h, Nt, to_plot_time_evol=True)
+		
+	elif(mode == 'FFS_AB'):
+		N_M_interfaces = 10
+		M_0 = -L**2 + 20
+		M_max = -M_0
+		Nt_narrowest = 20
+		
+		N_init_states = np.ones(N_M_interfaces + 2, dtype=np.intc) * Nt_narrowest
+		
+		N_init_states = np.array([1.23969588e+02, 5.84450113e+00, 5.50214644e-01, 1.37587470e-01, 6.36924888e-02, 4.42375796e-02, 4.75439693e-02, 1.67227416e-01, 3.56319211e-01, 6.57449723e+01, 3.47409817e+01]) * \
+						np.array([1.34723054, 1.37957324, 2.10078518, 1.95356022, 1.53971505, 1.74875067, 1.54874392, 1.22188151, 2.28112138, 0.03512974, 0.32107357]) * \
+						np.array([0.94354313, 0.95265428, 0.94368868, 0.90844004, 0.84067221, 1.29158654, 0.23381741, 2.39335866, 0.73958596, 1.85306872, 1.55834244]) * \
+						np.array([1.32609833, 1.33163682, 1.27471986, 1.16235763, 0.93947925, 0.70587731, 1.00300579, 0.76772614, 1.99785438, 0.59193796, 0.63287473]) * \
+						np.array([0.95995858, 0.98238746, 0.98080595, 0.81573092, 1.48149265, 0.74719818, 6.31016512, 0.6011239, 0.48058931, 0.76629058, 0.85709126])
+			# for h=+0.01, T=2.0, L=11
+		
+		# N_init_states = np.array([1.00000000e+00, 5.38064219e-02, 8.14175284e-03, 2.37053429e-03, 1.48518289e-03, 9.50170981e-04, 2.18241023e-03, 5.31478411e-03, 2.19227675e-02, 1.64862731e-02, 3.85026277e-01]) * \
+						# np.array([2.54034094,  2.62280884,  2.86598065,  2.19024415,  2.09899753, 2.51145122,  2.30368486,  2.09866929,  1.        , 46.29191244, 1.47942745]) * \
+						# np.array([0.72173372, 0.72056242, 0.69804581, 0.74477665, 1.03137778, 0.70481042, 0.77929911, 0.99110226, 52.87379662, 0.1431188, 0.87054553]) * \
+						# np.array([1.16575118, 1.14464192, 1.3104362, 1.50333849, 0.64985351, 1.5033924, 1.49060548, 0.37652677, 0.03124324, 13.08451377, 1.69703905]) * \
+						# np.array([1.15945569, 1.13287169, 1.2031427, 0.96265214, 0.92756198, 2.13027455, 1.21681243, 1.54634793, 1.0057098, 0.1562718, 1.12490521]) * \
+						# np.array([1.09514031, 1.16373809, 0.92639821, 1.2773923, 2.29584632, 0.64151696, 0.54354285, 1.18696861, 0.98060184, 0.8953073, 0.79481157])
+			# for h=-0.01, T=2.0, L=11
+						
+		N_init_states = get_init_states(N_init_states, Nt_narrowest)
+		# first value is '1' because it's the size of the states' set from which the initial states for simulations in A will be picked. 
+		# Currently we start all the simulations from 'all spins -1', so there is really only 1 initial state, so values >1 will just mean storing copies of the same state
+		
+		print(N_init_states)
+		M_interfaces = np.array([-L**2 - 1] + list(M_0 + np.round(np.arange(N_M_interfaces) * (M_max - M_0) / (N_M_interfaces - 1) / 2) * 2) + [L**2], dtype=np.intc)
+		
+		proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, to_get_EM=to_get_EM)
 		
 	elif(mode == 'FFS'):
 		N_M_interfaces = 10
 		M_0 = -L**2 + 20
 		M_max = -M_0
-		N_init_states = np.ones(N_M_interfaces + 2, dtype=np.intc).T * 10
-		M_interfaces = np.array([-L**2 - 1] + list(M_0 + np.round(np.arange(N_M_interfaces) * (M_max - M_0) / (N_M_interfaces - 1) / 2) * 2) + [L**2], dtype=np.intc).T
+		Nt_narrowest = 20
 		
-		proc_FFS(L, Temp, h, N_init_states, M_interfaces)
+		N_init_states_BA = np.array([1.23969588e+02, 5.84450113e+00, 5.50214644e-01, 1.37587470e-01, 6.36924888e-02, 4.42375796e-02, 4.75439693e-02, 1.67227416e-01, 3.56319211e-01, 6.57449723e+01, 3.47409817e+01]) * \
+						np.array([1.34723054, 1.37957324, 2.10078518, 1.95356022, 1.53971505, 1.74875067, 1.54874392, 1.22188151, 2.28112138, 0.03512974, 0.32107357]) * \
+						np.array([0.94354313, 0.95265428, 0.94368868, 0.90844004, 0.84067221, 1.29158654, 0.23381741, 2.39335866, 0.73958596, 1.85306872, 1.55834244]) * \
+						np.array([1.32609833, 1.33163682, 1.27471986, 1.16235763, 0.93947925, 0.70587731, 1.00300579, 0.76772614, 1.99785438, 0.59193796, 0.63287473]) * \
+						np.array([0.95995858, 0.98238746, 0.98080595, 0.81573092, 1.48149265, 0.74719818, 6.31016512, 0.6011239, 0.48058931, 0.76629058, 0.85709126])
+			# for h=+0.01, T=2.0, L=11
+		N_init_states_BA = get_init_states(N_init_states_BA, Nt_narrowest)
 		
+		N_init_states_AB = np.array([1.00000000e+00, 5.38064219e-02, 8.14175284e-03, 2.37053429e-03, 1.48518289e-03, 9.50170981e-04, 2.18241023e-03, 5.31478411e-03, 2.19227675e-02, 1.64862731e-02, 3.85026277e-01]) * \
+						np.array([2.54034094,  2.62280884,  2.86598065,  2.19024415,  2.09899753, 2.51145122,  2.30368486,  2.09866929,  1.        , 46.29191244, 1.47942745]) * \
+						np.array([0.72173372, 0.72056242, 0.69804581, 0.74477665, 1.03137778, 0.70481042, 0.77929911, 0.99110226, 52.87379662, 0.1431188, 0.87054553]) * \
+						np.array([1.16575118, 1.14464192, 1.3104362, 1.50333849, 0.64985351, 1.5033924, 1.49060548, 0.37652677, 0.03124324, 13.08451377, 1.69703905]) * \
+						np.array([1.15945569, 1.13287169, 1.2031427, 0.96265214, 0.92756198, 2.13027455, 1.21681243, 1.54634793, 1.0057098, 0.1562718, 1.12490521]) * \
+						np.array([1.09514031, 1.16373809, 0.92639821, 1.2773923, 2.29584632, 0.64151696, 0.54354285, 1.18696861, 0.98060184, 0.8953073, 0.79481157])
+		N_init_states_AB = get_init_states(N_init_states_AB, Nt_narrowest)
+		
+		print('Ns_AB:', N_init_states_AB)
+		print('Ns_BA:', N_init_states_BA)
+		M_interfaces = np.array([-L**2 - 1] + list(M_0 + np.round(np.arange(N_M_interfaces) * (M_max - M_0) / (N_M_interfaces - 1) / 2) * 2) + [L**2], dtype=np.intc)
+		
+		proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces)
+
 	elif(mode == 'XXX'):
 		fig_E, ax_E = my.get_fig('T', '$E/L^2$', xscl='log')
 		fig_M, ax_M = my.get_fig('T', '$M/L^2$', xscl='log')

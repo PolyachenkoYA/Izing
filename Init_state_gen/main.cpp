@@ -65,12 +65,12 @@ int main(int argc, char** argv) {
 
 	double **E;
     int **M;
-    if(to_remember_EM){
-		E = (double**) malloc(sizeof(double*) * 1);
-		*(E) = (double*) malloc(sizeof(double) * M_arr_len);
-		M = (int**) malloc(sizeof(int*) * 1);
-		*(M) = (int*) malloc(sizeof(int) * M_arr_len);
-    }
+//    if(to_remember_EM){
+//		E = (double**) malloc(sizeof(double*) * 1);
+//		*(E) = (double*) malloc(sizeof(double) * M_arr_len);
+//		M = (int**) malloc(sizeof(int*) * 1);
+//		*(M) = (int*) malloc(sizeof(int) * M_arr_len);
+//    }
 
 	//    printf("0: %d\n", Izing::get_seed_C());
     Izing::init_rand_C(my_seed);

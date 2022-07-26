@@ -22,13 +22,17 @@ namespace Izing
 	int md(int i, int L);
 	template <typename T> T sqr(T x) { return x * x; }
 
-	int print_E(const double *E, int Nt, char prefix=0, char suffix='\n');
+	void print_M(const int *M, int Nt, char prefix=0, char suffix='\n');
+	void print_E(const double *E, int Nt, char prefix=0, char suffix='\n');
 	int print_S(const int *s, int L, char prefix);
+	int E_is_valid(const double *E, const double E1, const double E2, int N, int k=0, char prefix=0);
+	int state_is_valid(const int *s, int L, int k=0, char prefix=0);
 
     int init_rand_C(int my_seed);
     double comp_E(const int* s, int N, double h);
 	int comp_M(const int *s, int L);
-    int generate_state(int *s, int L, gsl_rng *rng, int mode=1);
+    int generate_state(int *s, int L, int mode=1);
+	int get_flip_point(int *s, int L, double h, double Temp, int *ix, int *iy, double *dE);
     double get_dE(int *s, int L, double h, int ix, int iy);
 	int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt,
 			  int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M,
