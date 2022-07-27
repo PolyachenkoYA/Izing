@@ -21,7 +21,7 @@ def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces, verbo
 		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces, verbose=verbose, max_flip_time=max_flip_time, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
 
 	probs_BA, d_probs_BA, ln_k_BA, d_ln_k_BA, flux0_BA, d_flux0_BA, rho_BA, d_rho_BA, M_hist_centers_BA, M_hist_lens_BA = \
-		proc_FFS_AB(L, Temp, -h, N_init_states_BA, -M_interfaces, verbose=verbose, max_flip_time=max_flip_time, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
+		proc_FFS_AB(L, Temp, -h, N_init_states_BA, -np.flip(M_interfaces), verbose=verbose, max_flip_time=max_flip_time, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
 	probs_BA = np.flip(probs_BA)
 	d_probs_BA = np.flip(d_probs_BA)
 	rho_BA = np.flip(rho_BA)
@@ -431,7 +431,7 @@ def get_init_states(Ns, N_min, N0=1):
 def main():
 	my_seed = 2
 	recomp = 0
-	mode = 'FFS_AB'
+	mode = 'FFS'
 	to_get_EM = 1
 	verbose = 1
 

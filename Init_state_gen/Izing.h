@@ -40,7 +40,7 @@ namespace Izing
 	int get_init_states_C(int L, double Temp, double h, int N_init_states, int M_0, int *init_states, int verbose, int mode);
 	int run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, int **M, int *Nt, int *M_arr_len,
 				  bool to_remember_EM, int verbose, int Nt_max=-1, int* states_to_save= nullptr, int *N_states_saved= nullptr,
-				  int N_states_to_save=-1, int M_thr_save_state=-1);
+				  int N_states_to_save=-1, int M_thr_save_state=0);
 	double process_step(int *init_states, int *next_states, double **E, int **M, int *Nt, int *M_arr_len,
 				 int N_init_states, int N_next_states, int L, double Temp, double h, int M_0, int M_next,
 				 int to_save_next_states, bool to_remember_EM, int verbose);

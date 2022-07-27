@@ -50,7 +50,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional
  * @param L - the side-size of the lattice
  * @param Temp - temperature of the system; units=J, so it's actually T/J
  * @param h - magnetic-field-induced multiplier; unit=J, so it's h/J
- * @param Nt - for many succesful MC steps I want
+ * @param Nt_max - for many succesful MC steps I want
  * @param _verbose - int number >= 0 or py::none(), shows how load is the process; If it's None (py::none()), then the default state 'verbose' is used
  * @return :
  * 	E, M - double arrays [Nt], Energy and Magnetization data from all the simulations
@@ -123,6 +123,7 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
  * @param N_init_states - array of ints [N_M_interfaces+2], how many states do I want on each interface
  * @param M_interfaces - array of ints [N_M_interfaces+2], contains values of M for interfaces. The map is [-L2; M_0](; M_1](...](; M_n-1](; L2]
  * @param to_get_EM - T/F, determines whether the E and M evolution if stored
+ * @param init_gen_mode - int, the way how the states in A are generated to be then simulated towards the M_0 interface
  * @param _verbose - int number >= 0 or py::none(), shows how load is the process; If it's None (py::none()), then the default state 'verbose' is used
  * @return :
  * 	flux0, d_flux0 - the flux from A to M_0
@@ -278,6 +279,28 @@ namespace Izing
 	int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt,
 				  int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M,
 				  int to_remember_EM, int verbose, int init_gen_mode)
+	/**
+	 *
+	 * @param flux0 - see run_FFS description (return section)
+	 * @param d_flux0 - run_FFS (return section)
+	 * @param L - run_FFS
+	 * @param Temp - run_FFS
+	 * @param h - run_FFS
+	 * @param states - run_FFS (return section)
+	 * @param N_init_states - run_FFS
+	 * @param Nt - run_FFS (return section)
+	 * @param M_arr_len - see 'double step_process(...)' description
+	 * @param M_interfaces - run_FFS
+	 * @param N_M_interfaces - int = len(M_interfaces) - 2, the number of non-trivial (all expect -L2-1 and +L2) interfaces
+	 * @param probs - run_FFS (return section)
+	 * @param d_probs - run_FFS (return section)
+	 * @param E - run_FFS (return section)
+	 * @param M - run_FFS (return section)
+	 * @param to_remember_EM - run_FFS
+	 * @param verbose - run_FFS
+	 * @param init_gen_mode - run_FFS
+	 * @return - the Error code (none implemented yet)
+	 */
 	{
 		int i, j;
 		int Nt_total_prev;
@@ -332,7 +355,7 @@ namespace Izing
 		double d_ln_k_AB = Izing::sqr(*d_flux0 / *flux0);
 		for(i = 1; i < N_M_interfaces; ++i){   // we don't need the last prob since it's a P from M=M_last to M=L2
 			ln_k_AB += log(probs[i]);
-			d_ln_k_AB += Izing::sqr(d_probs[i] / probs[i]);   // this assumes p<<1
+			d_ln_k_AB += Izing::sqr(d_probs[i] / probs[i]);   // this assumes dp/p << 1,
 		}
 		d_ln_k_AB = sqrt(d_ln_k_AB);
 
@@ -369,6 +392,7 @@ namespace Izing
 	 * @param h - magnetic-field-induced multiplier; unit=J, so it's h/J
 	 * @param M_0 - the lower-border to stop the simulations at. If a simulation reaches this M==M_0, it's terminated and discarded
 	 * @param M_next - the upper-border to stop the simulations at. If a simulation reaches this M==M_0, it's stored to be a part of a init_states set of states for the next FFS step
+	 * @param to_save_next_states - whether to use *next_states to store states with M = M_next. It's used to disable saving for M = +L2 in the last step.
 	 * @param to_remember_EM - T/F, determines whether the E and M evolution if stored
 	 * @param verbose - T/F, shows the progress
 	 * @return - the fraction of successful runs (the runs that reached M==M_next)
@@ -427,6 +451,27 @@ namespace Izing
 
 	int run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, int **M, int *Nt, int *M_arr_len,
 				  bool to_remember_EM, int verbose, int Nt_max, int* states_to_save, int *N_states_saved, int N_states_to_save, int M_thr_save_state)
+	/**
+	 *
+	 * @param s - the current state the system under simulation is in
+	 * @param L - see run_FFS
+	 * @param Temp - see run_FFS
+	 * @param h - see run_FFS
+	 * @param M_0 - the interface such that A = {state \in {all states} : M(state) < M_0}
+	 * @param M_next - the interface the the simulation is currently tring to reach. The simulation is stopped when M = M_next. It's assumed M_0 < M_next
+	 * @param E - see run_FFS
+	 * @param M - see run_FFS
+	 * @param Nt - see run_FFS
+	 * @param M_arr_len - see process_step function description
+	 * @param to_remember_EM - see run_FFS
+	 * @param verbose - see run_FFS
+	 * @param Nt_max - int, default -1; It's it's > 0, then the simulation is stopped on '*Nt >= Nt_max'
+	 * @param states_to_save - int*, default nullptr; The pointer to the set of states to save during the run
+	 * @param N_states_saved - int*, default nullptr; The number of states already saved in 'states_to_save'
+	 * @param N_states_to_save - int, default -1; If it's >0, the simulation is stopped when 'N_states_saved >= N_states_to_save'
+	 * @param M_thr_save_state - int, default 0; If(N_states_to_save > 0), states are saved when M == M_thr_save_state
+	 * @return - the Error status (none implemented yet)
+	 */
 	{
 		int L2 = L*L;
 		int state_size_in_bytes = sizeof(int) * L2;
@@ -543,6 +588,28 @@ namespace Izing
 	}
 
 	int get_init_states_C(int L, double Temp, double h, int N_init_states, int M_0, int *init_states, int verbose, int mode)
+	/**
+	 *
+	 * @param L - see run_FFS
+	 * @param Temp - see run_FFS
+	 * @param h - see run_FFS
+	 * @param N_init_states - see run_FFS
+	 * @param M_0 - see 'run_state' description
+	 * @param init_states - int*, assumed to be preallocated; The set of states to fill by generating them in this function
+	 * @param verbose - see run_FFS
+	 * @param mode - the mode of generation
+	 * 		mode >=0: generate all spins -1, then randomly (uniform ix and iy \in [0; L^2-1]) set |mode| states to +1
+	 * 		mode -1: all spins are 50/50 +1 or -1
+	 * 		mode -2: A brute-force simulation is run until 'N_init_states' states with M < M_0 are saved
+	 * 			The simluation is run in a following way:
+	 * 			1. A state with 'all spins = -1' is generated and saved, then a MC simulation is run until 'M_current' reaches ~ 0
+	 * 				(1 for odd L^2, 0 for even L^2. This is because M_step=2, so if L^2 is even, then all possible Ms are also even, and if L^2 is odd, all Ms are odd)
+	 * 			2. During the simulation, the state is saved every time when M < M_0
+	 * 			3. If we reach 'N_init_states' saved states before hitting 'M_current'~0, then the simulation just stops and the generation is complete
+	 * 			4. If we reach 'M_current'~0 before obtaining 'N_init_states' saved states, the simulation is restarted randomly from a state \in states that were already generated and saved
+	 * 			5. p. 4 in repeated until we obtain 'N_init_states' saved states
+	 * @return - the Error code
+	 */
 	{
 		int i;
 		int L2 = L*L;
@@ -575,6 +642,11 @@ namespace Izing
 	}
 
 	int init_rand_C(int my_seed)
+	/**
+	 * Sets up a new GSL randomg denerator seed
+	 * @param my_seed - the new seed for GSL
+	 * @return  - the Error code
+	 */
 	{
 		// initialize random generator
 		gsl_rng_env_setup();
@@ -588,6 +660,12 @@ namespace Izing
 	}
 
 	int comp_M(const int *s, int L)
+	/**
+	 * Computes the Magnetization of the state 's' of the linear size 'L'
+	 * @param s - the state to analyze
+	 * @param L - the linear size of the lattice
+	 * @return - the value of Magnetization of the state 's'
+	 */
 	{
 		int i, j;
 		int _M = 0;
@@ -597,6 +675,13 @@ namespace Izing
 	}
 
 	double comp_E(const int* s, int L, double h)
+	/**
+	 * Computes the Energy of the state 's' of the linear size 'L', immersed in the 'h' magnetic field;
+	 * E = E/J = - \sum_{i, <j>}(s_i * s_j) - h * sum_{i}(s_i)
+	 * @param s - the state to analyze
+	 * @param L - the linear size of the lattice
+	 * @return - the value of Energy of the state 's'
+	 */
 	{
 		int i, j;
 		double _E = 0;
@@ -619,6 +704,13 @@ namespace Izing
 	}
 
 	int generate_state(int *s, int L, int mode)
+	/**
+	 * Generates (fill with values) a single state 's' of size 'L' in a 'mode' way
+	 * @param s - the state to fill
+	 * @param L - the linear size of the state
+	 * @param mode - the way to fill the state
+	 * @return - the Error code
+	 */
 	{
 		int i, j;
 		int L2 = L*L;
@@ -653,6 +745,19 @@ namespace Izing
 	}
 
 	double get_dE(int *s, int L, double h, int ix, int iy)
+	/**
+	 * Computes the energy difference '(E_future_after_the_flip - E_current)'.
+	 * 1. "Now" the s[ix, iy] = s, it will be "= -s", so \sum_{neib} difference d_sum = {(-s) - s = -2s} * {all the neighbours}.
+	 * 		But E = -\sum_{neib}, so d_E = -d_sum = 2s * {all the neighbours}
+	 * 2. d_\sum(s_i) = (-s) - s = -2s; E = -h * \sum(s_i) => d_E = -h * d_sum(s_i) = 2s * h
+	 * 3. So, it total, d_E = 2s(h + s+neib)
+	 * @param s - the current state (before the flip)
+	 * @param L - linear size of the state
+	 * @param h - magnetic field
+	 * @param ix - the X index os the spin considered for a flip
+	 * @param iy - the Y index os the spin considered for a flip
+	 * @return - the values of a potential Energy change
+	 */
 // the difference between the current energy and energy with s[ix][iy] flipped
 	{
 		return 2 * s[ix*L + iy] * (s[md(ix + 1, L)*L + iy]
@@ -663,6 +768,17 @@ namespace Izing
 	}
 
 	int get_flip_point(int *s, int L, double h, double Temp, int *ix, int *iy, double *dE)
+	/**
+	 * Get the positions [*ix, *iy] of a spin to flip in a MC process
+	 * @param s - the state
+	 * @param L - the size
+	 * @param h - the magnetic field
+	 * @param Temp - the Temperature
+	 * @param ix - int*, the X index of the spin to be flipped (already decided)
+	 * @param iy - int*, the Y index of the spin to be flipped (already decided)
+	 * @param dE - the Energy difference necessary for the flip (E_flipped - E_current)
+	 * @return - the Error code
+	 */
 	{
 		do{
 			*ix = gsl_rng_uniform_int(rng, L);
