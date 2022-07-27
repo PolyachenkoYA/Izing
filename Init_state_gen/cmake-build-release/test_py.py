@@ -16,12 +16,12 @@ import izing
 def log_norm_err(l, dl):
 	return np.exp(l), np.exp(l - dl), np.exp(l + dl), np.exp(l) * dl
 
-def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces, verbose=None, max_flip_time=None, to_plot_hists=True, init_gen_mode=-2):
+def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA, verbose=None, max_flip_time=None, to_plot_hists=True, init_gen_mode=-2):
 	probs_AB, d_probs_AB, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, rho_AB, d_rho_AB, M_hist_centers_AB, M_hist_lens_AB = \
-		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces, verbose=verbose, max_flip_time=max_flip_time, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
+		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, verbose=verbose, max_flip_time=max_flip_time, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
 
 	probs_BA, d_probs_BA, ln_k_BA, d_ln_k_BA, flux0_BA, d_flux0_BA, rho_BA, d_rho_BA, M_hist_centers_BA, M_hist_lens_BA = \
-		proc_FFS_AB(L, Temp, -h, N_init_states_BA, -np.flip(M_interfaces), verbose=verbose, max_flip_time=max_flip_time, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
+		proc_FFS_AB(L, Temp, -h, N_init_states_BA, M_interfaces_BA, verbose=verbose, max_flip_time=max_flip_time, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
 	probs_BA = np.flip(probs_BA)
 	d_probs_BA = np.flip(d_probs_BA)
 	rho_BA = np.flip(rho_BA)
@@ -524,11 +524,13 @@ def main():
 		
 		print('Ns_AB:', N_init_states_AB)
 		print('Ns_BA:', N_init_states_BA)
-		M_interfaces = np.array([-L**2 - 1] + list(M_0 + np.round(np.arange(N_M_interfaces) * (M_max - M_0) / (N_M_interfaces - 1) / 2) * 2) + [L**2], dtype=np.intc)
+		M_interfaces = M_0 + np.round(np.arange(N_M_interfaces) * (M_max - M_0) / (N_M_interfaces - 1) / 2) * 2
+		M_interfaces_AB = np.array([-L**2 - 1] + list(M_interfaces) + [L**2], dtype=np.intc)
+		M_interfaces_BA = np.array([-L**2 - 1] + list(-np.flip(M_interfaces)) + [L**2], dtype=np.intc)
 		# this gives Ms such that there are always pairs +-M[i], so flipping this does not move the intefraces, which is (is it?) good for backwords FFS (B->A)
 		
 		if(mode == 'FFS'):
-			proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces)
+			proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA)
 		else:
 			proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces, to_get_EM=to_get_EM)
 
