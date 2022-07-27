@@ -4,8 +4,8 @@
 
 
 int main(int argc, char** argv) {
-    if(argc != 11){
-        printf("usage:\n%s   L   T   h   N_init_states   M_0   M_max   N_M_interfaces   to_remember_EM   verbose   seed\n", argv[0]);
+    if(argc != 12){
+        printf("usage:\n%s   L   T   h   N_init_states   M_0   M_max   N_M_interfaces   init_gen_mode   to_remember_EM   verbose   seed\n", argv[0]);
         return 1;
     }
 
@@ -16,9 +16,10 @@ int main(int argc, char** argv) {
     int M_0 = atoi(argv[5]);
 	int M_max = atoi(argv[6]);
 	int N_M_interfaces = atoi(argv[7]);
-    int to_remember_EM = atoi(argv[8]);
-    int verbose = atoi(argv[9]);
-    int my_seed = atoi(argv[10]);
+	int init_gen_mode = atoi(argv[8]);
+    int to_remember_EM = atoi(argv[9]);
+    int verbose = atoi(argv[10]);
+    int my_seed = atoi(argv[11]);
 
 	L = 11;
 	Temp = 2.0;
@@ -27,6 +28,7 @@ int main(int argc, char** argv) {
 	M_0 = -L*L + 20;
 	M_max = -M_0;
 	N_M_interfaces = 10;
+	init_gen_mode = -2;
 	to_remember_EM = 1;
 	verbose = 1;
 	my_seed = 2;
@@ -79,7 +81,7 @@ int main(int argc, char** argv) {
 	double *flux0 = (double *) malloc(sizeof(double ));
 	double *d_flux0 = (double *) malloc(sizeof(double ));;
 
-	Izing::run_FFS_C(flux0, d_flux0, L, Temp, h, states, N_init_states, Nt, &M_arr_len, M_interfaces, N_M_interfaces, probs, d_probs, E, M, to_remember_EM, verbose);
+	Izing::run_FFS_C(flux0, d_flux0, L, Temp, h, states, N_init_states, Nt, &M_arr_len, M_interfaces, N_M_interfaces, probs, d_probs, E, M, to_remember_EM, verbose, init_gen_mode);
 
     if(to_remember_EM){
 		free(*E);   // array data

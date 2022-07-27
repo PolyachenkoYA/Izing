@@ -25,6 +25,7 @@ PYBIND11_MODULE(izing, m)
           py::arg("N_init_states"),
           py::arg("M_interfaces"),
 		  py::arg("to_get_EM")=0,
+		  py::arg("init_gen_mode")=-2,
 		  py::arg("verbose")=py::none()
     );
 
