@@ -5,18 +5,90 @@ import scipy
 
 import mylib as my
 
-to_recompile = True
-if(to_recompile):
-	my.run_it('make izing.so')
-	my.run_it('mv izing.so.cpython-38-x86_64-linux-gnu.so izing.so')
+if(__name__ == "__main__"):
+	to_recompile = True
+	if(to_recompile):
+		my.run_it('make izing.so')
+		my.run_it('mv izing.so.cpython-38-x86_64-linux-gnu.so izing.so')
+		print('recompiled izing')
 
-import izing
-#exit()
+	import izing
+	#exit()
 
 def log_norm_err(l, dl):
+	"""Returns the confidence interval of a log-norm distributed value
+	
+	Parameters
+	----------
+	l : float
+		The <log(x)> value
+	dl : float
+		std(<log(x)>), assuming <log(x)> is normally distributed
+
+	Returns
+	-------
+	1: e^<log> ~= <x>
+	2: e^(<log> - d_<log>)
+	3: e^(<log> + d_<log>)
+	4: e^<log> * d_<log> ~= dx
+	"""
 	return np.exp(l), np.exp(l - dl), np.exp(l + dl), np.exp(l) * dl
 
-def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA, verbose=None, max_flip_time=None, to_plot_hists=True, init_gen_mode=-2):
+def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA, verbose=None, max_flip_time=None, to_plot_hists=True, init_gen_mode=-2, Nt_bf=15000000):
+	"""Runs FFS from both ends and obtains the F profile
+
+	Parameters
+	----------
+	L : int
+		The linear size of the lattice
+	
+	Temp : float
+		Temperature of the system, in J units, so it's T/J
+	
+	h : float
+		Magnetic field (the 'h' in E = -h*sum(s_i)), actually h/J
+	
+	N_init_states_AB : np.array(N_M_interfaces + 1, int)
+		The number of states to save on each interface [M_0, M_1, ..., M_N-1, L2]. 
+		See 'M_interfaces' for more info
+	N_init_states_BA : np.array(N_M_interfaces + 1, int)
+		same as N_init_states_AB, but for BA process
+	
+	M_interfaces_AB : np.array(N_M_interfaces + 2, float)
+		All the interfaces for the run. +2 because theare is an interface at -L2-1 and at +L2 to formally complete the picture
+		So, for L=11, M_0 = -101, N_M_interfaces=10, the interfaces might be:
+		-122, -101, -79, -57, -33, -11, 11, 33, 57, 79, 101, 121
+	
+	M_interfaces_BA : 
+		same as N_init_states_AB, but for BA process
+	
+	verbose : int, (None)
+		How hoisy the computation is, {0, 1, 2, 3} are now possible
+		None means the verbosity will be taken from the global value, which is a part of the namespace program state in the 'izing' module
+		A number means it will be passed to all the deeper functions and used imstead of the default-state value
+	
+	max_flip_time : double, (None)
+		Used to estimate the equlibration time (to a local optimum), t_eq ~ L2 * flip_time
+		None means it will be estimated from some physical reasoning
+		A number will be used as given
+	
+	to_plot_hists : bool (True)
+		whether or not to plot F profile and other related plots
+	
+	init_gen_mode : int (-2)
+		The way to generate initial states in A to be propagated towards M_0
+		-2 - generate an ensemble and in A and sample from this ensemble
+		-1 - generate each spin randomly 50/50 to be +-1
+		>=0 - generate all spins -1 and then set |mode| random (uniformly distributed over all lattice points) spins to +1
+	
+
+	Returns
+	-------
+	1: e^<log> ~= <x>
+	2: e^(<log> - d_<log>)
+	3: e^(<log> + d_<log>)
+	4: e^<log> * d_<log> ~= dx
+	"""
 	probs_AB, d_probs_AB, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, rho_AB, d_rho_AB, M_hist_centers_AB, M_hist_lens_AB = \
 		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, verbose=verbose, max_flip_time=max_flip_time, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
 
@@ -64,11 +136,16 @@ def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_
 	
 	F = -Temp * np.log(rho * M_hist_lens_AB)
 	d_F = Temp * d_rho / rho
+	F = F - min(F)
+	
+	F_bf, d_F_bf, E_bf, M_hist_centers_bf, k_bc_AB, E_mean_bf, d_E_mean_bf, M_mean_bf, d_M_mean_bf, C_bf = \
+		proc_T(L, Temp, h, Nt_bf, to_plot_time_evol=False, to_plot_F=False)
 	
 	if(to_plot_hists):
-		fig_F, ax_F = my.get_fig(r'$m = M / L^2$', r'$F(m) = -T \ln(\rho(m))$', title=r'$F(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-		ax_F.errorbar(M_hist_centers_AB, F, yerr=d_F, fmt='.', label='data')
-
+		fig_F, ax_F = my.get_fig(r'$m = M / L^2$', r'$F(m) = -T \ln(\rho(m) \cdot dm(m))$', title=r'$F(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		ax_F.errorbar(M_hist_centers_AB, F, yerr=d_F, fmt='.', label='FFS data')
+		ax_F.errorbar(M_hist_centers_bf, F_bf - min(F_bf), yerr=d_F_bf, fmt='.', label='BF data')
+		ax_F.legend()
 
 def proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_time=None, to_get_EM=False, to_plot_time_evol=True, to_plot_hists=True, EM_stride=-3000, init_gen_mode=-2, Ms_alpha=0.5):
 	print('=============== running h = %s ==================' % (my.f2s(h)))
@@ -95,7 +172,10 @@ def proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_
 	print('-log10(P):', -np.log(probs) / np.log(10))
 	print('d_P / P:', d_probs / probs)
 	print('<k_AB> = ', my.f2s(k_AB), ' 1/step')   # probs[0] == 1 because its the probability to go from A to M_0
-	print('k_AB \\in [', my.f2s(k_AB_low), ';', my.f2s(k_AB_up), '] 1/step with 68% prob')
+	if(d_ln_k_AB > 0.3):
+		print('k_AB \\in [', my.f2s(k_AB_low), ';', my.f2s(k_AB_up), '] 1/step with 68% prob')
+	else:
+		print('d_<k_AB> = ', my.f2s(k_AB * d_ln_k_AB), ' 1/step')
 	
 	dE_step = 8   # the maximum dE possible for 1 step = 'change in a spin' * 'max neighb spin' = 2*4 = 8
 	dM_step = 2   # the magnitude of the spin flip, from -1 to 1
@@ -108,6 +188,16 @@ def proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_
 		# we save only succesful flips, so <flip time> = 1
 	M_std = 2   # appromixation, overestimation
 	memory_time = max(1, (M_std * L2) / dM_step * max_flip_time)
+	
+	P_B = np.empty(N_M_interfaces)
+	d_P_B = np.empty(N_M_interfaces)
+	P_B[N_M_interfaces - 1] = 1
+	d_P_B[N_M_interfaces - 1] = 0
+	for i in range(N_M_interfaces - 1):
+		_p = probs[(i + 1):(N_M_interfaces)]
+		d__p = d_probs[(i + 1):(N_M_interfaces)]
+		P_B[i] = np.prod(_p)
+		d_P_B[i] = P_B[i] * np.sqrt(np.sum((d__p / _p)**2))
 
 	rho_s = np.zeros((L2 + 1, N_M_interfaces + 1))
 	d_rho_s = np.zeros((L2 + 1, N_M_interfaces + 1))
@@ -150,8 +240,10 @@ def proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_
 			M_hist, _ = np.histogram(M[i], bins=M_hist_edges)
 			M_hist = M_hist / memory_time
 			M_hist_ok_inds = (M_hist > 0)
-			rho_s[M_hist_ok_inds, i] = M_hist[M_hist_ok_inds] / M_hist_lens[M_hist_ok_inds] / Nt[i]   # \pi(q, l_i)
-			d_rho_s[M_hist_ok_inds, i] = np.sqrt(M_hist[M_hist_ok_inds] * (1 - M_hist[M_hist_ok_inds] / Nt[i])) / M_hist_lens[M_hist_ok_inds] / Nt[i]
+			#rho_s[M_hist_ok_inds, i] = M_hist[M_hist_ok_inds] / M_hist_lens[M_hist_ok_inds] / Nt[i]   # \pi(q, l_i)
+			#d_rho_s[M_hist_ok_inds, i] = np.sqrt(M_hist[M_hist_ok_inds] * (1 - M_hist[M_hist_ok_inds] / Nt[i])) / M_hist_lens[M_hist_ok_inds] / Nt[i]
+			rho_s[M_hist_ok_inds, i] = M_hist[M_hist_ok_inds] / M_hist_lens[M_hist_ok_inds] / N_init_states[i+1]   # \pi(q, l_i)
+			d_rho_s[M_hist_ok_inds, i] = np.sqrt(M_hist[M_hist_ok_inds] * (1 - M_hist[M_hist_ok_inds] / Nt[i])) / M_hist_lens[M_hist_ok_inds] / N_init_states[i+1]
 			
 			rho[:, i] = rho_s[:, i] * (1 if(i == 0) else np.prod(probs[:i]))
 			d_rho[M_hist_ok_inds, i] = rho[M_hist_ok_inds, i] * np.sqrt((d_rho_s[M_hist_ok_inds, i] / rho_s[M_hist_ok_inds, i])**2 + (0 if(i == 0) else np.sum((d_probs[:i] / probs[:i])**2)))
@@ -160,7 +252,7 @@ def proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_
 		d_rho = np.sqrt(np.sum(d_rho**2, axis=1))
 		F = -Temp * np.log(rho * M_hist_lens)
 		d_F = Temp * d_rho / rho
-		F = F - F[0]
+		F = F - min(F)
 		
 		# stab_step = int(min(L**2 * max_flip_time, Nt / 2)) * 5
 		# # Each spin has a good chance to flip during this time
@@ -201,18 +293,35 @@ def proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_
 			for i in range(N_M_interfaces + 2):
 				ax_F.plot([M_interfaces[i]] * 2, [min(F), max(F)], '--', label=('interfaces' if(i == 0) else None), color=my.get_my_color(0))
 			ax_F.legend()
-
+			
+			fig_PB_log, ax_PB_log = my.get_fig(r'$m = M / L^2$', r'$P_B(m) = P(i|0)$', title=r'$P_B(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h), yscl='log')
+			fig_PB, ax_PB = my.get_fig(r'$m = M / L^2$', r'$P_B(m) = P(i|0)$', title=r'$P_B(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+			
+			ax_PB_log.errorbar(M_interfaces[1:-1], P_B, yerr=d_P_B, fmt='.', label='data')
+			ax_PB.errorbar(M_interfaces[1:-1], P_B, yerr=d_P_B, fmt='.', label='data')
+			
+			ax_PB_log.legend()
+			ax_PB.legend()
+		
 	return probs, d_probs, ln_k_AB, d_ln_k_AB, flux0, d_flux0, rho, d_rho, M_hist_centers, M_hist_lens
 
 def exp_integrate(x, f):
 	# integrates \int_{exp(f(x))dx}
+	#dx = x[1:] - x[:-1]
+	#b = (f[1:] - f[:-1]) / dx
+	#return np.sum(np.exp(f[:-1]) * (np.exp(b * dx) - 1) / b)
+	# This converges to the right answer, but for some reason 
+	# this gives worse approximation than the regular central sum
+	
 	dx = x[1:] - x[:-1]
-	b = (f[1:] - f[:-1]) / dx
-	return np.sum(np.exp(f[:-1]) * (np.exp(b * dx) - 1) / b)
+	f = np.exp(f)
+	fc = (f[1:] + f[:-1]) / 2
+	return np.sum(fc * dx)
 
 def exp2_integrate(fit2, x1):
-	# integrate \int{fit2(x)}_{x1}^{x0}, where:
-	# fit2(x) - quadratic 'c + a*(x-x0)^2'
+	# Integrate \int{fit2(x)}_{x1}^{x0}, where:
+	# fit2(x) - quadratic 'fit2[0] * x^2 + fit2[1] * x + fit2[2]'
+	# It's used if the form 'c + a*(x-x0)^2'
 	# x0 = peak of fit2(x)
 	# x1 < x0
 	# a > 0
@@ -305,10 +414,11 @@ def proc_T(L, Temp, h, Nt, verbose=None, max_flip_time=None, to_plot_time_evol=T
 	M_fit2_inds = (M_fit2_Mmin_ind <= np.arange(len(M_hist_centers))) & (M_hist_centers < M_peak_guess + M_fit2_width)
 	M_fit2 = np.polyfit(M_hist_centers[M_fit2_inds], F[M_fit2_inds], 2, w = 1/d_F[M_fit2_inds])
 	M_peak = -M_fit2[1] / (2 * M_fit2[0])
+	M_peak_ind = np.argmin(abs(M_hist_centers - M_peak))
 	F_max = np.polyval(M_fit2, M_peak)
 	#M_peak_ind = np.argmin(M_hist_centers - M_peak)
 	bc_Z = exp_integrate(M_hist_centers[ : M_fit2_Mmin_ind + 1], -F[ : M_fit2_Mmin_ind + 1] / Temp) + exp2_integrate(- M_fit2 / Temp, M_hist_centers[M_fit2_Mmin_ind])
-	k_bc_AB = np.exp(-F_max / Temp) / 2 / L**2 / bc_Z
+	k_bc_AB = (np.mean(M_hist_centers[M_peak_ind + 1] - M_hist_centers[M_peak_ind - 1])/2 / 2) * (np.exp(-F_max / Temp) / bc_Z)
 	
 	print('k_bc_AB =', my.f2s(k_bc_AB))
 	
@@ -346,7 +456,7 @@ def proc_T(L, Temp, h, Nt, verbose=None, max_flip_time=None, to_plot_time_evol=T
 		ax_F.legend()
 
 
-	return E_mean, d_E_mean, M_mean, d_M_mean, C
+	return F, d_F, E, M_hist_centers, k_bc_AB, E_mean, d_E_mean, M_mean, d_M_mean, C
 
 # def get_E_T(box, Nt, my_seed, T_arr, time_verb=0, E_verb=0):
 	# N_T = len(T_arr)
@@ -450,72 +560,58 @@ def main():
 	if(mode == 'BF'):
 		Nt = 15000000   # enough sampling grows rapidly with L. 5e6 is enought for L=11, but not for >= 13
 		proc_T(L, Temp, h, Nt, to_plot_time_evol=True)
-		
-	# elif(mode == 'FFS_AB'):
-		# N_M_interfaces = 10
-		# M_0 = -L**2 + 20
-		# M_max = -M_0
-		# Nt_narrowest = 20
-		
-		# N_init_states = np.ones(N_M_interfaces + 2, dtype=np.intc) * Nt_narrowest
-		
-		# # N_init_states = np.array([1.23969588e+02, 5.84450113e+00, 5.50214644e-01, 1.37587470e-01, 6.36924888e-02, 4.42375796e-02, 4.75439693e-02, 1.67227416e-01, 3.56319211e-01, 6.57449723e+01, 3.47409817e+01]) * \
-						# # np.array([1.34723054, 1.37957324, 2.10078518, 1.95356022, 1.53971505, 1.74875067, 1.54874392, 1.22188151, 2.28112138, 0.03512974, 0.32107357]) * \
-						# # np.array([0.94354313, 0.95265428, 0.94368868, 0.90844004, 0.84067221, 1.29158654, 0.23381741, 2.39335866, 0.73958596, 1.85306872, 1.55834244]) * \
-						# # np.array([1.32609833, 1.33163682, 1.27471986, 1.16235763, 0.93947925, 0.70587731, 1.00300579, 0.76772614, 1.99785438, 0.59193796, 0.63287473]) * \
-						# # np.array([0.95995858, 0.98238746, 0.98080595, 0.81573092, 1.48149265, 0.74719818, 6.31016512, 0.6011239, 0.48058931, 0.76629058, 0.85709126])
-			# # for h=+0.01, T=2.0, L=11
-		
-		# N_init_states = np.array([1.00000000e+00, 5.38064219e-02, 8.14175284e-03, 2.37053429e-03, 1.48518289e-03, 9.50170981e-04, 2.18241023e-03, 5.31478411e-03, 2.19227675e-02, 1.64862731e-02, 3.85026277e-01]) * \
-						# np.array([2.54034094,  2.62280884,  2.86598065,  2.19024415,  2.09899753, 2.51145122,  2.30368486,  2.09866929,  1.        , 46.29191244, 1.47942745]) * \
-						# np.array([0.72173372, 0.72056242, 0.69804581, 0.74477665, 1.03137778, 0.70481042, 0.77929911, 0.99110226, 52.87379662, 0.1431188, 0.87054553]) * \
-						# np.array([1.16575118, 1.14464192, 1.3104362, 1.50333849, 0.64985351, 1.5033924, 1.49060548, 0.37652677, 0.03124324, 13.08451377, 1.69703905]) * \
-						# np.array([1.15945569, 1.13287169, 1.2031427, 0.96265214, 0.92756198, 2.13027455, 1.21681243, 1.54634793, 1.0057098, 0.1562718, 1.12490521]) * \
-						# np.array([1.09514031, 1.16373809, 0.92639821, 1.2773923, 2.29584632, 0.64151696, 0.54354285, 1.18696861, 0.98060184, 0.8953073, 0.79481157])
-			# # for h=-0.01, T=2.0, L=11
-						
-		# N_init_states = get_init_states(N_init_states, Nt_narrowest)
-		# # first value is '1' because it's the size of the states' set from which the initial states for simulations in A will be picked. 
-		# # Currently we start all the simulations from 'all spins -1', so there is really only 1 initial state, so values >1 will just mean storing copies of the same state
-		
-		# print(N_init_states)
-		# M_interfaces = np.array([-L**2 - 1] + list(M_0 + np.round(np.arange(N_M_interfaces) * (M_max - M_0) / (N_M_interfaces - 1) / 2) * 2) + [L**2], dtype=np.intc)
-		
-		# proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, to_get_EM=to_get_EM)
+		# ===== h=-0.01, T=2.0, L=11 ========
+		# k_AB = 400 e-7 1/step
+		# k_BA = 760 e-7 1/step
 		
 	elif((mode == 'FFS') or (mode == 'FFS_AB')):
 		init_gen_mode = -2
-		N_M_interfaces = 10
-		M_0 = -L**2 + 20
+		N_M_interfaces = 20
+		M_0 = -L**2 + 4
 		M_max = -M_0
-		Nt_narrowest = 20
+		Nt_narrowest = 2000
 		
-		N_init_states_AB = np.array([1.00000000e+00, 5.38064219e-02, 8.14175284e-03, 2.37053429e-03, 1.48518289e-03, 9.50170981e-04, 2.18241023e-03, 5.31478411e-03, 2.19227675e-02, 1.64862731e-02, 3.85026277e-01]) * \
-						np.array([2.54034094,  2.62280884,  2.86598065,  2.19024415,  2.09899753, 2.51145122,  2.30368486,  2.09866929,  1.        , 46.29191244, 1.47942745]) * \
-						np.array([0.72173372, 0.72056242, 0.69804581, 0.74477665, 1.03137778, 0.70481042, 0.77929911, 0.99110226, 52.87379662, 0.1431188, 0.87054553]) * \
-						np.array([1.16575118, 1.14464192, 1.3104362, 1.50333849, 0.64985351, 1.5033924, 1.49060548, 0.37652677, 0.03124324, 13.08451377, 1.69703905]) * \
-						np.array([1.15945569, 1.13287169, 1.2031427, 0.96265214, 0.92756198, 2.13027455, 1.21681243, 1.54634793, 1.0057098, 0.1562718, 1.12490521]) * \
-						np.array([2.46461917, 1.60269683, 1.58954112, 0.80877512, 0.88861785, 0.88339542, 1.62429312, 0.23827976, 2.53041583, 0.6168911, 0.4152189]) * \
-						np.array([1.00880439, 1.06335813, 1.0055039, 1.14999435, 0.82599592, 0.69612143, 0.69493302, 3.1353025, 0.22461961, 1.60766293, 1.78199319]) * \
-						np.array([1.15465563, 1.16941404, 1.10697519, 1.32831599, 0.9694735, 3.12589196, 0.65791752, 0.96987609, 0.76162631, 0.3251356, 1.05180651]) * \
-						np.array([0.85845614, 0.8430911, 0.79074422, 0.80450109, 1.15593025, 0.29374146, 1.01873169, 0.86851483, 4.94519356, 2.91226124, 0.50199242]) * \
-						np.array([1.09514031, 1.16373809, 0.92639821, 1.2773923, 2.29584632, 0.64151696, 0.54354285, 1.18696861, 0.98060184, 0.8953073, 0.79481157])
-			# for h=-0.01, T=2.0, L=11, Ni=10
+		# ======== Ni=10, M_0=-101 ==========
+		N_init_states_AB = np.array([5.86494782, 0.20780331, 0.64108675, 0.45093819, 0.59296037, 0.63323846, 0.82477221, 1.02855918, 1.90803348, 2.81926314, 1.65642474]) * \
+						np.array([0.97378795, 1.06975615, 1.02141394, 0.97481339, 0.93258517, 1.05343075, 0.94876457, 0.96916528, 0.9942971, 0.98931741, 1.08498797]) * \
+						np.array([34.44184113, 3.56362745, 0.21981169, 0.3781434, 0.3940806, 0.51355653, 0.62098097, 0.82222466, 0.85768272, 0.75359971, 1.46758935]) * \
+						np.array([0.98588286, 1.04962581, 0.99399027, 1.00544771, 1.03247692, 0.99962003, 1.01109933, 1.02817106, 0.91720793, 0.96675774, 1.01633903])
+			# for h=-0.01, T=2.0, L=11, Ni=10, M_0=-101
+			
+		N_init_states_BA = np.array([5.04242695, 0.24306255, 0.64430179, 0.46376104, 0.55123104, 0.67255364, 0.857448, 1.02944648, 1.75315376, 2.67029485, 1.78240891]) * \
+						np.array([1.03900965, 1.02364505, 0.97349883, 0.94509095, 0.9860851, 0.95276988, 0.97621008, 1.03575653, 1.06265366, 1.02110462, 0.9914176]) * \
+						np.array([31.83003551, 3.57493802, 0.23064763, 0.37330525, 0.42065408, 0.55995892, 0.63625423, 0.82914687, 0.7983409, 0.70740199, 1.45439774]) * \
+						np.array([1.01404907, 0.95053083, 1.01731895, 1.01836105, 0.9710529, 0.99439959, 0.98608457, 1.00517813, 1.01599291, 1.01267056, 1.01694163])
+						
+			# for h=+0.01, T=2.0, L=11, Ni=10, M_0=-101
 		
-		N_init_states_BA = np.array([1.23969588e+02, 5.84450113e+00, 5.50214644e-01, 1.37587470e-01, 6.36924888e-02, 4.42375796e-02, 4.75439693e-02, 1.67227416e-01, 3.56319211e-01, 6.57449723e+01, 3.47409817e+01]) * \
-						np.array([1.34723054, 1.37957324, 2.10078518, 1.95356022, 1.53971505, 1.74875067, 1.54874392, 1.22188151, 2.28112138, 0.03512974, 0.32107357]) * \
-						np.array([0.94354313, 0.95265428, 0.94368868, 0.90844004, 0.84067221, 1.29158654, 0.23381741, 2.39335866, 0.73958596, 1.85306872, 1.55834244]) * \
-						np.array([1.32609833, 1.33163682, 1.27471986, 1.16235763, 0.93947925, 0.70587731, 1.00300579, 0.76772614, 1.99785438, 0.59193796, 0.63287473]) * \
-						np.array([0.95995858, 0.98238746, 0.98080595, 0.81573092, 1.48149265, 0.74719818, 6.31016512, 0.6011239, 0.48058931, 0.76629058, 0.85709126])
-			# for h=+0.01, T=2.0, L=11, Ni=10
+		# ======== Ni=10, M_0=-117 ==========
+		N_init_states_AB = np.array([5.86494782, 0.20780331, 0.64108675, 0.45093819, 0.59296037, 0.63323846, 0.82477221, 1.02855918, 1.90803348, 2.81926314, 1.65642474]) * \
+						np.array([0.97378795, 1.06975615, 1.02141394, 0.97481339, 0.93258517, 1.05343075, 0.94876457, 0.96916528, 0.9942971, 0.98931741, 1.08498797]) * \
+						np.array([0.98588286, 1.04962581, 0.99399027, 1.00544771, 1.03247692, 0.99962003, 1.01109933, 1.02817106, 0.91720793, 0.96675774, 1.01633903])
+			# for h=-0.01, T=2.0, L=11, Ni=10, M_0=-101
 		
-		#N_init_states_AB = np.array([1.47642942e+02, 1.22267366e-01, 2.02666403e-02, 7.67226493e-02, 3.56263559e+01]) * \
-		#					np.array([0.99277459, 1.17296026, 1.18634628, 0.7368969, 0.98230838]) * \
-		#					np.array([1.43402985, 1.52278981, 1.55833454, 1.27131829, 0.23114625])
-		
-			# for h=-0.01, T=2.0, L=11, Ni=4
+		N_init_states_BA = np.array([5.04242695, 0.24306255, 0.64430179, 0.46376104, 0.55123104, 0.67255364, 0.857448, 1.02944648, 1.75315376, 2.67029485, 1.78240891]) * \
+						np.array([1.03900965, 1.02364505, 0.97349883, 0.94509095, 0.9860851, 0.95276988, 0.97621008, 1.03575653, 1.06265366, 1.02110462, 0.9914176]) * \
+						np.array([1.01404907, 0.95053083, 1.01731895, 1.01836105, 0.9710529, 0.99439959, 0.98608457, 1.00517813, 1.01599291, 1.01267056, 1.01694163])
+			# for h=+0.01, T=2.0, L=11, Ni=10, M_0=-101
 
+		# ======== Ni=20, M_0=-101 ==========
+		#N_init_states_AB = np.array([2.33868958, 0.51789641, 1.42604944, 1.2149675, 0.94619927, 0.5871483, 0.69429377, 0.66489963, 0.51122314, 0.69779038, 0.72645796, 0.77746991, 0.67691482, 0.9581531, 0.98233807, 1.0223547, 1.62734606, 1.98560952, 1.95467, 2.9860634, 0.75066852])
+			# for h=-0.01, T=2.0, L=11, Ni=20, M_0=-101
+		
+		#N_init_states_BA = np.array([2.17348042, 0.48972788, 1.40017212, 1.20991913, 0.9091747, 0.66442213, 0.70013649, 0.62187844, 0.56822718, 0.63563581, 0.77455908, 0.80039118, 0.68343128, 0.86287252, 1.02853796, 0.99677704, 1.70917241, 2.13442205, 2.27402395, 2.51349462, 0.74694019])
+			# for h=+0.01, T=2.0, L=11, Ni=20, M_0=-101
+			
+		# ======== Ni=20, M_0=-117 ==========
+		N_init_states_AB = np.array([104.58137675, 4.52651586, 0.9389709, 0.43419338, 0.26126731, 0.32707436, 0.33881547, 0.35159559, 0.37967477, 0.43670435, 0.42026171, 0.581579, 0.61943924, 0.68033028, 0.879528, 1.3003374, 1.5022591, 1.99221445, 2.59343701, 2.24145835, 1.49785133])
+			# for h=-0.01, T=2.0, L=11, Ni=20, M_0=-117
+		
+		N_init_states_BA = np.array([1.80245815, 5.05678955, 1.10000627, 0.4953472, 0.31701429, 0.38355781, 0.40640283, 0.42864111, 0.47713556, 0.5551159, 0.48965043, 0.61552494, 0.79758504, 0.93919693, 1.24596722, 1.70109637, 1.90688393, 2.65422979, 3.17230448, 2.68977524, 1.73665982])
+			# for h=+0.01, T=2.0, L=11, Ni=20, M_0=-117
+		
 		N0 = 1000000
+		N0 = 1000
 		N_init_states_AB = get_init_states(N_init_states_AB, Nt_narrowest, N0)
 		N_init_states_BA = get_init_states(N_init_states_BA, Nt_narrowest, N0)
 		
@@ -531,8 +627,11 @@ def main():
 		
 		if(mode == 'FFS'):
 			proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA)
+			# ===== h=-0.01, T=2.0, L=11 ========
+			# k_FFS_AB = (3.45 +- 0.50) e-7 (1/step)
+			# k_FFS_BA = (10.0 +- 2.1 ) e-7 (1/step)
 		else:
-			proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces, to_get_EM=to_get_EM)
+			proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, to_get_EM=to_get_EM)
 
 	elif(mode == 'XXX'):
 		fig_E, ax_E = my.get_fig('T', '$E/L^2$', xscl='log')
@@ -556,4 +655,4 @@ def main():
 	plt.show()
 
 if(__name__ == "__main__"):
-    main()
+	main()

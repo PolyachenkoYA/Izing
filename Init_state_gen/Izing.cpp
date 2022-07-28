@@ -320,9 +320,10 @@ namespace Izing
 			probs[i] = process_step(&(states[L2 * N_states_analyzed]),
 									i < N_M_interfaces ? &(states[L2 * (N_states_analyzed + N_init_states[i])]) : nullptr,
 									E, M, &Nt_total, M_arr_len, N_init_states[i], N_init_states[i+1],
-									L, Temp, h, M_interfaces[i], M_interfaces[i+1],
+									L, Temp, h, i == 0 ? -L2-1 : -L2, M_interfaces[i+1],
 									i < N_M_interfaces, to_remember_EM, verbose);
 			//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
+			// M_0 = M_interfaces[i == 0 ? 0 : 1]
 			d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] * (1 - probs[i])));
 
 			N_states_analyzed += N_init_states[i];
@@ -330,7 +331,7 @@ namespace Izing
 			Nt[i] = Nt_total - Nt_total_prev;
 			if(i == 0){
 				// we know that 'probs[0] == 1' because M_0 = -L2-1 for run[0]. Thus we can compute the flux
-				*flux0 = (double)N_init_states[0] / Nt[0];
+				*flux0 = (double)N_init_states[1] / Nt[0];
 				*d_flux0 = *flux0 / sqrt(Nt[0]);   // TODO: use 'Nt/memory_time' instead of 'Nt'
 			}
 
@@ -338,7 +339,7 @@ namespace Izing
 				if(i == 0){
 					printf("flux0 = (%e +- %e) 1/step\n", *flux0, *d_flux0);
 				} else {
-					printf("-ln(p_%d) = (%lf +- %lf)\n", i, -log(probs[i]), d_probs[i] / probs[i]);   // this assumes p<<1
+					printf("-log10(p_%d) = (%lf +- %lf)\n", i, -log(probs[i]) / log(10), d_probs[i] / probs[i] / log(10));   // this assumes p<<1
 				}
 				printf("Nt[%d] = %d; Nt_total = %d\n", i, Nt[i], Nt_total);
 				if(verbose >= 2){
@@ -428,7 +429,7 @@ namespace Izing
 				}
 				if(verbose) {
 					if(verbose >= 2){
-						printf("state %d saved for future\n", N_succ - 1);
+						printf("state %d saved for future, N_runs=%d\n", N_succ - 1, N_runs + 1);
 						printf("%lf %%\n", (double)N_succ/N_next_states * 100);
 					} else { // verbose == 1
 						if(N_succ % (N_next_states / 1000 + 1) == 0){
@@ -489,7 +490,7 @@ namespace Izing
 		}
 
 		if(verbose >= 2){
-			printf("E=%lf, M=%d\n", E_current, M_current);
+			printf("E=%lf, M=%d, M_0=%d, M_next=%d\n", E_current, M_current, M_0, M_next);
 		}
 
 		int ix, iy;
@@ -508,10 +509,14 @@ namespace Izing
 			get_flip_point(s, L, h, Temp, &ix, &iy, &dE);
 //			if(verbose >= 3) printf("flip done\n");
 
+			M_current -= 2 * s[ix*L + iy];
+			if(M_current <= M_0){
+				if(verbose >= 3) printf("Fail run, M_current = %d\n", M_current);
+				return 0;   // failed = gone to the initial state A
+			}
 			// ----------- modify state -----------
 			++(*Nt);
 			s[ix*L + iy] *= -1;
-			M_current += 2 * s[ix*L + iy];
 //			E_current += dE;
 			if(*Nt % Nt_for_numerical_error){
 				E_current += dE;
@@ -577,11 +582,8 @@ namespace Izing
 					return 1;
 				}
 			}
-			if(M_current == M_0){
-				if(verbose >= 2) printf("Fail run\n");
-				return 0;   // failed = gone to the initial state A
-			} else if(M_current == M_next){
-				if(verbose >= 2) printf("Success run\n");
+			if(M_current == M_next){
+				if(verbose >= 3) printf("Success run\n");
 				return 1;   // succeeded = reached the interface 'M == M_next'
 			}
 		}
