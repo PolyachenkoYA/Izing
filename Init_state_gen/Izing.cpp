@@ -320,10 +320,11 @@ namespace Izing
 			probs[i] = process_step(&(states[L2 * N_states_analyzed]),
 									i < N_M_interfaces ? &(states[L2 * (N_states_analyzed + N_init_states[i])]) : nullptr,
 									E, M, &Nt_total, M_arr_len, N_init_states[i], N_init_states[i+1],
-									L, Temp, h, i == 0 ? -L2-1 : -L2, M_interfaces[i+1],
+									L, Temp, h, M_interfaces[i == 0 ? 0 : 1], M_interfaces[i+1],
 									i < N_M_interfaces, to_remember_EM, verbose);
 			//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
 			// M_0 = M_interfaces[i == 0 ? 0 : 1]
+			// M_0 = i == 0 ? -L2-1 : -L2
 			d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] * (1 - probs[i])));
 
 			N_states_analyzed += N_init_states[i];
