@@ -578,8 +578,21 @@ namespace Izing
 				}
 			}
 			if(Nt_max > 0){
+				if(verbose){
+					if(*Nt % (Nt_max / 1000 + 1) == 0){
+						printf("run: %lf %%            \r", (double)(*Nt) / (Nt_max) * 100);
+						fflush(stdout);
+					}
+				}
 				if(*Nt >= Nt_max){
-					if(verbose >= 2) printf("Reached desired Nt >= Nt_max (= %d)\n", Nt_max);
+					if(verbose){
+						if(verbose >= 2) {
+							printf("Reached desired Nt >= Nt_max (= %d)\n", Nt_max);
+						} else {
+							printf("\n");
+						}
+					}
+
 					return 1;
 				}
 			}
