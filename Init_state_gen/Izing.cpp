@@ -11,6 +11,8 @@
 #include <pybind11/stl.h>
 #include <python3.8/Python.h>
 
+#include <vector>
+
 namespace py = pybind11;
 
 #include "Izing.h"
@@ -528,7 +530,7 @@ namespace Izing
 						printf("E_current = %lf, dE = %lf, Nt = %d, E_real = %lf\n", E_current, dE, *Nt, E_curent_real);
 						print_E(&((*E)[*Nt - 10]), 10);
 						print_S(s, L, 'r');
-						throw -1;
+//						throw -1;
 //						getchar();
 					}
 					E_current = E_curent_real;
@@ -657,22 +659,114 @@ namespace Izing
 		return 0;
 	}
 
-	int init_rand_C(int my_seed)
+	//void cluster_state(const int *s, int L, std::vector< std::vector < int > > *, int *cluster_sizes, int *N_clusters, int *is_checked, int default_state)
+	void cluster_state(const int *s, int L, int *cluster_element_inds, int *cluster_sizes, int *N_clusters, int *is_checked, int default_state)
 	/**
-	 * Sets up a new GSL randomg denerator seed
-	 * @param my_seed - the new seed for GSL
-	 * @return  - the Error code
+	 *
+	 * @param s - the state to cluster
+	 * @param L
+	 * @param cluster_element_inds
+	 * @param cluster_sizes
+	 * @param N_clusters - int*, the address of the number-of-clusters to return
+	 * @param default_state - int, {+-1}; cluster '-default_state' spins in the background of 'default_state' spins
+	 * @return
 	 */
 	{
-		// initialize random generator
-		gsl_rng_env_setup();
-		const gsl_rng_type* T = gsl_rng_default;
-		rng = gsl_rng_alloc(T);
-		gsl_rng_set(rng, my_seed);
-//		srand(my_seed);
+		int i;
+		int L2 = L * L;
 
-		seed = my_seed;
+		uncheck_state(is_checked, L2);
+
+		i = 0;
+		*N_clusters = 0;
+		int N_clustered_elements = 0;
+		while(i < L2){
+			if(!is_checked[i]){
+				if(s[i] == default_state) {
+//					is_checked[i] = -1;
+					is_checked[i] = L2;
+				} else {
+					add_to_cluster(s, L, is_checked, &(cluster_element_inds[N_clustered_elements]), &(cluster_sizes[*N_clusters]), i, (*N_clusters) + 1, default_state);
+					N_clustered_elements += cluster_sizes[*N_clusters];
+					++(*N_clusters);
+				}
+			}
+			++i;
+		}
+
+	}
+
+	int my_mod(int x, int M){
+		return x >= 0 ? (x < M ? x : x - M) : x + M;
+	}
+
+	int add_to_cluster(int* s, int L, int* is_checked, int* cluster, int* cluster_size, int pos, int cluster_label, int default_state)
+	{
+		if(!is_checked[pos]){
+			if(s[pos] == default_state) {
+				is_checked[pos] = -1;
+			} else {
+				int L2 = L * L;
+				is_checked[pos] = cluster_label;
+				cluster[*cluster_size] = pos;
+				++(*cluster_size);
+
+//				if(pos - L >= 0) add_to_cluster(s, L, is_checked, cluster, cluster_size, pos - L);
+//				if((pos - 1) / L == (pos / L)) add_to_cluster(s, L, is_checked, cluster, cluster_size, pos - 1);
+//				if((pos + 1) / L == (pos / L)) add_to_cluster(s, L, is_checked, cluster, cluster_size, pos + 1);
+//				if(pos + L < L2) add_to_cluster(s, L, is_checked, cluster, cluster_size, pos + L);
+				add_to_cluster(s, L, is_checked, cluster, cluster_size, my_mod(pos - L, L2));
+				add_to_cluster(s, L, is_checked, cluster, cluster_size, pos % L == 0 ? pos + L - 1 : pos - 1);
+				add_to_cluster(s, L, is_checked, cluster, cluster_size, (pos + 1) % L == 0 ? pos - L + 1 : pos + 1);
+				add_to_cluster(s, L, is_checked, cluster, cluster_size, my_mod(pos + L, L2));
+			}
+		}
+
 		return 0;
+	}
+
+	int is_infinite_cluster(int* cluster, int* cluster_size, int L, char *present_rows, char *present_columns)
+	{
+		int i = 0;
+
+		zero_array(present_rows, L);
+		zero_array(present_columns, L);
+		for(i = 0; i < (*cluster_size); ++i){
+			present_rows[cluster[i] / L] = 1;
+			present_columns[cluster[i] % L] = 1;
+		}
+		char cluster_is_infinite_x = 1;
+		char cluster_is_infinite_y = 1;
+		for(i = 0; i < L; ++i){
+			if(!present_columns[i]) cluster_is_infinite_x = 0;
+			if(!present_rows[i]) cluster_is_infinite_y = 0;
+		}
+
+		return cluster_is_infinite_x || cluster_is_infinite_y;
+	}
+
+	void uncheck_state(int *is_checked, int N)
+	{
+		for(int i = 0; i < N; ++i) is_checked[i] = 0;
+	}
+
+	void clear_clusters(int *clusters, int *cluster_sizes, int *N_clusters)
+	{
+//		int N_done = 0;
+		for(int i = 0; i < *N_clusters; ++i){
+//			for(int j = 0; j < cluster_sizes[i]; ++j){
+//				clusters[j + N_done] = -1;
+//			}
+//			N_done += cluster_sizes[i];
+			cluster_sizes[i] = 0;
+		}
+		*N_clusters = 0;
+	}
+
+	void clear_cluster(int* cluster, int *cluster_size)
+	{
+//		for(int i = 0; i < *cluster_size; ++i) cluster[i] = -1;
+		*cluster_size = 0;
 	}
 
 	int comp_M(const int *s, int L)
@@ -806,7 +900,25 @@ namespace Izing
 		return 0;
 	}
 
-    void print_E(const double *E, int Nt, char prefix, char suffix)
+	int init_rand_C(int my_seed)
+	/**
+	 * Sets up a new GSL randomg denerator seed
+	 * @param my_seed - the new seed for GSL
+	 * @return  - the Error code
+	 */
+	{
+		// initialize random generator
+		gsl_rng_env_setup();
+		const gsl_rng_type* T = gsl_rng_default;
+		rng = gsl_rng_alloc(T);
+		gsl_rng_set(rng, my_seed);
+//		srand(my_seed);
+
+		seed = my_seed;
+		return 0;
+	}
+
+	void print_E(const double *E, int Nt, char prefix, char suffix)
     {
         if(prefix > 0) printf("Es: %c\n", prefix);
         for(int i = 0; i < Nt; ++i) printf("%lf ", E[i]);

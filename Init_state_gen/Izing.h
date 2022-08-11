@@ -21,6 +21,8 @@ namespace Izing
 
 	int md(int i, int L);
 	template <typename T> T sqr(T x) { return x * x; }
+	template <typename T> void zero_array(T* v, int N, T v0=0) { for(int i = 0; i < N; ++i) v[i] = v0; }
+	template <typename T> char sgn(T val) { return (T(0) < val) - (val < T(0));	}
 
 	void print_M(const int *M, int Nt, char prefix=0, char suffix='\n');
 	void print_E(const double *E, int Nt, char prefix=0, char suffix='\n');
@@ -44,6 +46,11 @@ namespace Izing
 	double process_step(int *init_states, int *next_states, double **E, int **M, int *Nt, int *M_arr_len,
 				 int N_init_states, int N_next_states, int L, double Temp, double h, int M_0, int M_next,
 				 int to_save_next_states, bool to_remember_EM, int verbose);
+
+	void cluster_state(const int *s, int L, int ***cluster_element_inds, int **cluster_sizes, int *N_clusters, int *is_checked, int default_state=-1);
+	int add_to_cluster(int* s, int L, int* is_checked, int* cluster, int* cluster_size, int pos);
+	void uncheck_state(int *is_checked, int N);
+	void clear_cluster(int* cluster, int *cluster_size, int default_state=-1);
 }
 
 //py::tuple get_init_states(int L, double Temp, double h, int N0, int M_0, int to_get_EM, std::optional<int> _verbose);

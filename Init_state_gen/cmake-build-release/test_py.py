@@ -638,8 +638,8 @@ def run_many(L, Temp, h, N_runs, Nt_per_BF_run=None, verbose=None, to_plot_time_
 	d_F = np.std(F_data, axis=1) / np.sqrt(N_runs - 1)
 	ln_k_AB = np.mean(ln_k_AB_data)
 	d_ln_k_AB = np.std(ln_k_AB_data) / np.sqrt(N_runs - 1)
-	ln_k_BA = np.mean(ln_k_AB_data)
-	d_ln_k_BA = np.std(ln_k_AB_data) / np.sqrt(N_runs - 1)
+	ln_k_BA = np.mean(ln_k_BA_data)
+	d_ln_k_BA = np.std(ln_k_BA_data) / np.sqrt(N_runs - 1)
 	if(mode == 'FFS'):
 		flux0_AB = np.mean(flux0_AB_data)
 		d_flux0_AB = np.std(flux0_AB_data) / np.sqrt(N_runs - 1)
@@ -703,7 +703,6 @@ def run_many(L, Temp, h, N_runs, Nt_per_BF_run=None, verbose=None, to_plot_time_
 		fig_PB_log, ax_PB_log = my.get_fig(r'$m = M / L^2$', r'$P_B(m) = P(i|0)$', title=r'$P_B(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h), yscl='log')
 		fig_PB, ax_PB = my.get_fig(r'$m = M / L^2$', r'$P_B(m) = P(i|0)$', title=r'$P_B(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
 		#fig_PB_sigmoid, ax_PB_sigmoid = my.get_fig(r'$m = M / L^2$', r'$-\ln(b/(P_B - a) - 1)$', title=r'$P_B(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-		
 
 		ax_PB_log.plot([min(m), max(m)], [1/2] * 2, '--', label='$P = 1/2$')
 		ax_PB_log.plot([0] * 2, [min(PB_AB), 1], '--', label='$m = 0$')
@@ -905,25 +904,35 @@ def main():
 		#N_runs = 10
 		N_k_bins = int(np.round(np.sqrt(N_runs) / 2)) + 1
 		#F, d_F, M_hist_centers, M_hist_lens, ln_k_AB, d_ln_k_AB, ln_k_BA, d_ln_k_BA, flux0_AB, d_flux0_AB, flux0_BA, d_flux0_BA, prob_AB, d_prob_AB, prob_BA, d_prob_BA
-		F_ffs, d_F_ffs, M_hist_centers_ffs, M_hist_lens_ffs, ln_k_AB_ffs, d_ln_k_AB_ffs, ln_k_BA_ffs, d_ln_k_BA_ffs, flux0_AB_ffs, d_flux0_AB_ffs, flux0_BA_ffs, d_flux0_BA_ffs, prob_AB_ffs, d_prob_AB_ffs, prob_BA_ffs, d_prob_BA_ffs = \
+		F_FFS, d_F_FFS, M_hist_centers_FFS, M_hist_lens_FFS, ln_k_AB_FFS, d_ln_k_AB_FFS, ln_k_BA_FFS, d_ln_k_BA_FFS, flux0_AB_FFS, d_flux0_AB_FFS, flux0_BA_FFS, d_flux0_BA_FFS, prob_AB_FFS, d_prob_AB_FFS, prob_BA_FFS, d_prob_BA_FFS = \
 			run_many(L, Temp, h, N_runs, N_init_states_AB=N_init_states_AB, \
 				N_init_states_BA=N_init_states_BA, \
 				M_interfaces_AB=M_interfaces_AB, \
 				M_interfaces_BA=M_interfaces_BA, \
 				to_plot_k_distr=False, N_k_bins=N_k_bins, mode='FFS')
 
-		F_bf, d_F_bf, M_hist_centers_bf, M_hist_lens_bf, ln_k_AB_bf, d_ln_k_AB_bf, ln_k_BA_ffs, d_ln_k_BA_ffs = \
+		F_BF, d_F_BF, M_hist_centers_BF, M_hist_lens_BF, ln_k_AB_BF, d_ln_k_AB_BF, ln_k_BA_BF, d_ln_k_BA_BF = \
 			run_many(L, Temp, h, N_runs, Nt_per_BF_run=Nt, \
 					to_plot_k_distr=False, N_k_bins=N_k_bins, \
 					mode='BF')
 		
-		#assert(np.all(abs(M_hist_centers_bf - M_hist_centers_ffs) < (M_hist_centers_bf[0] - M_hist_centers_bf[1]) * 1e-3)), 'ERROR: returned M_centers do not match'
-		#assert(np.all(abs(M_hist_lens_bf - M_hist_lens_ffs) < M_hist_lens_bf[0] * 1e-3)), 'ERROR: returned M_centers do not match'
+		k_AB_FFS_mean, k_AB_FFS_min, k_AB_FFS_max, d_k_AB_FFS = log_norm_err(ln_k_AB_FFS, d_ln_k_AB_FFS)
+		k_BA_FFS_mean, k_BA_FFS_min, k_BA_FFS_max, d_k_BA_FFS = log_norm_err(ln_k_BA_FFS, d_ln_k_BA_FFS)
+		k_AB_BF_mean, k_AB_BF_min, k_AB_BF_max, d_k_AB_BF = log_norm_err(ln_k_AB_BF, d_ln_k_AB_BF)
+		k_BA_BF_mean, k_BA_BF_min, k_BA_BF_max, d_k_BA_BF = log_norm_err(ln_k_BA_BF, d_ln_k_BA_BF)
+		
+		#assert(np.all(abs(M_hist_centers_BF - M_hist_centers_FFS) < (M_hist_centers_BF[0] - M_hist_centers_BF[1]) * 1e-3)), 'ERROR: returned M_centers do not match'
+		#assert(np.all(abs(M_hist_lens_BF - M_hist_lens_FFS) < M_hist_lens_BF[0] * 1e-3)), 'ERROR: returned M_centers do not match'
 		
 		fig_F, ax_F = my.get_fig(r'$m = M / L^2$', r'$E / J$', title=r'$F(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-		ax_F.errorbar(M_hist_centers_bf, F_bf - min(F_bf), yerr=d_F_bf, label='BF')
-		ax_F.errorbar(M_hist_centers_ffs, F_ffs, yerr=d_F_ffs, label='FFS')
+		ax_F.errorbar(M_hist_centers_BF, F_BF - min(F_BF), yerr=d_F_BF, label='BF')
+		ax_F.errorbar(M_hist_centers_FFS, F_FFS, yerr=d_F_FFS, label='FFS')
 		ax_F.legend()
+		
+		print('k_AB_FFS    \in    [' + my.f2s(k_AB_FFS_min) + '; ' + my.f2s(k_AB_FFS_max) + ']    =    (' + my.f2s(k_AB_FFS_mean) + ' +- ' + my.f2s(d_k_AB_FFS) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_AB_FFS))
+		print('k_BA_FFS    \in    [' + my.f2s(k_BA_FFS_min) + '; ' + my.f2s(k_BA_FFS_max) + ']    =    (' + my.f2s(k_BA_FFS_mean) + ' +- ' + my.f2s(d_k_BA_FFS) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_BA_FFS))
+		print('k_AB_BF    \in    [' + my.f2s(k_AB_BF_min) + '; ' + my.f2s(k_AB_BF_max) + ']    =    (' + my.f2s(k_AB_BF_mean) + ' +- ' + my.f2s(d_k_AB_BF) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_AB_BF))
+		print('k_BA_BF    \in    [' + my.f2s(k_BA_BF_min) + '; ' + my.f2s(k_BA_BF_max) + ']    =    (' + my.f2s(k_BA_BF_mean) + ' +- ' + my.f2s(d_k_BA_BF) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_BA_BF))
 
 	elif(mode == 'XXX'):
 		fig_E, ax_E = my.get_fig('T', '$E/L^2$', xscl='log')
