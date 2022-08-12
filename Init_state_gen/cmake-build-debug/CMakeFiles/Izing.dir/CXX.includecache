@@ -6,24 +6,6 @@
 
 #IncludeRegexTransform: 
 
-/home/ypolyach/!Princeton/Izing/Init_state_gen/Izing.cpp
-gsl/gsl_rng.h
--
-cmath
--
-optional
--
-pybind11/pytypes.h
--
-pybind11/cast.h
--
-pybind11/stl.h
--
-python3.8/Python.h
--
-Izing.h
-/home/ypolyach/!Princeton/Izing/Init_state_gen/Izing.h
-
 /home/ypolyach/!Princeton/Izing/Init_state_gen/Izing.h
 gsl/gsl_rng.h
 -

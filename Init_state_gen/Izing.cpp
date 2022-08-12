@@ -75,8 +75,14 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional
 
 	double *_E;
 	int *_M;
+	int *_biggest_cluster_sizes;
 	_E = (double*) malloc(sizeof(double) * M_arr_len);
 	_M = (int*) malloc(sizeof(int) * M_arr_len);
+	_biggest_cluster_sizes = (int*) malloc(sizeof(int) * M_arr_len);
+
+	int *cluster_element_inds = (int*) malloc(sizeof(int) * L2);
+	int *cluster_sizes = (int*) malloc(sizeof(int) * L2);
+	int *is_checked = (int*) malloc(sizeof(int) * L2);
 
 	if(verbose){
 		printf("using: L=%d  T=%lf  h=%lf  verbose=%d\n", L, Temp, h, verbose);
@@ -84,13 +90,16 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional
 
 	Izing::get_init_states_C(L, Temp, h, 1, L2, state_ptr, verbose, 0); // allocate all spins = -1
 
-	Izing::run_state(state_ptr, L, Temp, h, -L2-1, L2+1, &_E, &_M, &Nt, &M_arr_len, true, verbose, Nt_max, nullptr);
+	Izing::run_state(state_ptr, L, Temp, h, -L2-1, L2+1, &_E, &_M,
+					 &_biggest_cluster_sizes, cluster_element_inds, cluster_sizes, is_checked,
+					 &Nt, &M_arr_len, true, verbose, Nt_max, nullptr);
 
 	int N_last_elements_to_print = std::min(Nt, 10);
 	if(verbose >= 2){
 		printf("Brute-force core done\n");
 		Izing::print_E(&(_E[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 		Izing::print_M(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+//		Izing::print_biggest_cluster_sizes(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 	}
 
 	py::array_t<double> E = py::array_t<double>(Nt);
@@ -99,11 +108,21 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional
 	memcpy(E_ptr, _E, sizeof(double) * Nt);
 	free(_E);
 
-	py::array_t<int> M = py::array_t<double>(Nt);
+	py::array_t<int> M = py::array_t<int>(Nt);
 	py::buffer_info M_info = M.request();
 	int *M_ptr = static_cast<int *>(M_info.ptr);
 	memcpy(M_ptr, _M, sizeof(int) * Nt);
 	free(_M);
+
+	py::array_t<int> biggest_cluster_sizes = py::array_t<int>(Nt);
+	py::buffer_info biggest_cluster_sizes_info = biggest_cluster_sizes.request();
+	int *biggest_cluster_sizes_ptr = static_cast<int *>(biggest_cluster_sizes_info.ptr);
+	memcpy(biggest_cluster_sizes_ptr, _biggest_cluster_sizes, sizeof(int) * Nt);
+	free(_biggest_cluster_sizes);
+
+	free(cluster_element_inds);
+	free(cluster_sizes);
+	free(is_checked);
 
 	if(verbose >= 2){
 		printf("internal memory for EM freed\n");
@@ -112,7 +131,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional
 		printf("exiting py::run_bruteforce\n");
 	}
 
-	return py::make_tuple(E, M);
+	return py::make_tuple(E, M, biggest_cluster_sizes);
 }
 
 // int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt, int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M, int to_remember_EM, int verbose)
@@ -194,9 +213,11 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 
     double *_E;
     int *_M;
+	int *_biggest_cluster_sizes;
     if(to_get_EM){
         _E = (double*) malloc(sizeof(double) * M_arr_len);
         _M = (int*) malloc(sizeof(int) * M_arr_len);
+		_biggest_cluster_sizes = (int*) malloc(sizeof(int) * M_arr_len);
     }
 
 	if(verbose){
@@ -209,7 +230,8 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 
 	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states_ptr, N_init_states_ptr,
 					 Nt_ptr, &M_arr_len, M_interfaces_ptr, N_M_interfaces,
-					 probs_ptr, d_probs_ptr, &_E, &_M, to_get_EM, verbose, init_gen_mode);
+					 probs_ptr, d_probs_ptr, &_E, &_M, &_biggest_cluster_sizes,
+					 to_get_EM, verbose, init_gen_mode);
 
 	if(verbose >= 2){
 		printf("FFS core done\nNt: ");
@@ -229,16 +251,20 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 
 	py::array_t<double> E;
     py::array_t<int> M;
+	py::array_t<int> biggest_cluster_sizes;
     if(to_get_EM){
 		if(verbose >= 2){
 			printf("allocating EM, Nt_total = %d\n", Nt_total);
 		}
         E = py::array_t<double>(Nt_total);
-        M = py::array_t<double>(Nt_total);
+        M = py::array_t<int>(Nt_total);
+		biggest_cluster_sizes = py::array_t<int>(Nt_total);
         py::buffer_info E_info = E.request();
         py::buffer_info M_info = M.request();
+		py::buffer_info biggest_cluster_sizes_info = biggest_cluster_sizes.request();
         double *E_ptr = static_cast<double *>(E_info.ptr);
 		int *M_ptr = static_cast<int *>(M_info.ptr);
+		int *biggest_cluster_sizes_ptr = static_cast<int *>(biggest_cluster_sizes_info.ptr);
 
 		if(verbose >= 2){
 			printf("numpy arrays created\n", Nt_total);
@@ -251,6 +277,7 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 		}
 
         memcpy(M_ptr, _M, sizeof(int) * Nt_total);
+		memcpy(biggest_cluster_sizes_ptr, _biggest_cluster_sizes, sizeof(int) * Nt_total);
 
 		if(verbose >= 2){
 			printf("data copied\n", Nt_total);
@@ -258,6 +285,7 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 
         free(_E);
         free(_M);
+		free(_biggest_cluster_sizes);
 
 		if(verbose >= 2){
 			printf("internal memory for EM freed\n");
@@ -269,7 +297,7 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 	if(verbose >= 2){
 		printf("exiting py::run_FFS\n");
 	}
-    return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M);
+    return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M, biggest_cluster_sizes);
 }
 
 namespace Izing
@@ -280,7 +308,7 @@ namespace Izing
 
 	int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt,
 				  int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M,
-				  int to_remember_EM, int verbose, int init_gen_mode)
+				  int **biggest_cluster_sizes, int to_remember_EM, int verbose, int init_gen_mode)
 	/**
 	 *
 	 * @param flux0 - see run_FFS description (return section)
@@ -321,7 +349,7 @@ namespace Izing
 			Nt_total_prev = Nt_total;
 			probs[i] = process_step(&(states[L2 * N_states_analyzed]),
 									i < N_M_interfaces ? &(states[L2 * (N_states_analyzed + N_init_states[i])]) : nullptr,
-									E, M, &Nt_total, M_arr_len, N_init_states[i], N_init_states[i+1],
+									E, M, biggest_cluster_sizes, &Nt_total, M_arr_len, N_init_states[i], N_init_states[i+1],
 									L, Temp, h, M_interfaces[i == 0 ? 0 : 1], M_interfaces[i+1],
 									i < N_M_interfaces, to_remember_EM, verbose);
 			//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
@@ -379,7 +407,7 @@ namespace Izing
 		return 0;
 	}
 
-	double process_step(int *init_states, int *next_states, double **E, int **M, int *Nt, int *M_arr_len,
+	double process_step(int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int *Nt, int *M_arr_len,
 						int N_init_states, int N_next_states, int L, double Temp, double h, int M_0, int M_next,
 						int to_save_next_states, bool to_remember_EM, int verbose)
 	/**
@@ -409,6 +437,9 @@ namespace Izing
 		int N_succ = 0;
 		int N_runs = 0;
 		int *state_under_process = (int*) malloc(state_size_in_bytes);
+		int *cluster_element_inds = (int*) malloc(sizeof(int) * L2);
+		int *cluster_sizes = (int*) malloc(sizeof(int) * L2);
+		int *is_checked = (int*) malloc(sizeof(int) * L2);
 		if(verbose){
 			printf("doing step:(%d; %d]\n", M_0, M_next);
 //			if(verbose >= 2){
@@ -423,7 +454,8 @@ namespace Izing
 				printf("state[%d] (id in set = %d):\n", N_succ, init_state_to_process_ID);
 			}
 			memcpy(state_under_process, &(init_states[init_state_to_process_ID * L2]), state_size_in_bytes);   // get a copy of the chosen init state
-			if(run_state(state_under_process, L, Temp, h, M_0, M_next, E, M, Nt, M_arr_len, to_remember_EM, verbose)){   // run it until it reaches M_0 or M_next
+			if(run_state(state_under_process, L, Temp, h, M_0, M_next, E, M, biggest_cluster_sizes, cluster_element_inds, \
+						 cluster_sizes, is_checked, Nt, M_arr_len, to_remember_EM, verbose)){   // run it until it reaches M_0 or M_next
 				// Nt is not reinitialized to 0 and that's correct because it shows the total number of EM datapoints
 				// the run reached M_next
 				++N_succ;
@@ -449,12 +481,16 @@ namespace Izing
 		}
 
 		free(state_under_process);
+		free(cluster_element_inds);
+		free(cluster_sizes);
+		free(is_checked);
 
 		return (double)N_succ / N_runs;   // the probability P(i+1 | i) to go from i to i+1
 	}
 
-	int run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, int **M, int *Nt, int *M_arr_len,
-				  bool to_remember_EM, int verbose, int Nt_max, int* states_to_save, int *N_states_saved, int N_states_to_save, int M_thr_save_state)
+	int run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, int **M, int **biggest_cluster_sizes, \
+				  int *cluster_element_inds, int *cluster_sizes, int *is_checked, int *Nt, int *M_arr_len, bool to_remember_EM, \
+				  int verbose, int Nt_max, int* states_to_save, int *N_states_saved, int N_states_to_save, int M_thr_save_state)
 	/**
 	 *
 	 * @param s - the current state the system under simulation is in
@@ -481,6 +517,8 @@ namespace Izing
 		int state_size_in_bytes = sizeof(int) * L2;
 		int M_current = comp_M(s, L); // remember the 1st M;
 		double E_current = comp_E(s, L, h); // remember the 1st energy;
+		int N_clusters_current = L2;   // so that all uninitialized cluster_sizes are set to 0
+		int biggest_cluster_sizes_current;
 
 		if((abs(M_current) > L2) || ((L2 - M_current) % 2 != 0)){   // check for sanity
 			state_is_valid(s, L, 0, 'e');
@@ -520,6 +558,12 @@ namespace Izing
 			// ----------- modify state -----------
 			++(*Nt);
 			s[ix*L + iy] *= -1;
+
+			clear_clusters(cluster_element_inds, cluster_sizes, &N_clusters_current);
+			uncheck_state(is_checked, L2);
+			cluster_state(s, L, cluster_element_inds, cluster_sizes, &N_clusters_current, is_checked, -1);
+			biggest_cluster_sizes_current = max(cluster_sizes, N_clusters_current);
+
 //			E_current += dE;
 			if(*Nt % Nt_for_numerical_error){
 				E_current += dE;
@@ -544,8 +588,10 @@ namespace Izing
 					*M_arr_len *= 2;
 					*E = (double*) realloc (*E, sizeof(double) * *M_arr_len);
 					*M = (int*) realloc (*M, sizeof(int) * *M_arr_len);
+					*biggest_cluster_sizes = (int*) realloc (*biggest_cluster_sizes, sizeof(int) * *M_arr_len);
 					assert(*E);
 					assert(*M);
+					assert(*biggest_cluster_sizes);
 					if(verbose >= 2){
 						printf("realloced to %d\n", *M_arr_len);
 					}
@@ -553,6 +599,7 @@ namespace Izing
 
 				(*E)[*Nt - 1] = E_current;
 				(*M)[*Nt - 1] = M_current;
+				(*biggest_cluster_sizes)[*Nt - 1] = biggest_cluster_sizes_current;
 
 //				if((E_current < Emin * (1 + 1e-6)) || (E_current > Emax * (1 + 1e-6))){   // assuming Emin < 0, Emax > 0
 //					printf("E_current = %lf, dE = %lf, Nt = %d, E = %lf\n", E_current, dE, *Nt, comp_E(s, L, h));
@@ -645,15 +692,25 @@ namespace Izing
 			int Nt = 0;
 			int restart_state_ID;
 
+			int *cluster_element_inds = (int*) malloc(sizeof(int) * L2);
+			int *cluster_sizes = (int*) malloc(sizeof(int) * L2);
+			int *is_checked = (int*) malloc(sizeof(int) * L2);
+
 			while(N_states_done < N_init_states){
 				restart_state_ID = gsl_rng_uniform_int(rng, N_states_done);
 				if(verbose >= 2){
 					printf("generated %d states, restarting from state[%d]", N_states_done, restart_state_ID);
 				}
-				run_state(&(init_states[L2 * restart_state_ID]), L, Temp, h, -L2-1, L2 % 2, nullptr, nullptr,
-						  &Nt,nullptr, false, verbose, -1, init_states,
-						  &N_states_done, N_init_states, M_0);
+
+				run_state(&(init_states[L2 * restart_state_ID]), L, Temp, h, -L2-1, L2 % 2,
+						  nullptr, nullptr, nullptr, cluster_element_inds, cluster_sizes,
+						  is_checked,&Nt, nullptr, false, verbose, -1,
+						  init_states,&N_states_done, N_init_states, M_0);
 			}
+
+			free(cluster_element_inds);
+			free(cluster_sizes);
+			free(is_checked);
 		}
 
 		return 0;
@@ -675,8 +732,6 @@ namespace Izing
 		int i;
 		int L2 = L * L;
 
-		uncheck_state(is_checked, L2);
-
 		i = 0;
 		*N_clusters = 0;
 		int N_clustered_elements = 0;
@@ -684,7 +739,7 @@ namespace Izing
 			if(!is_checked[i]){
 				if(s[i] == default_state) {
 //					is_checked[i] = -1;
-					is_checked[i] = L2;
+					is_checked[i] = L2 + 1;
 				} else {
 					add_to_cluster(s, L, is_checked, &(cluster_element_inds[N_clustered_elements]), &(cluster_sizes[*N_clusters]), i, (*N_clusters) + 1, default_state);
 					N_clustered_elements += cluster_sizes[*N_clusters];
@@ -696,11 +751,7 @@ namespace Izing
 
 	}
 
-	int my_mod(int x, int M){
-		return x >= 0 ? (x < M ? x : x - M) : x + M;
-	}
-
-	int add_to_cluster(int* s, int L, int* is_checked, int* cluster, int* cluster_size, int pos, int cluster_label, int default_state)
+	int add_to_cluster(const int* s, int L, int* is_checked, int* cluster, int* cluster_size, int pos, int cluster_label, int default_state)
 	{
 		if(!is_checked[pos]){
 			if(s[pos] == default_state) {
@@ -715,17 +766,17 @@ namespace Izing
 //				if((pos - 1) / L == (pos / L)) add_to_cluster(s, L, is_checked, cluster, cluster_size, pos - 1);
 //				if((pos + 1) / L == (pos / L)) add_to_cluster(s, L, is_checked, cluster, cluster_size, pos + 1);
 //				if(pos + L < L2) add_to_cluster(s, L, is_checked, cluster, cluster_size, pos + L);
-				add_to_cluster(s, L, is_checked, cluster, cluster_size, my_mod(pos - L, L2));
-				add_to_cluster(s, L, is_checked, cluster, cluster_size, pos % L == 0 ? pos + L - 1 : pos - 1);
-				add_to_cluster(s, L, is_checked, cluster, cluster_size, (pos + 1) % L == 0 ? pos - L + 1 : pos + 1);
-				add_to_cluster(s, L, is_checked, cluster, cluster_size, my_mod(pos + L, L2));
+				add_to_cluster(s, L, is_checked, cluster, cluster_size, md(pos - L, L2), cluster_label, default_state);
+				add_to_cluster(s, L, is_checked, cluster, cluster_size, pos % L == 0 ? pos + L - 1 : pos - 1, cluster_label, default_state);
+				add_to_cluster(s, L, is_checked, cluster, cluster_size, (pos + 1) % L == 0 ? pos - L + 1 : pos + 1, cluster_label, default_state);
+				add_to_cluster(s, L, is_checked, cluster, cluster_size, md(pos + L, L2), cluster_label, default_state);
 			}
 		}
 
 		return 0;
 	}
 
-	int is_infinite_cluster(int* cluster, int* cluster_size, int L, char *present_rows, char *present_columns)
+	int is_infinite_cluster(const int* cluster, const int* cluster_size, int L, char *present_rows, char *present_columns)
 	{
 		int i = 0;
 
@@ -974,6 +1025,8 @@ namespace Izing
 		return 1;
 	}
 
-	int md(int i, int L){ return i >= 0 ? (i < L ? i : 0) : (L-1); }   // i mod L for i \in [-1; L]
+	int     md(int i, int L){ return i >= 0 ? (i < L ? i : i - L) : (L + i); }   // i mod L for i \in [-1; L]
+//	int my_mod(int x, int M){ return x >= 0 ? (x < M ? x : x - M) : (x + M); }
+
 }
 

@@ -22,12 +22,12 @@ int main(int argc, char** argv) {
     int my_seed = atoi(argv[11]);
 
 	L = 11;
-	Temp = 2.0;
+	Temp = 2.1;
 	h = -0.01;
-	N_init_states_default = 10;
-	M_0 = -L*L + 20;
+	N_init_states_default = 50;
+	M_0 = -L*L + 4;
 	M_max = -M_0;
-	N_M_interfaces = 10;
+	N_M_interfaces = 30;
 	init_gen_mode = -2;
 	to_remember_EM = 1;
 	verbose = 1;
@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
 	double *d_probs = (double*) malloc(sizeof (double) * (N_M_interfaces + 1));
 
 	M_interfaces[0] = -L2-1;   // here I want runs to finish only on exiting from A to M_0
-	N_init_states[0] = N_init_states_default;
+	N_init_states[0] = 100;
 	int N_states_total = N_init_states[0];
 	for(i = 0; i <= N_M_interfaces; ++i) {
 		Nt[i] = 0;
@@ -65,29 +65,31 @@ int main(int argc, char** argv) {
 	}
 	int *states = (int*) malloc(state_size_in_bytes * N_states_total);   // technically there are N+2 states' sets, but we are not interested in the first and the last sets
 
-	double **E;
-    int **M;
-//    if(to_remember_EM){
-//		E = (double**) malloc(sizeof(double*) * 1);
-//		*(E) = (double*) malloc(sizeof(double) * M_arr_len);
-//		M = (int**) malloc(sizeof(int*) * 1);
-//		*(M) = (int*) malloc(sizeof(int) * M_arr_len);
-//    }
+	double *E;
+    int *M;
+	int *biggest_cluster_sizes;
+    if(to_remember_EM){
+		E = (double*) malloc(sizeof(double) * M_arr_len);
+		M = (int*) malloc(sizeof(int) * M_arr_len);
+		biggest_cluster_sizes = (int*) malloc(sizeof(int) * M_arr_len);
+    }
 
 	//    printf("0: %d\n", Izing::get_seed_C());
     Izing::init_rand_C(my_seed);
 //    printf("1: %d\n", Izing::get_seed_C());
 
-	double *flux0 = (double *) malloc(sizeof(double ));
-	double *d_flux0 = (double *) malloc(sizeof(double ));;
+	double flux0;
+	double d_flux0;
 
-	Izing::run_FFS_C(flux0, d_flux0, L, Temp, h, states, N_init_states, Nt, &M_arr_len, M_interfaces, N_M_interfaces, probs, d_probs, E, M, to_remember_EM, verbose, init_gen_mode);
+	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states, N_init_states,
+			  Nt, &M_arr_len, M_interfaces, N_M_interfaces,
+			  probs, d_probs, &E, &M, &biggest_cluster_sizes,
+			  to_remember_EM, verbose, init_gen_mode);
 
     if(to_remember_EM){
-		free(*E);   // array data
 		free(E);   // the pointer to the array
-		free(*M);
 		free(M);
+		free(biggest_cluster_sizes);
     }
 
     free(states);
@@ -96,8 +98,6 @@ int main(int argc, char** argv) {
 	free(Nt);
 	free(M_interfaces);
 	free(N_init_states);
-	free(flux0);
-	free(d_flux0);
 
 	printf("DONE\n");
 

@@ -51,7 +51,7 @@ def plot_k_distr(k_data, N_bins, lbl, units=None):
 	
 	ax.bar(k_centers, k_hist / k_lens, yerr=d_k_hist / k_lens, width=k_lens, align='center')
 	
-def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA, verbose=None, max_flip_time=None, to_plot_hists=True, init_gen_mode=-2):
+def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA, verbose=None, to_plot_hists=True, init_gen_mode=-2):
 	"""Runs FFS from both ends and obtains the F profile
 
 	Parameters
@@ -84,11 +84,6 @@ def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_
 		None means the verbosity will be taken from the global value, which is a part of the namespace program state in the 'izing' module
 		A number means it will be passed to all the deeper functions and used imstead of the default-state value
 	
-	max_flip_time : double, (None)
-		Used to estimate the equlibration time (to a local optimum), t_eq ~ L2 * flip_time
-		None means it will be estimated from some physical reasoning
-		A number will be used as given
-	
 	to_plot_hists : bool (True)
 		whether or not to plot F profile and other related plots
 	
@@ -108,10 +103,10 @@ def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_
 	"""
 	
 	probs_AB, d_probs_AB, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, rho_AB, d_rho_AB, M_hist_centers_AB, M_hist_lens_AB, _ = \
-		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, verbose=verbose, max_flip_time=max_flip_time, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
+		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, verbose=verbose, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
 
 	probs_BA, d_probs_BA, ln_k_BA, d_ln_k_BA, flux0_BA, d_flux0_BA, rho_BA, d_rho_BA, M_hist_centers_BA, M_hist_lens_BA, _ = \
-		proc_FFS_AB(L, Temp, -h, N_init_states_BA, M_interfaces_BA, verbose=verbose, max_flip_time=max_flip_time, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
+		proc_FFS_AB(L, Temp, -h, N_init_states_BA, M_interfaces_BA, verbose=verbose, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
 	
 	probs_BA = np.flip(probs_BA)
 	d_probs_BA = np.flip(d_probs_BA)
@@ -219,12 +214,12 @@ def PB_fit_optimize(p, d_p, x, x1, x2, p1, p2, tht0=None):
 	
 	return tht_opt, opt_fnc, opt_fnc_inv
 
-def proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_time=None, to_get_EM=False, to_plot_time_evol=True, to_plot_hists=True, EM_stride=-3000, init_gen_mode=-2, Ms_alpha=0.5):
+def proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, verbose=None, to_get_EM=False, to_plot_time_evol=True, to_plot_hists=True, EM_stride=-3000, init_gen_mode=-2, Ms_alpha=0.5):
 	print('=============== running h = %s ==================' % (my.f2s(h)))
 	
 	# py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> M_interfaces, int to_get_EM, std::optional<int> _verbose)
 	# return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M);
-	(_states, probs, d_probs, Nt, flux0, d_flux0, _E, _M) = izing.run_FFS(L, Temp, h, N_init_states, M_interfaces, verbose=verbose, to_get_EM=to_get_EM, init_gen_mode=init_gen_mode)
+	(_states, probs, d_probs, Nt, flux0, d_flux0, _E, _M, _biggest_cluster_sizes) = izing.run_FFS(L, Temp, h, N_init_states, M_interfaces, verbose=verbose, to_get_EM=to_get_EM, init_gen_mode=init_gen_mode)
 	
 	L2 = L**2;
 	N_M_interfaces = len(M_interfaces) - 2   # '-2' to be consistent with C++ implementation. 2 interfaces are '-L2-1' and '+L2'
@@ -250,15 +245,8 @@ def proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_
 		print('d_<k_AB> = ', my.f2s(k_AB * d_ln_k_AB), ' 1/step')
 	
 	dM_step = 2   # the magnitude of the spin flip, from -1 to 1
-	if(max_flip_time is None):
-		#max_flip_time = np.exp(dE_avg / Temp)
-		# The upper-bound estimate on the number of steps for 1 flip to happen
-		# This would be true if I had all the attempts (even unsuccesful ones) to flip
-			
-		max_flip_time = 1.0
-		# we save only succesful flips, so <flip time> = 1
-	M_std = 2   # appromixation, overestimation
-	memory_time = max(1, (M_std * L2) / dM_step * max_flip_time)
+	m_std = 2   # appromixation, overestimation
+	memory_time = max(1, (m_std * L2) / dM_step)
 	
 	m = M_interfaces[1 : -1] / L2
 	P_B = np.empty(N_M_interfaces)
@@ -309,16 +297,23 @@ def proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_
 		Nt_total = len(_E)
 		Nt_totals = np.empty(N_M_interfaces + 1, dtype=np.intc)
 		Nt_totals[0] = Nt[0]
+		
 		E = [_E[ : Nt_totals[0]]]
 		for i in range(1, N_M_interfaces + 1):
 			Nt_totals[i] = Nt_totals[i-1] + Nt[i]
 			E.append(_E[Nt_totals[i-1] : Nt_totals[i]])
 		del _E
 		assert(Nt_total == Nt_totals[-1])
+		
 		M = [_M[ : Nt_totals[0]]]
 		for i in range(1, N_M_interfaces + 1):
 			M.append(_M[Nt_totals[i-1] : Nt_totals[i]])
 		del _M
+		
+		biggest_cluster_sizes = [_biggest_cluster_sizes[ : Nt_totals[0]]]
+		for i in range(1, N_M_interfaces + 1):
+			biggest_cluster_sizes.append(_biggest_cluster_sizes[Nt_totals[i-1] : Nt_totals[i]])
+		del _biggest_cluster_sizes
 		
 		
 		M_hist_edges = L2 + 1   # auto-build for edges
@@ -357,7 +352,7 @@ def proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, verbose=None, max_flip_
 		d_F = Temp * d_rho / rho
 		F = F - min(F)
 		
-		# stab_step = int(min(L**2 * max_flip_time, Nt / 2)) * 5
+		# stab_step = int(min(L2, Nt / 2)) * 5
 		# # Each spin has a good chance to flip during this time
 		# # This does not guarantee the global stable state, but it is sufficient to be sure-enough we are in the optimum of the local metastable-state.
 		# # The approximation for a global ebulibration would be '1/k_AB', where k_AB is the rate constant. But it's hard to estimate on that stage.
@@ -448,144 +443,159 @@ def exp2_integrate(fit2, x1):
 	# a > 0
 	
 	a = fit2[0]
-	assert(a > 0)
+	#assert(a > 0)
 	
 	x0 = -fit2[1] / (2 * a)
 	#assert(x0 > x1)
 	
 	c = fit2[2] - a * x0**2
+	dx = (x0 - x1) * np.sqrt(np.abs(a))
 	
-	return np.exp(c) / 2 * np.sqrt(np.pi / a) * scipy.special.erfi((x0 - x1) * np.sqrt(a))
+	return np.exp(c) / 2 * np.sqrt(np.pi / np.abs(a)) * (scipy.special.erfi(dx) if(a > 0) else scipy.special.erf(dx))
 
-def proc_T(L, Temp, h, Nt, verbose=None, max_flip_time=None, to_plot_time_evol=True, to_plot_F=True, M_peak_guess=0, M_fit2_width=0.5, EM_stride=-3000):
-	(E, M) = izing.run_bruteforce(L, Temp, h, Nt, verbose=verbose)
-	
-	L2 = L**2
-	M = M / L2
-	E = E / L2
-	Nt = len(E)
-	
+def proc_order_parameter(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, m_peak_guess, m_fit2_width, \
+						 x_lbl=None, y_lbl=None, verbose=None, \
+						 to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, stride=-3000):
+	Nt = len(m)
 	steps = np.arange(Nt)
-	dM_step = 2   # the magnitude of the spin flip, from -1 to 1
-	if(max_flip_time is None):
-		#max_flip_time = np.exp(dE_avg / Temp)
-		# The upper-bound estimate on the number of steps for 1 flip to happen
-		# This would be true if I had all the attempts (even unsuccesful ones) to flip
-		
-		max_flip_time = 1.0
-		# we save only succesful flips, so <flip time> = 1
-	
-	stab_step = int(min(L**2 * max_flip_time, Nt / 2)) * 5
-	# Each spin has a good chance to flip during this time
-	# This does not guarantee the global stable state, but it is sufficient to be sure-enough we are in the optimum of the local metastable-state.
-	# The approximation for a global ebulibration would be '1/k_AB', where k_AB is the rate constant. But it's hard to estimate on that stage.
+	L2 = L**2
 	stab_ind = (steps > stab_step)
-	
-	M_stab = M[stab_ind]
-	Nt_stab = len(M_stab)
-	M_mean = np.mean(M_stab)
-	M_std = np.std(M_stab)
-	memory_time = max(1, (M_std * L**2) / dM_step * max_flip_time)   
+	m_stab = m[stab_ind]
+
+	Nt_stab = len(m_stab)
+	m_mean = np.mean(m_stab)
+	m_std = np.std(m_stab)
+	memory_time = max(1, m_std / dm_step)   
+	d_m_mean = m_std / np.sqrt(Nt_stab / memory_time)
 	# Time of statistical decorelation of the system state.
 	# 'the number of flips necessary to cover the typical system states range' * 'the upper-bound estimate on the number of steps for 1 flip to happen'
 	print('memory time =', my.f2s(memory_time))
-
-	E_stab = E[stab_ind]
-	E_mean = np.mean(E_stab)
-	E_std = np.std(E_stab)
 	
-	M_hist_edges = (np.arange(L2 + 2) * 2 - (L2 + 1)) / L2
-	M_hist, M_hist_edges = np.histogram(M_stab, bins=M_hist_edges)
+	m_hist, m_hist_edges = np.histogram(m_stab, bins=m_hist_edges)
 	# The number of bins cannot be arbitrary because M is descrete, thus it's a good idea if all the bins have 1 descrete value inside or all the bins have 2 or etc. 
 	# It's not good if some bins have e.g. 1 possible M value, and others have 2 possible values. 
 	# There are 'L^2 + 1' possible values of M, because '{M \in [-L^2; L^2]} and {dM = 2}'
 	# Thus, we need edges which cover [-1-1/L^2; 1+1/L^2] with step=2/L^2
-	M_hist_lens = (M_hist_edges[1:] - M_hist_edges[:-1])
-	M_hist[M_hist == 0] = 1   # to not get errors for log(hist)
-	M_hist = M_hist / memory_time
-	M_hist_centers = (M_hist_edges[1:] + M_hist_edges[:-1]) / 2
-	rho = M_hist / M_hist_lens / Nt_stab
-	d_rho = np.sqrt(M_hist * (1 - M_hist / Nt_stab)) / M_hist_lens / Nt_stab
+	m_hist_lens = (m_hist_edges[1:] - m_hist_edges[:-1])
+	N_m_points = len(m_hist_lens)
+	m_hist[m_hist == 0] = 1   # to not get errors for log(hist)
+	m_hist = m_hist / memory_time
+	m_hist_centers = (m_hist_edges[1:] + m_hist_edges[:-1]) / 2
+	rho = m_hist / m_hist_lens / Nt_stab
+	d_rho = np.sqrt(m_hist * (1 - m_hist / Nt_stab)) / m_hist_lens / Nt_stab
 
-	rho_interp1d = scipy.interpolate.interp1d(M_hist_centers, rho, fill_value='extrapolate')
-	d_rho_interp1d = scipy.interpolate.interp1d(M_hist_centers, d_rho, fill_value='extrapolate')
+	rho_interp1d = scipy.interpolate.interp1d(m_hist_centers, rho, fill_value='extrapolate')
+	d_rho_interp1d = scipy.interpolate.interp1d(m_hist_centers, d_rho, fill_value='extrapolate')
 
 	rho_fnc = scipy
-	F = -Temp * np.log(rho * M_hist_lens)
+	F = -Temp * np.log(rho * m_hist_lens)
+	F = F - F[0]
 	d_F = Temp * d_rho / rho
+			
+	m_fit2_mmin_ind = np.argmax(m_hist_centers > m_peak_guess - m_fit2_width)
+	m_fit2_mmax_ind = np.argmax(m_hist_centers > m_peak_guess + m_fit2_width)
+	assert(m_fit2_mmin_ind > 0), 'issues finding analytical border'
+	assert(m_fit2_mmax_ind > 0), 'issues finding analytical border'
+	m_fit2_inds = (m_fit2_mmin_ind <= np.arange(len(m_hist_centers))) & (m_fit2_mmax_ind >= np.arange(len(m_hist_centers)))
+	m_fit2 = np.polyfit(m_hist_centers[m_fit2_inds], F[m_fit2_inds], 2, w = 1/d_F[m_fit2_inds])
+	m_peak = -m_fit2[1] / (2 * m_fit2[0])
+	m_peak_ind = np.argmin(abs(m_hist_centers - m_peak))
+	F_max = np.polyval(m_fit2, m_peak)
+	#m_peak_ind = np.argmin(m_hist_centers - m_peak)
+	bc_Z_AB = exp_integrate(m_hist_centers[ : m_fit2_mmin_ind + 1], -F[ : m_fit2_mmin_ind + 1] / Temp) + exp2_integrate(- m_fit2 / Temp, m_hist_centers[m_fit2_mmin_ind])
+	bc_Z_BA = exp_integrate(m_hist_centers[m_fit2_mmax_ind : ], -F[m_fit2_mmax_ind : ] / Temp) + abs(exp2_integrate(- m_fit2 / Temp, m_hist_centers[m_fit2_mmax_ind]))
+	k_bc_AB = (np.mean(abs(m_hist_centers[m_peak_ind + 1] - m_hist_centers[m_peak_ind - 1]))/2 / 2) * (np.exp(-F_max / Temp) / bc_Z_AB)
+	k_bc_BA = (np.mean(abs(m_hist_centers[m_peak_ind + 1] - m_hist_centers[m_peak_ind - 1]))/2 / 2) * (np.exp(-F_max / Temp) / bc_Z_BA)
 	
-	F_m = F[M_hist_centers < 0]
-	F_p = F[M_hist_centers > 0]
-	F_min_m_ind = np.argmin(F_m)
-	F_min_p_ind = np.argmin(F_p)
-	M_min_m = M_hist_centers[M_hist_centers < 0][F_min_m_ind]
-	M_min_p = M_hist_centers[M_hist_centers > 0][F_min_p_ind]
-	F_min_m = F_m[F_min_m_ind]
-	F_min_p = F_p[F_min_p_ind]
-	sanity_k = abs((F_min_m - F_min_p) / (h*(M_min_p - M_min_m)*L2))
+	print('k_' + x_lbl + '_AB =', my.f2s(k_bc_AB))
+	print('k_' + x_lbl + '_BA =', my.f2s(k_bc_BA))
 	
-	E_avg = np.empty(L2 + 1)
-	for i in range(len(M_hist_centers)):
-		E_for_avg = E[(M_hist_edges[i] < M) & (M < M_hist_edges[i+1])] * L2
-		E_avg[i] = np.average(E_for_avg, weights=np.exp(- E_for_avg / Temp))
+	E_avg = np.empty(N_m_points)
+	for i in range(N_m_points):
+		E_for_avg = E[(m_hist_edges[i] < m) & (m < m_hist_edges[i+1])] * L2
+		#E_avg[i] = np.average(E_for_avg, weights=np.exp(- E_for_avg / Temp))
+		E_avg[i] = np.mean(E_for_avg)
 	E_avg = E_avg - E_avg[0]   # we can choose the E constant
 	S = (E_avg - F) / Temp
-	S0 = S[0]   # S[m=+-1] = 0 because S = log(N), and N(m=+-1)=1
-	S = S - S0
-	F = F + S0 * Temp
-	
-	M_fit2_Mmin_ind = np.argmax(M_hist_centers > M_peak_guess - M_fit2_width)
-	M_fit2_Mmax_ind = np.argmax(M_hist_centers > M_peak_guess + M_fit2_width)
-	assert(M_fit2_Mmin_ind > 0), 'issues finding analytical border'
-	assert(M_fit2_Mmax_ind > 0), 'issues finding analytical border'
-	M_fit2_inds = (M_fit2_Mmin_ind <= np.arange(len(M_hist_centers))) & (M_fit2_Mmax_ind >= np.arange(len(M_hist_centers)))
-	M_fit2 = np.polyfit(M_hist_centers[M_fit2_inds], F[M_fit2_inds], 2, w = 1/d_F[M_fit2_inds])
-	M_peak = -M_fit2[1] / (2 * M_fit2[0])
-	M_peak_ind = np.argmin(abs(M_hist_centers - M_peak))
-	F_max = np.polyval(M_fit2, M_peak)
-	#M_peak_ind = np.argmin(M_hist_centers - M_peak)
-	bc_Z_AB = exp_integrate(M_hist_centers[ : M_fit2_Mmin_ind + 1], -F[ : M_fit2_Mmin_ind + 1] / Temp) + exp2_integrate(- M_fit2 / Temp, M_hist_centers[M_fit2_Mmin_ind])
-	bc_Z_BA = exp_integrate(M_hist_centers[M_fit2_Mmax_ind : ], -F[M_fit2_Mmax_ind : ] / Temp) + abs(exp2_integrate(- M_fit2 / Temp, M_hist_centers[M_fit2_Mmax_ind]))
-	k_bc_AB = (np.mean(abs(M_hist_centers[M_peak_ind + 1] - M_hist_centers[M_peak_ind - 1]))/2 / 2) * (np.exp(-F_max / Temp) / bc_Z_AB)
-	k_bc_BA = (np.mean(abs(M_hist_centers[M_peak_ind + 1] - M_hist_centers[M_peak_ind - 1]))/2 / 2) * (np.exp(-F_max / Temp) / bc_Z_BA)
-	
-	print('k_bc_AB =', my.f2s(k_bc_AB))
-	print('k_bc_BA =', my.f2s(k_bc_BA))
-		
-	C = E_std**2 / Temp**2 * L2
-
-	d_E_mean = E_std / np.sqrt(Nt_stab / memory_time)
-	d_M_mean = M_std / np.sqrt(Nt_stab / memory_time)
+	S = S - S[0] # S[m=+-1] = 0 because S = log(N), and N(m=+-1)=1
 	
 	if(to_plot_time_evol):
-		if(EM_stride < 0):
-			EM_stride = np.int_(- Nt / EM_stride)
+		if(stride < 0):
+			stride = np.int_(- Nt / stride)
 		
-		fig_E, ax_E = my.get_fig('step', '$E / L^2$', title='E(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
-		ax_E.plot(steps[::EM_stride], E[::EM_stride], label='data')
-		ax_E.plot([stab_step] * 2, [min(E), max(E)], label='equilibr')
-		ax_E.plot([stab_step, Nt], [E_mean] * 2, label=('$<E> = ' + my.errorbar_str(E_mean, d_E_mean) + '$'))
-		ax_E.legend()
-		
-		fig_M, ax_M = my.get_fig('step', '$M / L^2$', title='M(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
-		ax_M.plot(steps[::EM_stride], M[::EM_stride], label='data')
-		ax_M.plot([stab_step] * 2, [min(M), max(M)], label='equilibr')
-		ax_M.plot([stab_step, Nt], [M_mean] * 2, label=('$<M> = ' + my.errorbar_str(M_mean, d_M_mean) + '$'))
-		ax_M.legend()
+		fig_m, ax_m = my.get_fig('step', y_lbl, title='$' + x_lbl + '$(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		ax_m.plot(steps[::stride], m[::stride], label='data')
+		ax_m.plot([stab_step] * 2, [min(m), max(m)], label='equilibr')
+		ax_m.plot([stab_step, Nt], [m_mean] * 2, label=('$<' + x_lbl + '> = ' + my.errorbar_str(m_mean, d_m_mean) + '$'))
+		ax_m.legend()
+	else:
+		ax_m = None
 		
 	if(to_plot_F):
-		fig_Mhist, ax_Mhist = my.get_fig(r'$m = M / L^2$', r'$\rho(m)$', title=r'$\rho(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-		ax_Mhist.bar(M_hist_centers, rho, yerr=d_rho, width=M_hist_lens, align='center')
-		#ax_Mhist.legend()
+		fig_mhist, ax_m_hist = my.get_fig(y_lbl, r'$\rho(' + x_lbl + ')$', title=r'$\rho(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		ax_m_hist.bar(m_hist_centers, rho, yerr=d_rho, width=m_hist_lens, align='center')
+		#ax_m_hist.legend()
 		
-		fig_F, ax_F = my.get_fig(r'$m = M / L^2$', r'$E / J$', title=r'$F(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h) + '; $|\Delta F_{min, \pm}| / |\Delta M_{min, \pm} \cdot h| = ' + my.f2s(sanity_k) + '$')
-		ax_F.errorbar(M_hist_centers, F, yerr=d_F, fmt='.', label='F(m)')
-		ax_F.plot(M_hist_centers[M_fit2_inds], np.polyval(M_fit2, M_hist_centers[M_fit2_inds]), label='fit2; $M_0 = ' + my.f2s(M_peak) + '$')
-		ax_F.plot(M_hist_centers, E_avg, '.', label='<E>(m)')
-		ax_F.plot(M_hist_centers, S * Temp, '.', label='$T \cdot S(m)$')
+		fig_F, ax_F = my.get_fig(y_lbl, r'$F/J$', title=r'$F(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		ax_F.errorbar(m_hist_centers, F, yerr=d_F, fmt='.', label='$F(' + x_lbl + ')$')
+		ax_F.plot(m_hist_centers[m_fit2_inds], np.polyval(m_fit2, m_hist_centers[m_fit2_inds]), label='fit2; $' + x_lbl + '_0 = ' + my.f2s(m_peak) + '$')
+		if(to_plot_ETS):
+			ax_F.plot(m_hist_centers, E_avg, '.', label='<E>(' + x_lbl + ')')
+			ax_F.plot(m_hist_centers, S * Temp, '.', label='$T \cdot S(' + x_lbl + ')$')
 		ax_F.legend()
+	else:
+		ax_m_hist = None
+		ax_F = None
 	
-	return F, d_F, M_hist_centers, M_hist_lens, rho_interp1d, d_rho_interp1d, k_bc_AB, k_bc_BA, E_mean, d_E_mean, M_mean, d_M_mean, C, E_avg
+	return F, d_F, m_hist_centers, m_hist_lens, rho_interp1d, d_rho_interp1d, k_bc_AB, k_bc_BA, m_mean, m_std, d_m_mean, E_avg, S, ax_m, ax_m_hist, ax_F
+
+
+def proc_T(L, Temp, h, Nt, verbose=None, to_plot_time_evol=True, to_plot_F=True, m_peak_guess=0, m_fit2_width=0.5, EM_stride=-3000):
+	(E, M, CS) = izing.run_bruteforce(L, Temp, h, Nt, verbose=verbose)
+	
+	L2 = L**2
+	m = M / L2
+	del M
+	E = E / L2
+	#Nt = len(E)
+	
+	dm_step = 2 / L2   # the magnitude of the spin flip, from -1 to 1
+
+	stab_step = int(min(L2, Nt / 2)) * 5
+	# Each spin has a good chance to flip during this time
+	# This does not guarantee the global stable state, but it is sufficient to be sure-enough we are in the optimum of the local metastable-state.
+	# The approximation for a global ebulibration would be '1/k_AB', where k_AB is the rate constant. But it's hard to estimate on that stage.
+	
+	m_hist_edges = (np.arange(L2 + 2) * 2 - (L2 + 1)) / L2
+	m_peak_guess = 0
+	m_fit2_width = 0.25
+	F_m, d_F_m, m_hist_centers, m_hist_lens, rho_m_interp1d, d_rho_m_interp1d, k_m_AB, k_m_BA, m_mean, m_std, d_m_mean, E_m_avg, S_m, _, _, _ = \
+		proc_order_parameter(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, m_peak_guess, m_fit2_width, \
+							x_lbl='m', y_lbl=r'$m = M / L^2$', verbose=verbose, \
+							to_plot_time_evol=to_plot_time_evol, to_plot_F=to_plot_F, stride=EM_stride)
+	
+	E_hist_edges = np.linspace((-2 - abs(h)), -1, int((L2 / dE_avg) / 2))
+	E_peak_guess = -1.7
+	E_fit2_width = 0.2
+	F_E, d_F_E, E_hist_centers, E_hist_lens, rho_E_interp1d, d_rho_E_interp1d, k_E_AB, k_E_BA, E_mean, E_std, d_E_mean, E_E_avg, S_E, _, _, _ = \
+		proc_order_parameter(L, Temp, h, E, E, stab_step, dE_avg, E_hist_edges, E_peak_guess, E_fit2_width, \
+							x_lbl='e', y_lbl=r'$e = E / L^2$', verbose=verbose, \
+							to_plot_time_evol=to_plot_time_evol, to_plot_F=False, stride=EM_stride)
+
+	CS_hist_edges = (np.arange(L2 + 2) - 1/2)
+	CS_peak_guess = 60
+	CS_fit2_width = 25
+	dCS_step = 1
+	F_CS, d_F_CS, CS_hist_centers, CS_hist_lens, rho_CS_interp1d, d_rho_CS_interp1d, k_CS_AB, k_CS_BA, CS_mean, CS_std, d_CS_mean, E_CS_avg, S_CS, _, _, _ = \
+		proc_order_parameter(L, Temp, h, CS, E, stab_step, dCS_step, CS_hist_edges, CS_peak_guess, CS_fit2_width, \
+							x_lbl='Lcl', y_lbl=r'$cluster size$', verbose=verbose, \
+							to_plot_time_evol=to_plot_time_evol, to_plot_F=to_plot_F, stride=EM_stride)
+
+	C = (E_std * L2)**2 / Temp**2
+
+	
+	
+	return F_m, d_F_m, m_hist_centers, m_hist_lens, rho_m_interp1d, d_rho_m_interp1d, k_m_AB, k_m_BA, E_mean, d_E_mean, m_mean, d_m_mean, C, E_m_avg
 
 def run_many(L, Temp, h, N_runs, Nt_per_BF_run=None, verbose=None, to_plot_time_evol=False, EM_stride=-3000, to_plot_k_distr=False, N_k_bins=10, mode='BF', N_init_states_AB=None, N_init_states_BA=None, M_interfaces_AB=None, M_interfaces_BA=None, init_gen_mode=-2, to_plot_committer=None):
 	L2 = L**2

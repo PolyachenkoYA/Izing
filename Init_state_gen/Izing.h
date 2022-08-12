@@ -23,6 +23,11 @@ namespace Izing
 	template <typename T> T sqr(T x) { return x * x; }
 	template <typename T> void zero_array(T* v, int N, T v0=0) { for(int i = 0; i < N; ++i) v[i] = v0; }
 	template <typename T> char sgn(T val) { return (T(0) < val) - (val < T(0));	}
+	template <typename T> T max(T *v, unsigned long N) {
+		T mx = v[0];
+		for(unsigned long i = 0; i < N; ++i) if(mx < v[i]) mx = v[i];
+		return  mx;
+	}
 
 	void print_M(const int *M, int Nt, char prefix=0, char suffix='\n');
 	void print_E(const double *E, int Nt, char prefix=0, char suffix='\n');
@@ -38,19 +43,22 @@ namespace Izing
     double get_dE(int *s, int L, double h, int ix, int iy);
 	int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt,
 			  int *M_arr_len, int *M_interfaces, int N_M_interfaces, double *probs, double *d_probs, double **E, int **M,
-			  int to_remember_EM, int verbose, int init_gen_mode);
+			  int **biggest_cluster_sizes, int to_remember_EM, int verbose, int init_gen_mode);
 	int get_init_states_C(int L, double Temp, double h, int N_init_states, int M_0, int *init_states, int verbose, int mode);
-	int run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, int **M, int *Nt, int *M_arr_len,
-				  bool to_remember_EM, int verbose, int Nt_max=-1, int* states_to_save= nullptr, int *N_states_saved= nullptr,
-				  int N_states_to_save=-1, int M_thr_save_state=0);
-	double process_step(int *init_states, int *next_states, double **E, int **M, int *Nt, int *M_arr_len,
-				 int N_init_states, int N_next_states, int L, double Temp, double h, int M_0, int M_next,
-				 int to_save_next_states, bool to_remember_EM, int verbose);
+	int run_state(int *s, int L, double Temp, double h, int M_0, int M_next, double **E, int **M, int **biggest_cluster_sizes,
+				  int *cluster_element_inds, int *cluster_sizes, int *is_checked, int *Nt, int *M_arr_len, bool to_remember_EM,
+				  int verbose, int Nt_max=-1, int* states_to_save= nullptr, int *N_states_saved= nullptr, int N_states_to_save=-1,
+				  int M_thr_save_state=0);
+	double process_step(int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes,
+						int *Nt, int *M_arr_len, int N_init_states, int N_next_states, int L, double Temp, double h,
+						int M_0, int M_next, int to_save_next_states, bool to_remember_EM, int verbose);
 
-	void cluster_state(const int *s, int L, int ***cluster_element_inds, int **cluster_sizes, int *N_clusters, int *is_checked, int default_state=-1);
-	int add_to_cluster(int* s, int L, int* is_checked, int* cluster, int* cluster_size, int pos);
+	void cluster_state(const int *s, int L, int *cluster_element_inds, int *cluster_sizes, int *N_clusters, int *is_checked, int default_state=-1);
+	int add_to_cluster(const int* s, int L, int* is_checked, int* cluster, int* cluster_size, int pos, int cluster_label, int default_state=-1);
+	int is_infinite_cluster(const int* cluster, const int* cluster_size, int L, char *present_rows, char *present_columns);
 	void uncheck_state(int *is_checked, int N);
-	void clear_cluster(int* cluster, int *cluster_size, int default_state=-1);
+	void clear_cluster(int* cluster, int *cluster_size);
+	void clear_clusters(int *clusters, int *cluster_sizes, int *N_clusters);
 }
 
 //py::tuple get_init_states(int L, double Temp, double h, int N0, int M_0, int to_get_EM, std::optional<int> _verbose);
