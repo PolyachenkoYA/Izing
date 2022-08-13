@@ -218,7 +218,7 @@ def proc_FFS_AB(L, Temp, h, N_init_states, M_interfaces, verbose=None, to_get_EM
 	print('=============== running h = %s ==================' % (my.f2s(h)))
 	
 	# py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> M_interfaces, int to_get_EM, std::optional<int> _verbose)
-	# return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M);
+	# return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M, biggest_cluster_sizes);
 	(_states, probs, d_probs, Nt, flux0, d_flux0, _E, _M, _biggest_cluster_sizes) = izing.run_FFS(L, Temp, h, N_init_states, M_interfaces, verbose=verbose, to_get_EM=to_get_EM, init_gen_mode=init_gen_mode)
 	
 	L2 = L**2;
@@ -520,9 +520,6 @@ def proc_order_parameter(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, m_p
 	S = S - S[0] # S[m=+-1] = 0 because S = log(N), and N(m=+-1)=1
 	
 	if(to_plot_time_evol):
-		if(stride < 0):
-			stride = np.int_(- Nt / stride)
-		
 		fig_m, ax_m = my.get_fig('step', y_lbl, title='$' + x_lbl + '$(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
 		ax_m.plot(steps[::stride], m[::stride], label='data')
 		ax_m.plot([stab_step] * 2, [min(m), max(m)], label='equilibr')
@@ -549,53 +546,99 @@ def proc_order_parameter(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, m_p
 	
 	return F, d_F, m_hist_centers, m_hist_lens, rho_interp1d, d_rho_interp1d, k_bc_AB, k_bc_BA, m_mean, m_std, d_m_mean, E_avg, S, ax_m, ax_m_hist, ax_F
 
+def plot_correlation(x, y, x_lbl, y_lbl):
+	fig, ax = my.get_fig(x_lbl, y_lbl)
+	R = scipy.stats.pearsonr(x, y)[0]
+	ax.plot(x, y, '.', label='R = ' + my.f2s(R))
+	ax.legend()
+	
+	return ax, R
 
-def proc_T(L, Temp, h, Nt, verbose=None, to_plot_time_evol=True, to_plot_F=True, m_peak_guess=0, m_fit2_width=0.5, EM_stride=-3000):
+def proc_T(L, Temp, h, Nt, verbose=None, to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, to_plot_correlations=True, m_peak_guess=0, m_fit2_width=0.5, EM_stride=-3000):
 	(E, M, CS) = izing.run_bruteforce(L, Temp, h, Nt, verbose=verbose)
 	
 	L2 = L**2
 	m = M / L2
 	del M
 	E = E / L2
-	#Nt = len(E)
 	
-	dm_step = 2 / L2   # the magnitude of the spin flip, from -1 to 1
+	if(EM_stride < 0):
+		EM_stride = np.int_(- Nt / EM_stride)
 
 	stab_step = int(min(L2, Nt / 2)) * 5
 	# Each spin has a good chance to flip during this time
 	# This does not guarantee the global stable state, but it is sufficient to be sure-enough we are in the optimum of the local metastable-state.
 	# The approximation for a global ebulibration would be '1/k_AB', where k_AB is the rate constant. But it's hard to estimate on that stage.
 	
-	m_hist_edges = (np.arange(L2 + 2) * 2 - (L2 + 1)) / L2
-	m_peak_guess = 0
-	m_fit2_width = 0.25
-	F_m, d_F_m, m_hist_centers, m_hist_lens, rho_m_interp1d, d_rho_m_interp1d, k_m_AB, k_m_BA, m_mean, m_std, d_m_mean, E_m_avg, S_m, _, _, _ = \
-		proc_order_parameter(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, m_peak_guess, m_fit2_width, \
-							x_lbl='m', y_lbl=r'$m = M / L^2$', verbose=verbose, \
-							to_plot_time_evol=to_plot_time_evol, to_plot_F=to_plot_F, stride=EM_stride)
+	feature_labels = ['e', 'm', 'CS']
+	N_features = len(feature_labels)
 	
-	E_hist_edges = np.linspace((-2 - abs(h)), -1, int((L2 / dE_avg) / 2))
-	E_peak_guess = -1.7
-	E_fit2_width = 0.2
-	F_E, d_F_E, E_hist_centers, E_hist_lens, rho_E_interp1d, d_rho_E_interp1d, k_E_AB, k_E_BA, E_mean, E_std, d_E_mean, E_E_avg, S_E, _, _, _ = \
-		proc_order_parameter(L, Temp, h, E, E, stab_step, dE_avg, E_hist_edges, E_peak_guess, E_fit2_width, \
-							x_lbl='e', y_lbl=r'$e = E / L^2$', verbose=verbose, \
-							to_plot_time_evol=to_plot_time_evol, to_plot_F=False, stride=EM_stride)
-
-	CS_hist_edges = (np.arange(L2 + 2) - 1/2)
-	CS_peak_guess = 60
-	CS_fit2_width = 25
-	dCS_step = 1
-	F_CS, d_F_CS, CS_hist_centers, CS_hist_lens, rho_CS_interp1d, d_rho_CS_interp1d, k_CS_AB, k_CS_BA, CS_mean, CS_std, d_CS_mean, E_CS_avg, S_CS, _, _, _ = \
-		proc_order_parameter(L, Temp, h, CS, E, stab_step, dCS_step, CS_hist_edges, CS_peak_guess, CS_fit2_width, \
-							x_lbl='Lcl', y_lbl=r'$cluster size$', verbose=verbose, \
-							to_plot_time_evol=to_plot_time_evol, to_plot_F=to_plot_F, stride=EM_stride)
-
-	C = (E_std * L2)**2 / Temp**2
-
+	title = {}
+	data = {}
+	hist_edges = {}
+	peak_guess = {}
+	fit2_width = {}
+	dm_step = {}
 	
+	title[feature_labels[0]] = r'$e = E / L^2$'
+	data[feature_labels[0]] = E
+	hist_edges[feature_labels[0]] = np.linspace((-2 - abs(h)), -1, int((L2 / dE_avg) / 2))
+	peak_guess[feature_labels[0]] = -1.7
+	fit2_width[feature_labels[0]] = 0.2
+	dm_step[feature_labels[0]] = 2 / L2
 	
-	return F_m, d_F_m, m_hist_centers, m_hist_lens, rho_m_interp1d, d_rho_m_interp1d, k_m_AB, k_m_BA, E_mean, d_E_mean, m_mean, d_m_mean, C, E_m_avg
+	title[feature_labels[1]] = r'$m = M / L^2$'
+	data[feature_labels[1]] = m
+	hist_edges[feature_labels[1]] = (np.arange(L2 + 2) * 2 - (L2 + 1)) / L2
+	peak_guess[feature_labels[1]] = 0
+	fit2_width[feature_labels[1]] = 0.25
+	dm_step[feature_labels[1]] = dE_avg
+
+	title[feature_labels[2]] = r'cluster size'
+	data[feature_labels[2]] = CS
+	hist_edges[feature_labels[2]] = np.arange(L2 + 2) - 1/2
+	peak_guess[feature_labels[2]] = 60
+	fit2_width[feature_labels[2]] = 25
+	dm_step[feature_labels[2]] = 1
+	
+	F = {}
+	d_F = {}
+	hist_centers = {}
+	hist_lens = {}
+	rho_interp1d = {}
+	d_rho_interp1d = {}
+	k_AB = {}
+	k_BA = {}
+	avg = {}
+	std = {}
+	d_avg = {}
+	E_avg = {}
+	S_E = {}
+	ax_time = {}
+	ax_hist = {}
+	ax_F = {}
+	for f_lbl in feature_labels:
+		F[f_lbl], d_F[f_lbl], hist_centers[f_lbl], hist_lens[f_lbl], rho_interp1d[f_lbl], d_rho_interp1d[f_lbl], \
+			k_AB[f_lbl], k_BA[f_lbl], avg[f_lbl], std[f_lbl], d_avg[f_lbl], E_avg[f_lbl], S_E[f_lbl], \
+			ax_time[f_lbl], ax_hist[f_lbl], ax_F[f_lbl] = \
+				proc_order_parameter(L, Temp, h, data[f_lbl], E, stab_step, dm_step[f_lbl], hist_edges[f_lbl], peak_guess[f_lbl], fit2_width[f_lbl], \
+								x_lbl=f_lbl, y_lbl=title[f_lbl], verbose=verbose, \
+								to_plot_time_evol=to_plot_time_evol, to_plot_F=(False if(f_lbl == 'e') else to_plot_F), to_plot_ETS=to_plot_ETS, stride=EM_stride)
+
+	BC_cluster_size = L2 / np.pi
+	ax_hist['CS'].plot([BC_cluster_size] * 2, [min(rho_interp1d['CS'](hist_centers['CS'])), max(rho_interp1d['CS'](hist_centers['CS']))], '--', label='$L_{BC} = L^2 / \pi$')
+	ax_hist['CS'].legend()
+	ax_F['CS'].plot([BC_cluster_size] * 2, [min(F['CS']), max(F['CS'])], '--', label='$S_{BC} = L^2 / \pi$')
+	ax_F['CS'].legend()
+
+	C = (std['e'] * L2)**2 / Temp**2
+	
+	if(to_plot_correlations):
+		for i1 in range(N_features):
+			for i2 in range(i1 + 1, N_features):
+				plot_correlation(data[feature_labels[i1]][::EM_stride], data[feature_labels[i2]][::EM_stride], feature_labels[i1], feature_labels[i2])
+	
+	return F, d_F, hist_centers, hist_lens, rho_interp1d, d_rho_interp1d, k_AB, k_BA, avg, d_avg, E_avg, C
 
 def run_many(L, Temp, h, N_runs, Nt_per_BF_run=None, verbose=None, to_plot_time_evol=False, EM_stride=-3000, to_plot_k_distr=False, N_k_bins=10, mode='BF', N_init_states_AB=None, N_init_states_BA=None, M_interfaces_AB=None, M_interfaces_BA=None, init_gen_mode=-2, to_plot_committer=None):
 	L2 = L**2

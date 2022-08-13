@@ -546,11 +546,18 @@ namespace Izing
 
 		while(1){
 			// ----------- choose which to flip -----------
-//			if(verbose >= 3) printf("doing Nt=%d\n", *Nt);
 			get_flip_point(s, L, h, Temp, &ix, &iy, &dE);
-//			if(verbose >= 3) printf("flip done\n");
+
+			// --------------- compute time-dependent features ----------
+			E_current += dE;
+
+			clear_clusters(cluster_element_inds, cluster_sizes, &N_clusters_current);
+			uncheck_state(is_checked, L2);
+			cluster_state(s, L, cluster_element_inds, cluster_sizes, &N_clusters_current, is_checked, -1);
+			biggest_cluster_sizes_current = max(cluster_sizes, N_clusters_current);
 
 			M_current -= 2 * s[ix*L + iy];
+
 			if(M_current <= M_0){
 				if(verbose >= 3) printf("Fail run, M_current = %d\n", M_current);
 				return 0;   // failed = gone to the initial state A
@@ -559,15 +566,7 @@ namespace Izing
 			++(*Nt);
 			s[ix*L + iy] *= -1;
 
-			clear_clusters(cluster_element_inds, cluster_sizes, &N_clusters_current);
-			uncheck_state(is_checked, L2);
-			cluster_state(s, L, cluster_element_inds, cluster_sizes, &N_clusters_current, is_checked, -1);
-			biggest_cluster_sizes_current = max(cluster_sizes, N_clusters_current);
-
-//			E_current += dE;
-			if(*Nt % Nt_for_numerical_error){
-				E_current += dE;
-			} else {
+			if(*Nt % Nt_for_numerical_error == 0){  // we need to do this since E is double so the error accumulated over steps
 				double E_curent_real = comp_E(s, L, h);
 				if(abs(E_current - E_curent_real) > E_tolerance){
 					if(verbose >= 2){
@@ -580,7 +579,6 @@ namespace Izing
 					E_current = E_curent_real;
 				}
 			}
-//			if(verbose >= 3) printf("state modified\n");
 
 			// ------------------ save EM ----------------
 			if(to_remember_EM){
@@ -614,7 +612,7 @@ namespace Izing
 			if(N_states_to_save > 0){
 				if(M_current < M_thr_save_state){
 					memcpy(&(states_to_save[*N_states_saved * L2]), s, state_size_in_bytes);
-					++ *N_states_saved;
+					++(*N_states_saved);
 				}
 			}
 
