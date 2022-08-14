@@ -394,7 +394,9 @@ def proc_FFS_AB(L, Temp, h, N_init_states, OP_interfaces, verbose=None, to_get_E
 	
 	# py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> M_interfaces, int to_get_EM, std::optional<int> _verbose)
 	# return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M, biggest_cluster_sizes);
-	(_states, probs, d_probs, Nt, flux0, d_flux0, _E, _M, _CS) = izing.run_FFS(L, Temp, h, N_init_states, OP_interfaces, verbose=verbose, to_get_EM=to_get_EM, init_gen_mode=init_gen_mode)
+	(_states, probs, d_probs, Nt, flux0, d_flux0, _E, _M, _CS) = \
+		izing.run_FFS(L, Temp, h, N_init_states, OP_interfaces, verbose=verbose, \
+					to_remember_timeevol=to_get_EM, init_gen_mode=init_gen_mode, interface_mode=mode_C_id[interface_mode])
 	
 	L2 = L**2
 	N_OP_interfaces = len(OP_interfaces) - 2   # '-2' to be consistent with C++ implementation. 2 interfaces are '-L2-1' and '+L2'
@@ -1055,24 +1057,31 @@ def get_init_states(Ns, N_min, N0=1):
 
 # =========================== these result in ~equal computation times ===============
 M_interfaces_table = {}
-M_interfaces_table[11] = {}   # L = 11
-M_interfaces_table[11]['AB'] = {}   # transition direction
-M_interfaces_table[11]['BA'] = {}
-M_interfaces_table[11]['AB'][20] = {}   
-M_interfaces_table[11]['BA'][20] = {}   
-M_interfaces_table[11]['AB'][30] = {}   
-M_interfaces_table[11]['BA'][30] = {}   # M_0
-M_interfaces_table[11]['AB'][20][-117] = np.array([-117, -115, -113, -109, -105, -97, -93, -85, -81, -75, -69, -61, -53, -47, -37, -29, -17, -3, 19, 117], dtype=int)
-M_interfaces_table[11]['BA'][20][-117] = np.array([-117, -115, -113, -109, -105, -101, -95, -89, -85, -77, -73, -65, -59, -51, -43, -33, -23, -9, 11, 117], dtype=int)
-M_interfaces_table[11]['AB'][30][-117] = np.array([-117, -115, -113, -111, -109, -107, -105, -103, -99, -95, -91, -85, -81, -75, -71, -65, -59, -53, -47, -41, -35, -29, -23, -15,  -7,  1, 11, 27, 51, 117], dtype=int)
-M_interfaces_table[11]['BA'][30][-117] = np.array([-117, -115, -113, -111, -109, -107, -105, -101, -99, -95, -91, -87, -83, -77, -73, -69, -63, -59, -53, -49, -43, -37, -31, -25, -17, -9,  1, 15, 49, 117], dtype=int)
+M_interfaces_table['M'] = {}   # interface_mode
+M_interfaces_table['CS'] = {}
+M_interfaces_table['M'][11] = {}   # L = 11
+M_interfaces_table['CS'][11] = {}
+M_interfaces_table['M'][11]['AB'] = {}   # transition direction
+M_interfaces_table['M'][11]['BA'] = {}
+M_interfaces_table['CS'][11]['AB'] = {}
+M_interfaces_table['CS'][11]['BA'] = {}
+M_interfaces_table['M'][11]['AB'][20] = {}   # number of interfaces
+M_interfaces_table['M'][11]['BA'][20] = {}   
+M_interfaces_table['M'][11]['AB'][30] = {}   
+M_interfaces_table['M'][11]['BA'][30] = {}   
+M_interfaces_table['CS'][11]['AB'][30] = {}   
+M_interfaces_table['CS'][11]['BA'][30] = {}   # M_0
+M_interfaces_table['M'][11]['AB'][20][-117] = np.array([-117, -115, -113, -109, -105, -97, -93, -85, -81, -75, -69, -61, -53, -47, -37, -29, -17, -3, 19, 117], dtype=int)
+M_interfaces_table['M'][11]['BA'][20][-117] = np.array([-117, -115, -113, -109, -105, -101, -95, -89, -85, -77, -73, -65, -59, -51, -43, -33, -23, -9, 11, 117], dtype=int)
+M_interfaces_table['M'][11]['AB'][30][-117] = np.array([-117, -115, -113, -111, -109, -107, -105, -103, -99, -95, -91, -85, -81, -75, -71, -65, -59, -53, -47, -41, -35, -29, -23, -15,  -7,  1, 11, 27, 51, 117], dtype=int)
+M_interfaces_table['M'][11]['BA'][30][-117] = np.array([-117, -115, -113, -111, -109, -107, -105, -101, -99, -95, -91, -87, -83, -77, -73, -69, -63, -59, -53, -49, -43, -37, -31, -25, -17, -9,  1, 15, 49, 117], dtype=int)
 
 def main():
-	[L, h, Temp, mode, Nt, Nt_narrowest, N_init_states_FFS, to_recomp, to_get_EM, verbose, my_seed, N_M_interfaces, N_runs, init_gen_mode, dM_0, dM_max], _ = \
-		my.parse_args(sys.argv, ['-L', '-h', '-Temp', '-mode', '-Nt', '-Nt_narrowest', '-N_init_states_FFS', '-to_recomp', '-to_get_EM', '-verbose', '-my_seed', '-N_M_interfaces', '-N_runs', '-init_gen_mode', '-dM_0', '-dM_max'], \
-					  possible_values=[None, None, None, None, None, None, None, my.yn_flags, my.yn_flags, None, None, None, None, None, None, None], \
-					  possible_arg_numbers=[[0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1]], \
-					  default_values=[['11'], ['-0.01'], ['2.1'], ['BF'], ['-10000000'], ['-5000'], ['10000'], [my.no_flags[0]], [my.yes_flags[0]], ['1'], ['23'], ['-30'], ['3'], ['-2'], ['4'], [None]])
+	[L, h, Temp, mode, Nt, Nt_narrowest, N_init_states_FFS, to_recomp, to_get_EM, verbose, my_seed, N_M_interfaces, N_runs, init_gen_mode, dM_0, dM_max, interface_mode], _ = \
+		my.parse_args(sys.argv, ['-L', '-h', '-Temp', '-mode', '-Nt', '-Nt_narrowest', '-N_init_states_FFS', '-to_recomp', '-to_get_EM', '-verbose', '-my_seed', '-N_M_interfaces', '-N_runs', '-init_gen_mode', '-dM_0', '-dM_max', '-interface_mode'], \
+					  possible_values=[None, None, None, None, None, None, None, my.yn_flags, my.yn_flags, None, None, None, None, None, None, None, None], \
+					  possible_arg_numbers=[[0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1]], \
+					  default_values=[['11'], ['-0.01'], ['2.1'], ['BF'], ['-10000000'], ['-5000'], ['10000'], [my.no_flags[0]], [my.yes_flags[0]], ['1'], ['23'], ['-30'], ['3'], ['-2'], ['4'], [None], ['M']])
 	
 	my_seed = int(my_seed[0])
 	to_recomp = (to_recomp[0] in my.yes_flags)
@@ -1087,6 +1096,7 @@ def main():
 	init_gen_mode = int(init_gen_mode[0])
 	dM_0 = int(dM_0[0])
 	dM_max = dM_max[0]
+	interface_mode = interface_mode[0]
 
 	L = int(L[0])
 	h = float(h[0])   # arbitrary small number that gives nice pictures
@@ -1096,6 +1106,8 @@ def main():
 	# -------- T > Tc, fluctuations around 0 ---------
 	#Temp = 3.0
 	#Temp = 2.5   # looks like Tc for L=16
+	
+	L2 = L**2
 
 	izing.init_rand(my_seed)
 	izing.set_verbose(verbose)
@@ -1104,27 +1116,43 @@ def main():
 		if(Nt < 0):
 			Nt = int(-Nt * np.exp(3 - dE_avg/Temp))   # enough sampling grows rapidly with L. 5e6 is enought for L=11, but not for >= 13
 	if('FFS' in mode):
-		#init_gen_mode = -2
-		M_0 = -L**2 + dM_0
-		if(dM_max is None):
-			M_max = -M_0
-		else:
+		if(interface_mode == 'M'):
+			M_0 = -L2 + dM_0
+			if(dM_max is None):
+				M_max = -M_0
+			else:
+				dM_max = int(dM_max)
+				M_max = L2 - dM_max
+			M_left = -L2-1
+			M_right = L2
+
+		elif(interface_mode == 'CS'):
+			M_0 = dM_0
+			assert(dM_max is not None), 'ERROR: do dM_max provided for CS interface_mode'
 			dM_max = int(dM_max)
 			M_max = L**2 - dM_max
+			M_left = -1
+			M_right = L2
+		else:
+			print('ERROR: %s interface_mode is not supported' % (interface_mode))
+			return
 		
+
 		# =========== if the necessary set in not in the table - this will work and nothing will erase its results ========
-		M_interfaces = M_0 + np.round(np.arange(abs(N_M_interfaces)) * (M_max - M_0) / (abs(N_M_interfaces) - 1) / 2) * 2
-		# this gives Ms such that there are always pairs +-M[i], so flipping this does not move the intefraces, which is (is it?) good for backwords FFS (B->A)
-		M_interfaces_AB = np.array([-L**2 - 1] + list(M_interfaces) + [L**2], dtype=np.intc)
-		M_interfaces_BA = np.array([-L**2 - 1] + list(-np.flip(M_interfaces)) + [L**2], dtype=np.intc)
+		M_interfaces_AB = M_0 + np.round(np.arange(abs(N_M_interfaces)) * (M_max - M_0) / (abs(N_M_interfaces) - 1) / 2) * 2
+			# this gives Ms such that there are always pairs +-M[i], so flipping this does not move the intefraces, which is (is it?) good for backwords FFS (B->A)
+		M_interfaces_BA = -np.flip(M_interfaces_AB)
 
 		if(N_M_interfaces > 0):
-			if(N_M_interfaces in M_interfaces_table[L]['AB']):
-				if(M_0 in M_interfaces_table[L]['AB'][N_M_interfaces]):
-					M_interfaces_AB = np.array([-L**2 - 1] + list(M_interfaces_table[L]['AB'][N_M_interfaces][M_0]) + [L**2], dtype=np.intc)
-			if(N_M_interfaces in M_interfaces_table[L]['BA']):
-				if(M_0 in M_interfaces_table[L]['BA'][N_M_interfaces]):
-					M_interfaces_BA = np.array([-L**2 - 1] + list(M_interfaces_table[L]['BA'][N_M_interfaces][M_0]) + [L**2], dtype=np.intc)
+			if(N_M_interfaces in M_interfaces_table[interface_mode][L]['AB']):
+				if(M_0 in M_interfaces_table[interface_mode][L]['AB'][N_M_interfaces]):
+					M_interfaces_AB = M_interfaces_table[interface_mode][L]['AB'][N_M_interfaces][M_0]
+			if(N_M_interfaces in M_interfaces_table[interface_mode][L]['BA']):
+				if(M_0 in M_interfaces_table[interface_mode][L]['BA'][N_M_interfaces]):
+					M_interfaces_BA = M_interfaces_table[interface_mode][L]['BA'][N_M_interfaces][M_0]
+
+		M_interfaces_AB = np.array([M_left] + list(M_interfaces_AB) + [M_right], dtype=np.intc)
+		M_interfaces_BA = np.array([M_left] + list(M_interfaces_BA) + [M_right], dtype=np.intc)
 		
 		N_M_interfaces = len(M_interfaces_AB) - 2
 		if(Nt_narrowest < 0):
@@ -1152,7 +1180,7 @@ def main():
 		proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA)
 		
 	elif(mode == 'FFS_AB'):
-		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, to_get_EM=to_get_EM)
+		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, to_get_EM=to_get_EM, interface_mode=interface_mode)
 		
 	elif(mode == 'FFS_many'):
 		#N_runs = 2

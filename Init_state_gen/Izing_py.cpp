@@ -16,16 +16,17 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(izing, m)
 {
-// py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> M_interfaces, int to_get_EM, std::optional<int> _verbose)
+// py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces, int to_remember_timeevol, std::optional<int> _verbose)
     m.def("run_FFS", &run_FFS,
           "run FFS for the 2D Ising model",
           py::arg("grid_size"),
           py::arg("Temp"),
           py::arg("h"),
           py::arg("N_init_states"),
-          py::arg("M_interfaces"),
-		  py::arg("to_get_EM")=0,
+          py::arg("OP_interfaces"),
+		  py::arg("to_remember_timeevol")=0,
 		  py::arg("init_gen_mode")=-2,
+		  py::arg("interface_mode")=1,
 		  py::arg("verbose")=py::none()
     );
 
