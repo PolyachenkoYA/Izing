@@ -51,7 +51,7 @@ def plot_k_distr(k_data, N_bins, lbl, units=None):
 	
 	ax.bar(k_centers, k_hist / k_lens, yerr=d_k_hist / k_lens, width=k_lens, align='center')
 	
-def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA, verbose=None, to_plot_hists=True, init_gen_mode=-2):
+def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA, verbose=None, to_plot_hists=True, init_gen_mode=-2, interface_mode='M'):
 	"""Runs FFS from both ends and obtains the F profile
 
 	Parameters
@@ -103,17 +103,24 @@ def proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_
 	"""
 	
 	probs_AB, d_probs_AB, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, rho_AB, d_rho_AB, M_hist_centers_AB, M_hist_lens_AB, _ = \
-		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, verbose=verbose, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
+		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, verbose=verbose, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode, interface_mode=interface_mode)
 
 	probs_BA, d_probs_BA, ln_k_BA, d_ln_k_BA, flux0_BA, d_flux0_BA, rho_BA, d_rho_BA, M_hist_centers_BA, M_hist_lens_BA, _ = \
-		proc_FFS_AB(L, Temp, -h, N_init_states_BA, M_interfaces_BA, verbose=verbose, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode)
+		proc_FFS_AB(L, Temp, -h, N_init_states_BA, M_interfaces_BA, verbose=verbose, to_get_EM=True, to_plot_time_evol=False, to_plot_hists=False, init_gen_mode=init_gen_mode, interface_mode=interface_mode)
+	
+	L2 = L**2
 	
 	probs_BA = np.flip(probs_BA)
 	d_probs_BA = np.flip(d_probs_BA)
 	rho_BA = np.flip(rho_BA)
 	d_rho_BA = np.flip(d_rho_BA)
-	M_hist_centers_BA = -np.flip(M_hist_centers_BA)
-	M_interfaces_BA = -np.flip(M_interfaces_BA)
+	if(interface_mode == 'M'):
+		M_hist_centers_BA = -np.flip(M_hist_centers_BA)
+		M_interfaces_BA = -np.flip(M_interfaces_BA)
+	elif(interface_mode == 'CS'):
+		M_hist_centers_BA = L2 - np.flip(M_hist_centers_BA)
+		M_interfaces_BA = L2 - np.flip(M_interfaces_BA)
+		
 	M_hist_lens_BA = np.flip(M_hist_lens_BA)
 	N_init_states_BA = np.flip(N_init_states_BA)
 	
@@ -218,7 +225,7 @@ def PB_fit_optimize(p, d_p, x, x1, x2, p1, p2, tht0=None):
 def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_interfaces, N_init_states, \
 							m_data=None, Nt=None, M_hist_edges=None, memory_time=1, \
 							to_plot_time_evol=False, stride=1, to_plot_hists=True, \
-							x_lbl='', y_lbl='', Ms_alpha=0.5):
+							x_lbl='', y_lbl='', Ms_alpha=0.5, interface_mode='M'):
 	L2 = L**2
 	ln_k_AB = np.log(flux0 * 1) + np.sum(np.log(probs[1:-1]))   # [flux0 * 1] = 1, because [flux] = 1/time = 1/step
 	d_ln_k_AB = np.sqrt((d_flux0 / flux0)**2 + np.sum((d_probs[1:-1] / probs[1:-1])**2))
@@ -239,7 +246,13 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 	#m_std = 2   # appromixation, overestimation
 	#memory_time = max(1, m_std / dM_step)
 	
-	m = M_interfaces[1 : -1] / L2
+	if(interface_mode == 'M'):
+		m_scale = L2
+	elif(interface_mode == 'CS'):
+		m_scale = 1
+	
+	m = M_interfaces[1 : -1] / m_scale
+	
 	N_M_interfaces = len(m)
 	P_B = np.empty(N_M_interfaces)
 	d_P_B = np.empty(N_M_interfaces)
@@ -261,15 +274,21 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 	M_optimize_f_desired = np.linspace(0, 1, N_M_interfaces)
 	
 	# ===== numerical inverse ======
-	M_optimize_new_M_interfaces = np.empty(N_M_interfaces, dtype=np.intc)
+	M_optimize_new_M_interfaces = np.zeros(N_M_interfaces, dtype=np.intc)
 	M_optimize_new_M_guess = min(m) + (max(m) - min(m)) * (np.arange(N_M_interfaces) / N_M_interfaces)
 	for i in range(N_M_interfaces - 2):
-		M_optimize_new_M_interfaces[i + 1] = int(np.round(scipy.optimize.root(lambda x: M_optimize_f_interp_interp1d(x) - M_optimize_f_desired[i + 1], M_optimize_new_M_guess[i + 1]).x[0] * L2) + 0.1)
-	M_optimize_new_M_interfaces = M_interfaces[1] + 2 * np.round((M_optimize_new_M_interfaces - M_interfaces[1]) / 2)
-	M_optimize_new_M_interfaces = np.int_(M_optimize_new_M_interfaces + 0.1 * np.sign(M_optimize_new_M_interfaces))
+		M_optimize_new_M_interfaces[i + 1] = int(np.round(scipy.optimize.root(lambda x: M_optimize_f_interp_interp1d(x) - M_optimize_f_desired[i + 1], M_optimize_new_M_guess[i + 1]).x[0] * m_scale) + 0.1)
+	
+	if(interface_mode == 'M'):
+		M_optimize_new_M_interfaces = M_interfaces[1] + 2 * np.round((M_optimize_new_M_interfaces - M_interfaces[1]) / 2)
+		M_optimize_new_M_interfaces = np.int_(M_optimize_new_M_interfaces + 0.1 * np.sign(M_optimize_new_M_interfaces))
+	elif(interface_mode == 'CS'):
+		M_optimize_new_M_interfaces = np.int_(np.round(M_optimize_new_M_interfaces))
 	M_optimize_new_M_interfaces[0] = M_interfaces[1]
 	M_optimize_new_M_interfaces[-1] = M_interfaces[-2]
-	if(np.any(M_optimize_new_M_interfaces[1:] - M_optimize_new_M_interfaces[:-1] == 0)):
+	
+	
+	if(np.any(M_optimize_new_M_interfaces[1:] == M_optimize_new_M_interfaces[:-1])):
 		print('WARNING: duplicate interfaces, removing duplicates')
 		M_optimize_new_M_interfaces = np.unique(M_optimize_new_M_interfaces)
 	N_new_interfaces = len(M_optimize_new_M_interfaces)
@@ -290,8 +309,6 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 			M.append(m_data[Nt_totals[i-1] : Nt_totals[i]])
 		del m_data
 		
-		M_hist_edges = L2 + 1   # auto-build for edges
-		M_hist_edges = (np.arange(L2 + 2) * 2 - (L2 + 1)) / L2
 		# The number of bins cannot be arbitrary because M is descrete, thus it's a good idea if all the bins have 1 descrete value inside or all the bins have 2 or etc. 
 		# It's not good if some bins have e.g. 1 possible M value, and others have 2 possible values. 
 		# There are 'L^2 + 1' possible values of M, because '{M \in [-L^2; L^2]} and {dM = 2}'
@@ -370,8 +387,8 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 			#ax_fl.plot(m_fine[:-1], M_optimize_f_interp_fit(m_fine[:-1]), label=r'$f_{fit}(\lambda)$')
 			ax_fl.plot(m_fine, M_optimize_f_interp_interp1d(m_fine), label=r'$f_{interp}(\lambda)$')
 			for i in range(N_new_interfaces):
-				ax_fl.plot([M_optimize_new_M_interfaces[i] / L2] * 2, [0, M_optimize_f_interp_interp1d(M_optimize_new_M_interfaces[i] / L2)], '--', label=('new interfaces' if(i == 0) else None), color=my.get_my_color(3))
-				ax_fl.plot([min(m), M_optimize_new_M_interfaces[i] / L2], [M_optimize_f_interp_interp1d(M_optimize_new_M_interfaces[i] / L2)] * 2, '--', label=None, color=my.get_my_color(3))
+				ax_fl.plot([M_optimize_new_M_interfaces[i] / m_scale] * 2, [0, M_optimize_f_interp_interp1d(M_optimize_new_M_interfaces[i] / m_scale)], '--', label=('new interfaces' if(i == 0) else None), color=my.get_my_color(3))
+				ax_fl.plot([min(m), M_optimize_new_M_interfaces[i] / m_scale], [M_optimize_f_interp_interp1d(M_optimize_new_M_interfaces[i] / m_scale)] * 2, '--', label=None, color=my.get_my_color(3))
 			ax_fl.plot([min(m), max(m)], [0, 1], '--', label=r'$interpolation$')
 			ax_fl_i.plot([0, N_M_interfaces - 1], [0, 1], '--', label=r'$interpolation$')
 			
@@ -397,6 +414,8 @@ def proc_FFS_AB(L, Temp, h, N_init_states, OP_interfaces, verbose=None, to_get_E
 	(_states, probs, d_probs, Nt, flux0, d_flux0, _E, _M, _CS) = \
 		izing.run_FFS(L, Temp, h, N_init_states, OP_interfaces, verbose=verbose, \
 					to_remember_timeevol=to_get_EM, init_gen_mode=init_gen_mode, interface_mode=mode_C_id[interface_mode])
+	
+	#input('OP:' + str(OP_interfaces))
 	
 	L2 = L**2
 	N_OP_interfaces = len(OP_interfaces) - 2   # '-2' to be consistent with C++ implementation. 2 interfaces are '-L2-1' and '+L2'
@@ -442,7 +461,7 @@ def proc_FFS_AB(L, Temp, h, N_init_states, OP_interfaces, verbose=None, to_get_E
 		proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, OP_interfaces, N_init_states, \
 						m_data=data[interface_mode], Nt=Nt, M_hist_edges=hist_edges[interface_mode], memory_time=memory_time, \
 						to_plot_time_evol=to_plot_time_evol, stride=EM_stride, to_plot_hists=to_plot_hists, \
-						x_lbl=lbl[interface_mode], y_lbl=title[interface_mode], Ms_alpha=Ms_alpha)
+						x_lbl=lbl[interface_mode], y_lbl=title[interface_mode], Ms_alpha=Ms_alpha, interface_mode=interface_mode)
 	
 	# ln_k_AB = np.log(flux0 * 1) + np.sum(np.log(probs[1:-1]))   # [flux0 * 1] = 1, because [flux] = 1/time = 1/step
 	# d_ln_k_AB = np.sqrt((d_flux0 / flux0)**2 + np.sum((d_probs[1:-1] / probs[1:-1])**2))
@@ -1069,12 +1088,16 @@ M_interfaces_table['M'][11]['AB'][20] = {}   # number of interfaces
 M_interfaces_table['M'][11]['BA'][20] = {}   
 M_interfaces_table['M'][11]['AB'][30] = {}   
 M_interfaces_table['M'][11]['BA'][30] = {}   
+M_interfaces_table['CS'][11]['AB'][20] = {}   
+M_interfaces_table['CS'][11]['BA'][20] = {}   
 M_interfaces_table['CS'][11]['AB'][30] = {}   
 M_interfaces_table['CS'][11]['BA'][30] = {}   # M_0
 M_interfaces_table['M'][11]['AB'][20][-117] = np.array([-117, -115, -113, -109, -105, -97, -93, -85, -81, -75, -69, -61, -53, -47, -37, -29, -17, -3, 19, 117], dtype=int)
 M_interfaces_table['M'][11]['BA'][20][-117] = np.array([-117, -115, -113, -109, -105, -101, -95, -89, -85, -77, -73, -65, -59, -51, -43, -33, -23, -9, 11, 117], dtype=int)
 M_interfaces_table['M'][11]['AB'][30][-117] = np.array([-117, -115, -113, -111, -109, -107, -105, -103, -99, -95, -91, -85, -81, -75, -71, -65, -59, -53, -47, -41, -35, -29, -23, -15,  -7,  1, 11, 27, 51, 117], dtype=int)
 M_interfaces_table['M'][11]['BA'][30][-117] = np.array([-117, -115, -113, -111, -109, -107, -105, -101, -99, -95, -91, -87, -83, -77, -73, -69, -63, -59, -53, -49, -43, -37, -31, -25, -17, -9,  1, 15, 49, 117], dtype=int)
+M_interfaces_table['CS'][11]['AB'][20][4] = np.array([4, 5, 7, 8, 9, 11, 13, 15, 18, 21, 24, 27, 31, 36, 40, 45, 51, 58, 69, 100], dtype=int)
+M_interfaces_table['CS'][11]['BA'][20][4] = np.array([4, 6, 7, 9, 11, 15, 18, 22, 25, 28, 31, 35, 38, 41, 45, 49, 54, 60, 69, 100], dtype=int)
 
 def main():
 	[L, h, Temp, mode, Nt, Nt_narrowest, N_init_states_FFS, to_recomp, to_get_EM, verbose, my_seed, N_M_interfaces, N_runs, init_gen_mode, dM_0, dM_max, interface_mode], _ = \
@@ -1141,7 +1164,10 @@ def main():
 		# =========== if the necessary set in not in the table - this will work and nothing will erase its results ========
 		M_interfaces_AB = M_0 + np.round(np.arange(abs(N_M_interfaces)) * (M_max - M_0) / (abs(N_M_interfaces) - 1) / 2) * 2
 			# this gives Ms such that there are always pairs +-M[i], so flipping this does not move the intefraces, which is (is it?) good for backwords FFS (B->A)
-		M_interfaces_BA = -np.flip(M_interfaces_AB)
+		if(interface_mode == 'M'):
+			M_interfaces_BA = -np.flip(M_interfaces_AB)
+		elif(interface_mode == 'CS'):
+			M_interfaces_BA = np.copy(M_interfaces_AB)
 
 		if(N_M_interfaces > 0):
 			if(N_M_interfaces in M_interfaces_table[interface_mode][L]['AB']):
@@ -1177,7 +1203,7 @@ def main():
 		# k_BA = 760 e-7 1/step
 		
 	elif(mode == 'FFS'):
-		proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA)
+		proc_FFS(L, Temp, h, N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA, interface_mode=interface_mode)
 		
 	elif(mode == 'FFS_AB'):
 		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, to_get_EM=to_get_EM, interface_mode=interface_mode)
