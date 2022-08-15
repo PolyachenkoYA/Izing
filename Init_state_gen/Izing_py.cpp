@@ -10,13 +10,10 @@
 
 namespace py = pybind11;
 
-// input: 11 3.0 0.0 4 -117 1 1 12345
-// input: 11 2.0 -0.01 100000 -101 1 1 2
-// input: 11 2.0 -0.01 10 121 1 1 2
-
 PYBIND11_MODULE(izing, m)
 {
-// py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces, int to_remember_timeevol, std::optional<int> _verbose)
+// py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
+//				  int to_remember_timeevol, int init_gen_mode, int interface_mode, std::optional<int> _verbose)
     m.def("run_FFS", &run_FFS,
           "run FFS for the 2D Ising model",
           py::arg("grid_size"),
@@ -30,13 +27,18 @@ PYBIND11_MODULE(izing, m)
 		  py::arg("verbose")=py::none()
     );
 
-// py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional<int> _verbose)
+// py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max,
+//						 std::optional<int> _OP_to_save_min, std::optional<int> _OP_to_save_max,
+//						 std::optional<int> _interface_mode, std::optional<int> _verbose)
 	m.def("run_bruteforce", &run_bruteforce,
 		  "run Brute-force simulation for the 2D Ising model for Nt_max steps, starting from M=-L^2",
 		  py::arg("grid_size"),
 		  py::arg("Temp"),
 		  py::arg("h"),
 		  py::arg("Nt_max"),
+		  py::arg("OP_to_save_min")=py::none(),
+		  py::arg("OP_to_save_max")=py::none(),
+		  py::arg("interface_mode")=py::none(),
 		  py::arg("verbose")=py::none()
 	);
 

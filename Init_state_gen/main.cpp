@@ -4,8 +4,8 @@
 
 
 int main(int argc, char** argv) {
-    if(argc != 13){
-        printf("usage:\n%s   L   T   h   N_init_states   OP_0   OP_max   N_M_interfaces   init_gen_mode   to_remember_timeevol   interface_mode   verbose   seed\n", argv[0]);
+    if(argc != 14){
+        printf("usage:\n%s   L   T   h   N_init_states_all   N_init_states_A   OP_0   OP_max   N_M_interfaces   init_gen_mode   to_remember_timeevol   interface_mode   verbose   seed\n", argv[0]);
         return 1;
     }
 
@@ -13,19 +13,21 @@ int main(int argc, char** argv) {
     double Temp = atof(argv[2]);
     double h =  atof(argv[3]);
     int N_init_states_default = atoi(argv[4]);
-    int OP_0 = atoi(argv[5]);
-	int OP_max = atoi(argv[6]);
-	int N_OP_interfaces = atoi(argv[7]);
-	int init_gen_mode = atoi(argv[8]);
-    int to_remember_timeevol = atoi(argv[9]);
-	int interface_mode = atoi(argv[10]);
-    int verbose = atoi(argv[11]);
-    int my_seed = atoi(argv[12]);
+	int N_init_states_A = atoi(argv[5]);
+    int OP_0 = atoi(argv[6]);
+	int OP_max = atoi(argv[7]);
+	int N_OP_interfaces = atoi(argv[8]);
+	int init_gen_mode = atoi(argv[9]);
+    int to_remember_timeevol = atoi(argv[10]);
+	int interface_mode = atoi(argv[11]);
+    int verbose = atoi(argv[12]);
+    int my_seed = atoi(argv[13]);
 
 	L = 11;
 	Temp = 2.1;
 	h = -0.01;
-	N_init_states_default = 50;
+	N_init_states_default = 1000;
+	N_init_states_A = 100000;
 	N_OP_interfaces = 30;
 	init_gen_mode = -2;
 	to_remember_timeevol = 1;
@@ -49,6 +51,8 @@ int main(int argc, char** argv) {
 	int state_size_in_bytes = L2 * sizeof(int);
 	int OP_arr_len = 128;
 
+	Izing::set_OP_default(L2);
+
 // [OP_min---OP_0](---OP_1](---...---OP_n-2](---OP_n-1](---OP_max]
 //        A       1       2 ...n-1       n-1        B
 //        0       1       2 ...n-1       n-1       n
@@ -60,7 +64,7 @@ int main(int argc, char** argv) {
 	double *d_probs = (double*) malloc(sizeof (double) * (N_OP_interfaces + 1));
 
 //	OP_interfaces[0] = -L2-1;   // here I want runs to finish only on exiting from A to OP_0
-	N_init_states[0] = 100;
+	N_init_states[0] = N_init_states_A;
 	int N_states_total = N_init_states[0];
 	for(i = 0; i <= N_OP_interfaces; ++i) {
 		Nt[i] = 0;
