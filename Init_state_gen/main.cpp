@@ -35,19 +35,24 @@ int main(int argc, char** argv) {
 	verbose = 1;
 	my_seed = 2;
 
+	// for valgrind
+	N_init_states_default = 50;
+	N_init_states_A = 100;
+
+	int L2 = L*L;
+
 	switch (interface_mode) {
 		case 1:
-			OP_0 = -L*L + 4;
+			OP_0 = -L2 + 4;
 			OP_max = -OP_0;
 			break;
 		case 2:
 			OP_0 = 3;
-			OP_max = L * L - 10;
+			OP_max = L2 - 10;
 			break;
 	}
 
     int i, j;
-	int L2 = L*L;
 	int state_size_in_bytes = L2 * sizeof(int);
 	int OP_arr_len = 128;
 

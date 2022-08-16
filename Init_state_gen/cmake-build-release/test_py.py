@@ -8,6 +8,20 @@ import scipy.interpolate
 import mylib as my
 
 dE_avg = 6   # J
+OP_min_default = {}
+OP_max_default = {}
+OP_peak_default = {}
+OP_scale = {}
+
+def set_OP_defaults(L2):
+	OP_min_default['M'] = -L2 - 1
+	OP_min_default['CS'] = -1
+	OP_max_default['M'] = L2 + 1
+	OP_max_default['CS'] = L2 + 1
+	OP_peak_default['M'] = L2 % 2
+	OP_peak_default['CS'] = L2 // 2
+	OP_scale['M'] = L2
+	OP_scale['CS'] = 1
 
 if(__name__ == "__main__"):
 	to_recompile = True
@@ -51,9 +65,20 @@ def plot_k_distr(k_data, N_bins, lbl, units=None):
 	
 	ax.bar(k_centers, k_hist / k_lens, yerr=d_k_hist / k_lens, width=k_lens, align='center')
 	
+def flip_M(M, L2, interface_mode):
+	if(interface_mode == 'M'):
+		return -np.flip(M)
+	elif(interface_mode == 'CS'):
+		return L2 - np.flip(M)
+
 def proc_FFS(L, Temp, h, \
-			N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA, M_far_from_A, M_far_from_B, Nt_sample_A, Nt_sample_B, interface_mode, \
-			verbose=None, to_plot_hists=False, init_gen_mode=-2):
+			N_init_states_AB, N_init_states_BA, \
+			M_interfaces_AB, M_interfaces_BA, \
+			M_sample_BF_A_to, M_sample_BF_B_to, \
+			M_match_BF_A_to, M_match_BF_B_to, \
+			Nt_sample_A, Nt_sample_B, \
+			interface_mode, init_gen_mode=-2, \
+			verbose=None, to_plot_hists=False):
 	"""Runs FFS from both ends and obtains the F profile
 
 	Parameters
@@ -115,17 +140,21 @@ def proc_FFS(L, Temp, h, \
 	
 	# We need to move M_far_from_B, because the simulation is actually done with the reversed field, which is the same as reversed order-parameter (OP). 
 	# But 'M_far_from_B' is set in the original OP, so we need to move the 'M_far_from_B' from the original OP axis to the reversed axis.
-	if(interface_mode == 'M'):
-		M_far_from_B = -M_far_from_B
-	elif(interface_mode == 'CS'):
-		M_far_from_B = L2 - M_far_from_B
+	M_sample_BF_B_to = flip_M(M_sample_BF_B_to, L2, interface_mode)
+	M_match_BF_B_to = flip_M(M_match_BF_B_to, L2, interface_mode)
+	# if(interface_mode == 'M'):
+		# M_sample_BF_B_to = -M_sample_BF_B_to
+		# M_match_BF_B_to = -M_match_BF_B_to
+	# elif(interface_mode == 'CS'):
+		# M_sample_BF_B_to = L2 - M_sample_BF_B_to
+		# M_match_BF_B_to = L2 - M_match_BF_B_to
 
 	probs_AB, d_probs_AB, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, rho_AB, d_rho_AB, M_hist_centers_AB, M_hist_lens_AB, _ = \
-		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, M_far_from_A, Nt_sample_A, interface_mode, \
+		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, M_sample_BF_A_to, M_match_BF_A_to, Nt_sample_A, interface_mode, \
 					init_gen_mode=init_gen_mode, to_get_EM=True, verbose=verbose)
 	
 	probs_BA, d_probs_BA, ln_k_BA, d_ln_k_BA, flux0_BA, d_flux0_BA, rho_BA, d_rho_BA, M_hist_centers_BA, M_hist_lens_BA, _ = \
-		proc_FFS_AB(L, Temp, -h, N_init_states_BA, M_interfaces_BA, M_far_from_B, Nt_sample_B, interface_mode, \
+		proc_FFS_AB(L, Temp, -h, N_init_states_BA, M_interfaces_BA, M_sample_BF_B_to, M_match_BF_B_to, Nt_sample_B, interface_mode, \
 					init_gen_mode=init_gen_mode, to_get_EM=True, verbose=verbose)
 	
 	# we need to reverse back all the OP-dependent returns sicnce the simulation was done with the reversed OP
@@ -133,12 +162,14 @@ def proc_FFS(L, Temp, h, \
 	d_probs_BA = np.flip(d_probs_BA)
 	rho_BA = np.flip(rho_BA)
 	d_rho_BA = np.flip(d_rho_BA)
-	if(interface_mode == 'M'):
-		M_hist_centers_BA = -np.flip(M_hist_centers_BA)
-		M_interfaces_BA = -np.flip(M_interfaces_BA)
-	elif(interface_mode == 'CS'):
-		M_hist_centers_BA = L2 - np.flip(M_hist_centers_BA)
-		M_interfaces_BA = L2 - np.flip(M_interfaces_BA)
+	M_hist_centers_BA = flip_M(M_hist_centers_BA, L2, interface_mode)
+	M_interfaces_BA = flip_M(M_interfaces_BA, L2, interface_mode)
+	# if(interface_mode == 'M'):
+		# M_hist_centers_BA = -np.flip(M_hist_centers_BA)
+		# M_interfaces_BA = -np.flip(M_interfaces_BA)
+	# elif(interface_mode == 'CS'):
+		# M_hist_centers_BA = L2 - np.flip(M_hist_centers_BA)
+		# M_interfaces_BA = L2 - np.flip(M_interfaces_BA)
 		
 	M_hist_lens_BA = np.flip(M_hist_lens_BA)
 	N_init_states_BA = np.flip(N_init_states_BA)
@@ -245,7 +276,7 @@ def PB_fit_optimize(p, d_p, x, x1, x2, p1, p2, tht0=None):
 
 def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_interfaces, N_init_states, \
 							m_data=None, Nt=None, M_hist_edges=None, M_step=2, M_std_estimate=2, \
-							to_plot_time_evol=False, stride=1, to_plot_hists=True, \
+							to_plot_time_evol=False, to_plot_hists=False, stride=1, \
 							x_lbl='', y_lbl='', Ms_alpha=0.5, interface_mode='M'):
 	L2 = L**2
 	ln_k_AB = np.log(flux0 * 1) + np.sum(np.log(probs[1:-1]))   # [flux0 * 1] = 1, because [flux] = 1/time = 1/step
@@ -263,13 +294,7 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 	else:
 		print('d_<k_AB> = ', my.f2s(k_AB * d_ln_k_AB), ' 1/step')
 	
-	
-	if(interface_mode == 'M'):
-		m_scale = L2
-	elif(interface_mode == 'CS'):
-		m_scale = 1
-	
-	m = M_interfaces[1 : -1] / m_scale
+	m = M_interfaces[1 : -1] / OP_scale[interface_mode]
 	memory_time = max(1, M_std_estimate / M_step)   # appromixation, overestimation
 	
 	N_M_interfaces = len(m)
@@ -296,7 +321,7 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 	M_optimize_new_M_interfaces = np.zeros(N_M_interfaces, dtype=np.intc)
 	M_optimize_new_M_guess = min(m) + (max(m) - min(m)) * (np.arange(N_M_interfaces) / N_M_interfaces)
 	for i in range(N_M_interfaces - 2):
-		M_optimize_new_M_interfaces[i + 1] = int(np.round(scipy.optimize.root(lambda x: M_optimize_f_interp_interp1d(x) - M_optimize_f_desired[i + 1], M_optimize_new_M_guess[i + 1]).x[0] * m_scale) + 0.1)
+		M_optimize_new_M_interfaces[i + 1] = int(np.round(scipy.optimize.root(lambda x: M_optimize_f_interp_interp1d(x) - M_optimize_f_desired[i + 1], M_optimize_new_M_guess[i + 1]).x[0] * OP_scale[interface_mode]) + 0.1)
 	
 	if(interface_mode == 'M'):
 		M_optimize_new_M_interfaces = M_interfaces[1] + 2 * np.round((M_optimize_new_M_interfaces - M_interfaces[1]) / 2)
@@ -317,6 +342,7 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 					M_optimize_new_M_interfaces[i+1] = M_optimize_new_M_interfaces[i] + M_step
 		#M_optimize_new_M_interfaces = np.unique(M_optimize_new_M_interfaces)
 	N_new_interfaces = len(M_optimize_new_M_interfaces)
+	print('N_M_i =', N_new_interfaces, '\nM_new:\n', M_optimize_new_M_interfaces, '\nM_new_original:\n', M_optimize_new_M_interfaces_original)
 
 	rho_s = np.zeros((L2 + 1, N_M_interfaces + 1))
 	d_rho_s = np.zeros((L2 + 1, N_M_interfaces + 1))
@@ -381,6 +407,8 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 				ax_M.plot(timesteps[i][::stride], M[i][::stride], label='data, i=%d' % (i))
 				
 			ax_M.legend()
+		else:
+			ax_M = None
 		
 		if(to_plot_hists):
 			fig_Mhists, ax_Mhists = my.get_fig(y_lbl, r'$\rho_i(' + x_lbl + ') \cdot P(i | A)$', title=r'$\rho(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h), yscl='log')
@@ -390,8 +418,8 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 				ax_Mhists.plot([m[i]] * 2, [min(rho), max(rho)], '--', label=('interfaces' if(i == 0) else None), color=my.get_my_color(0))
 			ax_Mhists.legend()
 			
-			fig_F, ax_F = my.get_fig(y_lbl, r'$F(' + x_lbl + r') = -T \ln(\rho(' + x_lbl + ') \cdot d' + x_lbl + '(' + x_lbl + '))$', title=r'$F(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			ax_F.errorbar(M_hist_centers, F, yerr=d_F, fmt='.', label='data')
+			fig_F, ax_F = my.get_fig(y_lbl, r'$F(' + x_lbl + r') = -T \ln(\rho(%s) \cdot d%s(%s))$' % (x_lbl, x_lbl, x_lbl), title=r'$F(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+			ax_F.errorbar(M_hist_centers, F, yerr=d_F, fmt='.', label='pure FFS')
 			for i in range(N_M_interfaces):
 				ax_F.plot([m[i]] * 2, [min(F), max(F)], '--', label=('interfaces' if(i == 0) else None), color=my.get_my_color(0))
 			ax_F.legend()
@@ -412,8 +440,8 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 			#ax_fl.plot(m_fine[:-1], M_optimize_f_interp_fit(m_fine[:-1]), label=r'$f_{fit}(\lambda)$')
 			ax_fl.plot(m_fine, M_optimize_f_interp_interp1d(m_fine), label=r'$f_{interp}(\lambda)$')
 			for i in range(N_new_interfaces):
-				ax_fl.plot([M_optimize_new_M_interfaces[i] / m_scale] * 2, [0, M_optimize_f_interp_interp1d(M_optimize_new_M_interfaces[i] / m_scale)], '--', label=('new interfaces' if(i == 0) else None), color=my.get_my_color(3))
-				ax_fl.plot([min(m), M_optimize_new_M_interfaces[i] / m_scale], [M_optimize_f_interp_interp1d(M_optimize_new_M_interfaces[i] / m_scale)] * 2, '--', label=None, color=my.get_my_color(3))
+				ax_fl.plot([M_optimize_new_M_interfaces[i] / OP_scale[interface_mode]] * 2, [0, M_optimize_f_interp_interp1d(M_optimize_new_M_interfaces[i] / OP_scale[interface_mode])], '--', label=('new interfaces' if(i == 0) else None), color=my.get_my_color(3))
+				ax_fl.plot([min(m), M_optimize_new_M_interfaces[i] / OP_scale[interface_mode]], [M_optimize_f_interp_interp1d(M_optimize_new_M_interfaces[i] / OP_scale[interface_mode])] * 2, '--', label=None, color=my.get_my_color(3))
 			ax_fl.plot([min(m), max(m)], [0, 1], '--', label=r'$interpolation$')
 			ax_fl_i.plot([0, N_M_interfaces - 1], [0, 1], '--', label=r'$interpolation$')
 			
@@ -422,12 +450,18 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 			ax_fl.legend()
 			ax_fl_i.legend()
 			
-			print('N_M_i =', N_new_interfaces, '\nM_new:\n', M_optimize_new_M_interfaces, '\nM_new_original:\n', M_optimize_new_M_interfaces_original)
-	
-	return ln_k_AB, d_ln_k_AB, rho, d_rho, M_hist_centers, M_hist_lens, M_optimize_new_M_interfaces
+		else:
+			ax_Mhists = None
+			ax_F = None
+			ax_PB_log = None
+			ax_PB = None
+			ax_fl = None
+			ax_fl_i = None
+			
+	return ln_k_AB, d_ln_k_AB, rho, d_rho, M_hist_centers, M_hist_lens, M_optimize_new_M_interfaces, \
+			ax_M, ax_Mhists, ax_F, ax_PB_log, ax_PB, ax_fl, ax_fl_i
 
-
-def proc_FFS_AB(L, Temp, h, N_init_states, OP_interfaces, OP_far_from_A, Nt_BF, interface_mode, \
+def proc_FFS_AB(L, Temp, h, N_init_states, OP_interfaces, OP_sample_BF_to, OP_match_BF_to, Nt_BF, interface_mode, \
 				verbose=None, to_get_EM=False, \
 				to_plot_time_evol=False, to_plot_hists=False, EM_stride=-3000, \
 				init_gen_mode=-2, Ms_alpha=0.5):
@@ -436,6 +470,8 @@ def proc_FFS_AB(L, Temp, h, N_init_states, OP_interfaces, OP_far_from_A, Nt_BF, 
 	mode_C_id['CS'] = 2
 	
 	print('=============== running h = %s ==================' % (my.f2s(h)))
+	
+	#input(str(OP_interfaces))
 	
 	# py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> M_interfaces, int to_get_EM, std::optional<int> _verbose)
 	# return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M, biggest_cluster_sizes);
@@ -482,18 +518,20 @@ def proc_FFS_AB(L, Temp, h, N_init_states, OP_interfaces, OP_far_from_A, Nt_BF, 
 	dm_step['CS'] = 1
 	m_std['CS'] = L2
 	
-	assert(OP_interfaces[1] < OP_far_from_A), 'ERROR: OP_interfaces start at %d, but the state is sampled only through %d' % (OP_interfaces[1], OP_far_from_A)
+	assert(OP_interfaces[1] < OP_match_BF_to), 'ERROR: OP_interfaces start at %d, but the state is match to BF only through %d' % (OP_interfaces[1], OP_match_BF_to)
+	assert(OP_match_BF_to < OP_sample_BF_to), 'ERROR: OP_match_to = %d >= OP_sample_to = %d' % (OP_match_BF_to, OP_sample_BF_to)
 	
-	ln_k_AB, d_ln_k_AB, rho, d_rho, M_hist_centers, M_hist_lens, M_optimize_new_M_interfaces = \
-		proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, OP_interfaces, N_init_states, \
+	ln_k_AB, d_ln_k_AB, rho, d_rho, M_hist_centers, M_hist_lens, M_optimize_new_M_interfaces, \
+		ax_M, ax_Mhists, ax_F, ax_PB_log, ax_PB, ax_fl, ax_fl_i = \
+			proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, OP_interfaces, N_init_states, \
 						m_data=data[interface_mode], Nt=Nt, M_hist_edges=hist_edges[interface_mode], \
 						M_step=dm_step[interface_mode], M_std_estimate=m_std[interface_mode], \
-						to_plot_time_evol=to_plot_time_evol, stride=EM_stride, to_plot_hists=to_plot_hists, \
+						to_plot_time_evol=to_plot_time_evol, to_plot_hists=to_plot_hists, stride=EM_stride, \
 						x_lbl=lbl[interface_mode], y_lbl=title[interface_mode], Ms_alpha=Ms_alpha, interface_mode=interface_mode)
 	
 	if(to_get_EM):
 		F_BF, d_F_BF, hist_centers_BF, hist_lens_BF, rho_interp1d_BF, d_rho_interp1d_BF, _, _, _, _, _, _ = \
-			proc_T(L, Temp, h, Nt_BF, M_min_BF=OP_interfaces[0], M_max_BF=OP_far_from_A, \
+			proc_T(L, Temp, h, Nt_BF, OP_min=OP_interfaces[0], OP_max=OP_sample_BF_to, interface_mode=interface_mode, to_estimate_k=False, \
 					to_plot_time_evol=False, to_plot_F=False, to_plot_ETS=False, to_plot_correlations=False)
 		
 		# ======== interpolate BF results to the FFS grid =========
@@ -510,202 +548,23 @@ def proc_FFS_AB(L, Temp, h, N_init_states, OP_interfaces, OP_far_from_A, Nt_BF, 
 		
 		w2 = 1 / (d_F_FFS**2 + d_F_BF**2)
 		dF_FFS_BF = F_FFS - F_BF
-		F_match_points_inds = (M_hist_centers > OP_interfaces[1]) & (M_hist_centers <= OP_far_from_A)
+		F_match_points_inds = (M_hist_centers > OP_interfaces[1] / OP_scale[interface_mode]) & (M_hist_centers <= OP_match_BF_to / OP_scale[interface_mode])
 		#F_shift = np.sum(dF_FFS_BF * w2) / np.sum(w2)
 		F_shift = np.average(dF_FFS_BF[F_match_points_inds], weights=w2[F_match_points_inds])
 		F_BF = F_BF + F_shift
 		
-		state_A_inds = M_hist_centers <= OP_interfaces[1]
+		state_A_inds = M_hist_centers <= OP_interfaces[1] / OP_scale[interface_mode]
 		rho[state_A_inds] = np.exp(-F_BF[state_A_inds] / Temp) / hist_lens_BF[state_A_inds]
 		d_rho[state_A_inds] = rho[state_A_inds] * d_F_BF[state_A_inds] / Temp
+		
+		F = -Temp * np.log(rho * M_hist_lens)
+		F = F - min(F)
+		d_F = Temp * d_rho / rho
+		
+		if(to_plot_hists):
+			#fig_F, ax_F = my.get_fig(title[interface_mode], 'F/J', title='$F_{AB}(%s)$' % (lbl[interface_mode]))
+			ax_F.errorbar(M_hist_centers, F, yerr=d_F, label='FFS + A-BF')
 	
-	# ln_k_AB = np.log(flux0 * 1) + np.sum(np.log(probs[1:-1]))   # [flux0 * 1] = 1, because [flux] = 1/time = 1/step
-	# d_ln_k_AB = np.sqrt((d_flux0 / flux0)**2 + np.sum((d_probs[1:-1] / probs[1:-1])**2))
-	# k_AB, k_AB_low, k_AB_up, d_k_AB = log_norm_err(ln_k_AB, d_ln_k_AB)
-	
-	# print('Nt:', Nt)
-	# #print('N_init_guess: ', np.exp(np.mean(np.log(Nt))) / Nt)
-	# print('flux0 = (%lf +- %lf) 1/step' % (flux0, d_flux0))
-	# print('-log10(P):', -np.log(probs) / np.log(10))
-	# print('d_P / P:', d_probs / probs)
-	# print('<k_AB> = ', my.f2s(k_AB), ' 1/step')   # probs[0] == 1 because its the probability to go from A to M_0
-	# if(d_ln_k_AB > 0.3):
-		# print('k_AB \\in [', my.f2s(k_AB_low), ';', my.f2s(k_AB_up), '] 1/step with 68% prob')
-	# else:
-		# print('d_<k_AB> = ', my.f2s(k_AB * d_ln_k_AB), ' 1/step')
-	
-	
-	# m = M_interfaces[1 : -1] / L2
-	# P_B = np.empty(N_M_interfaces)
-	# d_P_B = np.empty(N_M_interfaces)
-	# P_B[N_M_interfaces - 1] = 1
-	# d_P_B[N_M_interfaces - 1] = 0
-	# for i in range(N_M_interfaces - 1):
-		# _p = probs[(i + 1):(N_M_interfaces)]
-		# P_B[i] = np.prod(_p)
-		# d_P_B[i] = P_B[i] * (1 - P_B[i]) * np.sqrt(np.sum((d_probs[(i + 1):(N_M_interfaces)] / _p)**2))
-	
-	# P_B_opt, P_B_opt_fnc, P_B_opt_fnc_inv = PB_fit_optimize(P_B[:-1], d_P_B[:-1], m[:-1], m[0], m[-1], P_B[0], P_B[-1], tht0=[0, 0.15])
-	# P_B_x0_opt = P_B_opt.x[0]
-	# P_B_s_opt = P_B_opt.x[1]
-
-	# M_optimize_f_interp_vals = 1 - np.log(P_B) / np.log(P_B[0])
-	# d_M_optimize_f_interp_vals = d_P_B / P_B / np.log(P_B[0])
-	# M_optimize_f_interp_fit = lambda m: (1 - np.log(P_B_opt_fnc(m)) / np.log(P_B[0]))
-	# M_optimize_f_interp_interp1d = scipy.interpolate.interp1d(m, M_optimize_f_interp_vals, fill_value='extrapolate')
-	# M_optimize_f_desired = np.linspace(0, 1, N_M_interfaces)
-	# #M_optimize_PB_desired = np.power(P_B[0], 1 - M_optimize_f_desired)
-	
-	# #M_optimize_new_M_interfaces = np.int_(np.round(P_B_opt_fnc_inv(M_optimize_PB_desired) * L2) + 0.1)
-	
-	# # ===== numerical inverse ======
-	# M_optimize_new_M_interfaces = np.empty(N_M_interfaces, dtype=np.intc)
-	# M_optimize_new_M_guess = min(m) + (max(m) - min(m)) * (np.arange(N_M_interfaces) / N_M_interfaces)
-	# for i in range(N_M_interfaces - 2):
-		# M_optimize_new_M_interfaces[i + 1] = int(np.round(scipy.optimize.root(lambda x: M_optimize_f_interp_interp1d(x) - M_optimize_f_desired[i + 1], M_optimize_new_M_guess[i + 1]).x[0] * L2) + 0.1)
-	# M_optimize_new_M_interfaces = M_interfaces[1] + 2 * np.round((M_optimize_new_M_interfaces - M_interfaces[1]) / 2)
-	# M_optimize_new_M_interfaces = np.int_(M_optimize_new_M_interfaces + 0.1 * np.sign(M_optimize_new_M_interfaces))
-	# M_optimize_new_M_interfaces[0] = M_interfaces[1]
-	# M_optimize_new_M_interfaces[-1] = M_interfaces[-2]
-	# if(np.any(M_optimize_new_M_interfaces[1:] - M_optimize_new_M_interfaces[:-1] == 0)):
-		# print('WARNING: duplicate interfaces, removing duplicates')
-		# M_optimize_new_M_interfaces = np.unique(M_optimize_new_M_interfaces)
-	# N_new_interfaces = len(M_optimize_new_M_interfaces)
-
-	# rho_s = np.zeros((L2 + 1, N_M_interfaces + 1))
-	# d_rho_s = np.zeros((L2 + 1, N_M_interfaces + 1))
-	# timesteps = []
-	# M_hist_centers = []
-	# rho = None
-	# if(to_get_EM):
-		# _M = _M / L2
-		# _E = _E / L2
-		
-		# Nt_total = len(_E)
-		# Nt_totals = np.empty(N_M_interfaces + 1, dtype=np.intc)
-		# Nt_totals[0] = Nt[0]
-		
-		# E = [_E[ : Nt_totals[0]]]
-		# for i in range(1, N_M_interfaces + 1):
-			# Nt_totals[i] = Nt_totals[i-1] + Nt[i]
-			# E.append(_E[Nt_totals[i-1] : Nt_totals[i]])
-		# del _E
-		# assert(Nt_total == Nt_totals[-1])
-		
-		# M = [_M[ : Nt_totals[0]]]
-		# for i in range(1, N_M_interfaces + 1):
-			# M.append(_M[Nt_totals[i-1] : Nt_totals[i]])
-		# del _M
-		
-		# biggest_cluster_sizes = [_biggest_cluster_sizes[ : Nt_totals[0]]]
-		# for i in range(1, N_M_interfaces + 1):
-			# biggest_cluster_sizes.append(_biggest_cluster_sizes[Nt_totals[i-1] : Nt_totals[i]])
-		# del _biggest_cluster_sizes
-		
-		
-		# M_hist_edges = L2 + 1   # auto-build for edges
-		# M_hist_edges = (np.arange(L2 + 2) * 2 - (L2 + 1)) / L2
-		# # The number of bins cannot be arbitrary because M is descrete, thus it's a good idea if all the bins have 1 descrete value inside or all the bins have 2 or etc. 
-		# # It's not good if some bins have e.g. 1 possible M value, and others have 2 possible values. 
-		# # There are 'L^2 + 1' possible values of M, because '{M \in [-L^2; L^2]} and {dM = 2}'
-		# # Thus, we need edges which cover [-1-1/L^2; 1+1/L^2] with step=2/L^2
-		# M_hist_lens = (M_hist_edges[1:] - M_hist_edges[:-1])
-		# M_hist_centers = (M_hist_edges[1:] + M_hist_edges[:-1]) / 2
-
-		# rho_for_sum = np.empty((L2 + 1, N_M_interfaces + 1))
-		# d_rho_for_sum = np.zeros((L2 + 1, N_M_interfaces + 1))
-		# rho_w = np.empty(N_M_interfaces + 1)
-		# d_rho_w = np.empty(N_M_interfaces + 1)
-		# for i in range(N_M_interfaces + 1):
-			# timesteps.append(np.arange(Nt[i]) + (0 if(i == 0) else Nt_totals[i-1]))
-			# M_hist, _ = np.histogram(M[i], bins=M_hist_edges)
-			# M_hist = M_hist / memory_time
-			# M_hist_ok_inds = (M_hist > 0)
-			# #rho_s[M_hist_ok_inds, i] = M_hist[M_hist_ok_inds] / M_hist_lens[M_hist_ok_inds] / Nt[i]   # \pi(q, l_i)
-			# #d_rho_s[M_hist_ok_inds, i] = np.sqrt(M_hist[M_hist_ok_inds] * (1 - M_hist[M_hist_ok_inds] / Nt[i])) / M_hist_lens[M_hist_ok_inds] / Nt[i]
-			# rho_s[M_hist_ok_inds, i] = M_hist[M_hist_ok_inds] / M_hist_lens[M_hist_ok_inds] / N_init_states[i+1]   # \pi(q, l_i)
-			# d_rho_s[M_hist_ok_inds, i] = np.sqrt(M_hist[M_hist_ok_inds] * (1 - M_hist[M_hist_ok_inds] / Nt[i])) / M_hist_lens[M_hist_ok_inds] / N_init_states[i+1]
-			
-			# #rho_w[i] = (1 if(i == 0) else np.prod(probs[:i]))
-			# rho_w[i] = (1 if(i == 0) else P_B[0] / P_B[i - 1])
-			# d_rho_w[i] = (0 if(i == 0) else (rho_w[i] * d_P_B[i - 1] / P_B[i - 1]))
-			# rho_for_sum[:, i] = rho_s[:, i] * rho_w[i]
-			# #d_rho_for_sum[M_hist_ok_inds, i] = rho_for_sum[M_hist_ok_inds, i] * np.sqrt((d_rho_s[M_hist_ok_inds, i] / rho_s[M_hist_ok_inds, i])**2 + (0 if(i == 0) else np.sum((d_probs[:i] / probs[:i])**2)))
-			# d_rho_for_sum[M_hist_ok_inds, i] = rho_for_sum[M_hist_ok_inds, i] * np.sqrt((d_rho_s[M_hist_ok_inds, i] / rho_s[M_hist_ok_inds, i])**2 + (d_rho_w[i] / rho_w[i])**2)
-		
-		# rho = np.sum(rho_for_sum, axis=1)
-		# d_rho = np.sqrt(np.sum(d_rho_for_sum**2, axis=1))
-		# F = -Temp * np.log(rho * M_hist_lens)
-		# d_F = Temp * d_rho / rho
-		# F = F - min(F)
-		
-		# # stab_step = int(min(L2, Nt / 2)) * 5
-		# # # Each spin has a good chance to flip during this time
-		# # # This does not guarantee the global stable state, but it is sufficient to be sure-enough we are in the optimum of the local metastable-state.
-		# # # The approximation for a global ebulibration would be '1/k_AB', where k_AB is the rate constant. But it's hard to estimate on that stage.
-		# # stab_ind = (steps > stab_step)
-		
-		# if(to_plot_time_evol):
-			# if(EM_stride < 0):
-				# EM_stride = np.int_(- Nt_total / EM_stride)
-			
-			# fig_E, ax_E = my.get_fig('step', '$E / L^2$', title='E(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			# fig_M, ax_M = my.get_fig('step', '$M / L^2$', title='M(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			
-			# for i in range(N_M_interfaces + 1):
-				# ax_E.plot(timesteps[i][::EM_stride], E[i][::EM_stride], label='data, i=%d' % (i))
-				# # ax_E.plot([stab_step] * 2, [min(E), max(E)], label='equilibr')
-				# # ax_E.plot([stab_step, Nt], [E_mean] * 2, label=('$<E> = ' + my.errorbar_str(E_mean, d_E_mean) + '$'))
-				
-				# ax_M.plot(timesteps[i][::EM_stride], M[i][::EM_stride], label='data, i=%d' % (i))
-				# # ax_M.plot([stab_step] * 2, [min(M), max(M)], label='equilibr')
-				# # ax_M.plot([stab_step, Nt], [M_mean] * 2, label=('$<M> = ' + my.errorbar_str(M_mean, d_M_mean) + '$'))
-			
-			# ax_E.legend()
-			# ax_M.legend()
-		
-		# if(to_plot_hists):
-			# fig_Mhists, ax_Mhists = my.get_fig(r'$m = M / L^2$', r'$\rho_i(m) \cdot P(i | A)$', title=r'$\rho(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h), yscl='log')
-			# for i in range(N_M_interfaces + 1):
-				# ax_Mhists.bar(M_hist_centers, rho_for_sum[:, i], yerr=d_rho_for_sum[:, i], width=M_hist_lens, align='center', label=str(i), alpha=Ms_alpha)
-			# for i in range(N_M_interfaces):
-				# ax_Mhists.plot([m[i]] * 2, [min(rho), max(rho)], '--', label=('interfaces' if(i == 0) else None), color=my.get_my_color(0))
-			# ax_Mhists.legend()
-			
-			# fig_F, ax_F = my.get_fig(r'$m = M / L^2$', r'$F(m) = -T \ln(\rho(m) \cdot dm(m))$', title=r'$F(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			# ax_F.errorbar(M_hist_centers, F, yerr=d_F, fmt='.', label='data')
-			# for i in range(N_M_interfaces):
-				# ax_F.plot([m[i]] * 2, [min(F), max(F)], '--', label=('interfaces' if(i == 0) else None), color=my.get_my_color(0))
-			# ax_F.legend()
-			
-			# fig_PB_log, ax_PB_log = my.get_fig(r'$m = M / L^2$', r'$P_B(m) = P(i|0)$', title=r'$P_B(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h), yscl='log')
-			# fig_PB, ax_PB = my.get_fig(r'$m = M / L^2$', r'$P_B(m) = P(i|0)$', title=r'$P_B(m)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			# fig_fl, ax_fl = my.get_fig(r'$m = M / L^2$', r'$1 - \ln[P_B(m)] / \ln[P_B(0)] = f(\lambda_i)$', title=r'$f(\lambda_i)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			# fig_fl_i, ax_fl_i = my.get_fig(r'$index(m_i)$', r'$1 - \ln[P_B(m_i)] / \ln[P_B(0)] = f(\lambda_i)$', title=r'$f(\lambda_i)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			
-			# ax_PB_log.errorbar(m, P_B, yerr=d_P_B, fmt='.', label='data')
-			# ax_PB_log.plot(m[:-1], P_B_opt_fnc(m[:-1]), label='fit')
-			# ax_PB.errorbar(m, P_B, yerr=d_P_B, fmt='.', label='data')
-			# ax_PB.plot(m[:-1], P_B_opt_fnc(m[:-1]), label=r'fit; $(x_0, \sigma) = (%s, %s)$' % (my.f2s(P_B_x0_opt), my.f2s(P_B_s_opt)))
-			
-			# m_fine = np.linspace(min(m), max(m), 1000)
-			# ax_fl.errorbar(m, M_optimize_f_interp_vals, yerr=d_M_optimize_f_interp_vals, fmt='.', label=r'$f(\lambda)_i$')
-			# ax_fl_i.errorbar(np.arange(N_M_interfaces), M_optimize_f_interp_vals, yerr=d_M_optimize_f_interp_vals, fmt='.', label=r'$f(\lambda)_i$')
-			# #ax_fl.plot(m_fine[:-1], M_optimize_f_interp_fit(m_fine[:-1]), label=r'$f_{fit}(\lambda)$')
-			# ax_fl.plot(m_fine, M_optimize_f_interp_interp1d(m_fine), label=r'$f_{interp}(\lambda)$')
-			# for i in range(N_new_interfaces):
-				# ax_fl.plot([M_optimize_new_M_interfaces[i] / L2] * 2, [0, M_optimize_f_interp_interp1d(M_optimize_new_M_interfaces[i] / L2)], '--', label=('new interfaces' if(i == 0) else None), color=my.get_my_color(3))
-				# ax_fl.plot([min(m), M_optimize_new_M_interfaces[i] / L2], [M_optimize_f_interp_interp1d(M_optimize_new_M_interfaces[i] / L2)] * 2, '--', label=None, color=my.get_my_color(3))
-			# ax_fl.plot([min(m), max(m)], [0, 1], '--', label=r'$interpolation$')
-			# ax_fl_i.plot([0, N_M_interfaces - 1], [0, 1], '--', label=r'$interpolation$')
-			
-			# ax_PB_log.legend()
-			# ax_PB.legend()
-			# ax_fl.legend()
-			# ax_fl_i.legend()
-			
-			# print('N_M_i =', N_new_interfaces, '; M_new:\n', M_optimize_new_M_interfaces)
-		
 	return probs, d_probs, ln_k_AB, d_ln_k_AB, flux0, d_flux0, rho, d_rho, M_hist_centers, M_hist_lens, M_optimize_new_M_interfaces
 
 def exp_integrate(x, f):
@@ -741,15 +600,17 @@ def exp2_integrate(fit2, x1):
 	return np.exp(c) / 2 * np.sqrt(np.pi / np.abs(a)) * (scipy.special.erfi(dx) if(a > 0) else scipy.special.erf(dx))
 
 def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, m_peak_guess, m_fit2_width, \
-						 x_lbl=None, y_lbl=None, verbose=None, \
+						 x_lbl=None, y_lbl=None, verbose=None, to_estimate_k=False, \
 						 to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, stride=1):
 	Nt = len(m)
 	steps = np.arange(Nt)
 	L2 = L**2
 	stab_ind = (steps > stab_step)
 	m_stab = m[stab_ind]
-
+	
 	Nt_stab = len(m_stab)
+	assert(Nt_stab > 1), 'ERROR: the system may not have reached equlibrium, stab_step = %d, max-present-step = %d' % (stab_step, max(steps))
+	
 	m_mean = np.mean(m_stab)
 	m_std = np.std(m_stab)
 	memory_time = max(1, m_std / dm_step)   
@@ -774,37 +635,40 @@ def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, 
 	rho_interp1d = scipy.interpolate.interp1d(m_hist_centers, rho, fill_value='extrapolate')
 	d_rho_interp1d = scipy.interpolate.interp1d(m_hist_centers, d_rho, fill_value='extrapolate')
 
-	rho_fnc = scipy
 	F = -Temp * np.log(rho * m_hist_lens)
 	F = F - F[0]
 	d_F = Temp * d_rho / rho
-			
-	m_fit2_mmin_ind = np.argmax(m_hist_centers > m_peak_guess - m_fit2_width)
-	m_fit2_mmax_ind = np.argmax(m_hist_centers > m_peak_guess + m_fit2_width)
-	assert(m_fit2_mmin_ind > 0), 'issues finding analytical border'
-	assert(m_fit2_mmax_ind > 0), 'issues finding analytical border'
-	m_fit2_inds = (m_fit2_mmin_ind <= np.arange(len(m_hist_centers))) & (m_fit2_mmax_ind >= np.arange(len(m_hist_centers)))
-	m_fit2 = np.polyfit(m_hist_centers[m_fit2_inds], F[m_fit2_inds], 2, w = 1/d_F[m_fit2_inds])
-	m_peak = -m_fit2[1] / (2 * m_fit2[0])
-	m_peak_ind = np.argmin(abs(m_hist_centers - m_peak))
-	F_max = np.polyval(m_fit2, m_peak)
-	#m_peak_ind = np.argmin(m_hist_centers - m_peak)
-	bc_Z_AB = exp_integrate(m_hist_centers[ : m_fit2_mmin_ind + 1], -F[ : m_fit2_mmin_ind + 1] / Temp) + exp2_integrate(- m_fit2 / Temp, m_hist_centers[m_fit2_mmin_ind])
-	bc_Z_BA = exp_integrate(m_hist_centers[m_fit2_mmax_ind : ], -F[m_fit2_mmax_ind : ] / Temp) + abs(exp2_integrate(- m_fit2 / Temp, m_hist_centers[m_fit2_mmax_ind]))
-	k_bc_AB = (np.mean(abs(m_hist_centers[m_peak_ind + 1] - m_hist_centers[m_peak_ind - 1]))/2 / 2) * (np.exp(-F_max / Temp) / bc_Z_AB)
-	k_bc_BA = (np.mean(abs(m_hist_centers[m_peak_ind + 1] - m_hist_centers[m_peak_ind - 1]))/2 / 2) * (np.exp(-F_max / Temp) / bc_Z_BA)
-	
-	print('k_' + x_lbl + '_AB =', my.f2s(k_bc_AB))
-	print('k_' + x_lbl + '_BA =', my.f2s(k_bc_BA))
 	
 	E_avg = np.empty(N_m_points)
 	for i in range(N_m_points):
 		E_for_avg = E[(m_hist_edges[i] < m) & (m < m_hist_edges[i+1])] * L2
 		#E_avg[i] = np.average(E_for_avg, weights=np.exp(- E_for_avg / Temp))
-		E_avg[i] = np.mean(E_for_avg)
+		E_avg[i] = np.mean(E_for_avg) if(len(E_for_avg) > 0) else (2 + abs(h)) * L2
 	E_avg = E_avg - E_avg[0]   # we can choose the E constant
 	S = (E_avg - F) / Temp
 	S = S - S[0] # S[m=+-1] = 0 because S = log(N), and N(m=+-1)=1
+	
+	if(to_estimate_k):
+		m_fit2_mmin_ind = np.argmax(m_hist_centers > m_peak_guess - m_fit2_width)
+		m_fit2_mmax_ind = np.argmax(m_hist_centers > m_peak_guess + m_fit2_width)
+		assert(m_fit2_mmin_ind > 0), 'issues finding analytical border'
+		assert(m_fit2_mmax_ind > 0), 'issues finding analytical border'
+		m_fit2_inds = (m_fit2_mmin_ind <= np.arange(len(m_hist_centers))) & (m_fit2_mmax_ind >= np.arange(len(m_hist_centers)))
+		m_fit2 = np.polyfit(m_hist_centers[m_fit2_inds], F[m_fit2_inds], 2, w = 1/d_F[m_fit2_inds])
+		m_peak = -m_fit2[1] / (2 * m_fit2[0])
+		m_peak_ind = np.argmin(abs(m_hist_centers - m_peak))
+		F_max = np.polyval(m_fit2, m_peak)
+		#m_peak_ind = np.argmin(m_hist_centers - m_peak)
+		bc_Z_AB = exp_integrate(m_hist_centers[ : m_fit2_mmin_ind + 1], -F[ : m_fit2_mmin_ind + 1] / Temp) + exp2_integrate(- m_fit2 / Temp, m_hist_centers[m_fit2_mmin_ind])
+		bc_Z_BA = exp_integrate(m_hist_centers[m_fit2_mmax_ind : ], -F[m_fit2_mmax_ind : ] / Temp) + abs(exp2_integrate(- m_fit2 / Temp, m_hist_centers[m_fit2_mmax_ind]))
+		k_bc_AB = (np.mean(abs(m_hist_centers[m_peak_ind + 1] - m_hist_centers[m_peak_ind - 1]))/2 / 2) * (np.exp(-F_max / Temp) / bc_Z_AB)
+		k_bc_BA = (np.mean(abs(m_hist_centers[m_peak_ind + 1] - m_hist_centers[m_peak_ind - 1]))/2 / 2) * (np.exp(-F_max / Temp) / bc_Z_BA)
+		
+		print('k_' + x_lbl + '_AB =', my.f2s(k_bc_AB))
+		print('k_' + x_lbl + '_BA =', my.f2s(k_bc_BA))
+	else:
+		k_bc_AB = None
+		k_bc_BA = None
 	
 	if(to_plot_time_evol):
 		fig_m, ax_m = my.get_fig('step', y_lbl, title='$' + x_lbl + '$(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
@@ -814,7 +678,7 @@ def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, 
 		ax_m.legend()
 	else:
 		ax_m = None
-		
+	
 	if(to_plot_F):
 		fig_mhist, ax_m_hist = my.get_fig(y_lbl, r'$\rho(' + x_lbl + ')$', title=r'$\rho(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
 		ax_m_hist.bar(m_hist_centers, rho, yerr=d_rho, width=m_hist_lens, align='center')
@@ -822,7 +686,9 @@ def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, 
 		
 		fig_F, ax_F = my.get_fig(y_lbl, r'$F/J$', title=r'$F(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
 		ax_F.errorbar(m_hist_centers, F, yerr=d_F, fmt='.', label='$F(' + x_lbl + ')$')
-		ax_F.plot(m_hist_centers[m_fit2_inds], np.polyval(m_fit2, m_hist_centers[m_fit2_inds]), label='fit2; $' + x_lbl + '_0 = ' + my.f2s(m_peak) + '$')
+		if(to_estimate_k):
+			ax_F.plot(m_hist_centers[m_fit2_inds], np.polyval(m_fit2, m_hist_centers[m_fit2_inds]), label='fit2; $' + x_lbl + '_0 = ' + my.f2s(m_peak) + '$')
+		
 		if(to_plot_ETS):
 			ax_F.plot(m_hist_centers, E_avg, '.', label='<E>(' + x_lbl + ')')
 			ax_F.plot(m_hist_centers, S * Temp, '.', label='$T \cdot S(' + x_lbl + ')$')
@@ -842,18 +708,14 @@ def plot_correlation(x, y, x_lbl, y_lbl):
 	return ax, R
 
 def proc_T(L, Temp, h, Nt, verbose=None, to_plot_time_evol=False, to_plot_F=False, to_plot_ETS=False, to_plot_correlations=False, \
-			m_peak_guess=0, m_fit2_width=0.5, EM_stride=-3000, M_min_BF=None, M_max_BF=None):
+			to_estimate_k=False, EM_stride=-3000, OP_min=None, OP_max=None, interface_mode='M'):
 	L2 = L**2
-	if(M_min_BF is None):
-		M_min_BF = -L2 - 1
-	if(M_max_BF is None):
-		M_max_BF = L2 + 1
+	if(OP_min is None):
+		OP_min = OP_min_default[interface_mode]
+	if(OP_max is None):
+		OP_max = OP_max_default[interface_mode]
 	
-	(E, M, CS) = izing.run_bruteforce(L, Temp, h, Nt, M_min_BF, M_max_BF, verbose=verbose)
-	
-	m = M / L2
-	del M
-	E = E / L2
+	(E, M, CS) = izing.run_bruteforce(L, Temp, h, Nt, OP_min, OP_max, verbose=verbose)
 	
 	if(EM_stride < 0):
 		EM_stride = np.int_(- Nt / EM_stride)
@@ -872,24 +734,29 @@ def proc_T(L, Temp, h, Nt, verbose=None, to_plot_time_evol=False, to_plot_F=Fals
 	feature_label = {}
 	
 	title['E'] = r'$e = E / L^2$'
-	data['E'] = E
+	data['E'] = E / L2
 	hist_edges['E'] = np.linspace((-2 - abs(h)), -1, int((L2 / dE_avg) / 2))
 	peak_guess['E'] = -1.7
 	fit2_width['E'] = 0.2
 	dm_step['E'] = dE_avg / L2
-	feature_label['E'] = 'm'
+	feature_label['E'] = 'e'
+	del E
 	
 	title['M'] = r'$m = M / L^2$'
-	data['M'] = m
-	hist_edges['M'] = (np.arange(L2 + 2) * 2 - (L2 + 1)) / L2
+	data['M'] = M / L2
+	#hist_edges['M'] = ((np.arange(OP_min + 1, OP_max + 1, 2) - 1) / L2 if(interface_mode == 'M') else (np.arange(L2 + 2) * 2 - (L2 + 1)) / L2)
+	#hist_edges['M'] = ((np.arange(OP_min + 1, OP_max + 1, 2) - 1) / L2 if(interface_mode == 'M') else (np.arange(OP_min_default['M'] - 1, OP_max_default['M'], 2) / L2))
+	hist_edges['M'] = (np.arange(OP_min + 1, OP_max + 1 + 0.1, 2) if(interface_mode == 'M') else np.arange(OP_min_default['M'], OP_max_default['M'] + 0.1, 2)) / L2
 	peak_guess['M'] = 0
 	fit2_width['M'] = 0.25
 	dm_step['M'] = 2 / L2
 	feature_label['M'] = 'm'
+	del M
 
 	title['CS'] = r'cluster size'
 	data['CS'] = CS
-	hist_edges['CS'] = np.arange(L2 + 2) - 1/2
+	#hist_edges['CS'] = np.arange(L2 + 2) - 1/2
+	hist_edges['CS'] = np.arange(OP_min + 1/2, OP_max + 1/2 + 0.1) if(interface_mode == 'CS') else np.arange(OP_min_default['CS'] + 1/2, OP_max_default['CS'] - 1/2 + 0.1)
 	peak_guess['CS'] = 60
 	fit2_width['CS'] = 25
 	dm_step['CS'] = 1
@@ -917,12 +784,12 @@ def proc_T(L, Temp, h, Nt, verbose=None, to_plot_time_evol=False, to_plot_F=Fals
 		F[f_lbl], d_F[f_lbl], hist_centers[f_lbl], hist_lens[f_lbl], rho_interp1d[f_lbl], d_rho_interp1d[f_lbl], \
 			k_AB[f_lbl], k_BA[f_lbl], m_avg[f_lbl], m_std[f_lbl], d_m_avg[f_lbl], E_avg[f_lbl], S_E[f_lbl], \
 			ax_time[f_lbl], ax_hist[f_lbl], ax_F[f_lbl] = \
-				proc_order_parameter_BF(L, Temp, h, data[f_lbl], E, stab_step, dm_step[f_lbl], hist_edges[f_lbl], peak_guess[f_lbl], fit2_width[f_lbl], \
-								x_lbl=feature_label[f_lbl], y_lbl=title[f_lbl], verbose=verbose, \
+				proc_order_parameter_BF(L, Temp, h, data[f_lbl], data['E'], stab_step, dm_step[f_lbl], hist_edges[f_lbl], peak_guess[f_lbl], fit2_width[f_lbl], \
+								x_lbl=feature_label[f_lbl], y_lbl=title[f_lbl], verbose=verbose, to_estimate_k=to_estimate_k, \
 								to_plot_time_evol=to_plot_time_evol, to_plot_F=(False if(f_lbl == 'E') else to_plot_F), to_plot_ETS=to_plot_ETS, stride=EM_stride)
 
 	BC_cluster_size = L2 / np.pi
-	C = (m_std['E'] * L2)**2 / Temp**2 / L2   # heat capacity per spin
+	C = ((m_std['E'] * L2)**2 / Temp**2) / L2   # heat capacity per spin
 
 	if(to_plot_F):
 		ax_hist['CS'].plot([BC_cluster_size] * 2, [min(rho_interp1d['CS'](hist_centers['CS'])), max(rho_interp1d['CS'](hist_centers['CS']))], '--', label='$L_{BC} = L^2 / \pi$')
@@ -940,19 +807,24 @@ def proc_T(L, Temp, h, Nt, verbose=None, to_plot_time_evol=False, to_plot_F=Fals
 
 def run_many(L, Temp, h, N_runs, Nt_per_BF_run=None, verbose=None, to_plot_time_evol=False, EM_stride=-3000, \
 			to_plot_k_distr=False, N_k_bins=10, mode='BF', N_init_states_AB=None, N_init_states_BA=None, \
-			M_interfaces_AB=None, M_interfaces_BA=None, M_far_from_A=None, M_far_from_B=None, Nt_sample_A=None, Nt_sample_B=None, \
+			M_interfaces_AB=None, M_interfaces_BA=None, \
+			M_sample_BF_A_to=None, M_sample_BF_B_to=None, \
+			M_match_BF_A_to=None, M_match_BF_B_to=None, \
+			Nt_sample_A=None, Nt_sample_B=None, \
 			init_gen_mode=-2, to_plot_committer=None, interface_mode='M'):
 	L2 = L**2
 	old_seed = izing.get_seed()
 	if(mode == 'FFS'):
 		N_M_interfaces_AB = len(M_interfaces_AB) - 2
 		N_M_interfaces_BA = len(M_interfaces_BA) - 2
-		if(interface_mode == 'M'):
-			m_AB = M_interfaces_AB[1:-1] / L2
-			m_BA = -np.flip(M_interfaces_BA[1:-1]) / L2
-		elif(interface_mode == 'CS'):
-			m_AB = M_interfaces_AB[1:-1]
-			m_BA = L2 - np.flip(M_interfaces_BA[1:-1])
+		m_AB = M_interfaces_AB[1:-1] / OP_scale[interface_mode]
+		m_BA = flip_M(M_interfaces_BA[1:-1], L2, interface_mode) / OP_scale[interface_mode]
+		# if(interface_mode == 'M'):
+			# m_AB = M_interfaces_AB[1:-1] / L2
+			# m_BA = -np.flip(M_interfaces_BA[1:-1]) / L2
+		# elif(interface_mode == 'CS'):
+			# m_AB = M_interfaces_AB[1:-1]
+			# m_BA = L2 - np.flip(M_interfaces_BA[1:-1])
 		m = np.sort(np.unique(np.concatenate((m_AB, m_BA))))
 	
 	ln_k_AB_data = np.empty(N_runs) 
@@ -974,7 +846,7 @@ def run_many(L, Temp, h, N_runs, Nt_per_BF_run=None, verbose=None, to_plot_time_
 			F_BF, d_F_BF, hist_centers_BF, hist_lens_BF, rho_interp1d_BF, d_rho_interp1d_BF, k_AB_BF, k_BA_BF, _, _, _, _ = \
 				proc_T(L, Temp, h, Nt_per_BF_run, verbose=verbose, to_plot_time_evol=to_plot_time_evol, \
 						to_plot_F=False, to_plot_correlations=False, to_plot_ETS=False, \
-						EM_stride=EM_stride)
+						EM_stride=EM_stride, to_estimate_k=True)
 			
 			F_data[:, i] = F_BF[interface_mode]
 			d_F_data[:, i] = d_F_BF[interface_mode]
@@ -995,7 +867,11 @@ def run_many(L, Temp, h, N_runs, Nt_per_BF_run=None, verbose=None, to_plot_time_
 			F_data[:, i], d_F_data[:, i], M_hist_centers_new, M_hist_lens_new, rho_fncs[i], d_rho_fncs[i], probs_AB_data[:, i], _, \
 			ln_k_AB_data[i], _, flux0_AB_data[i], _, probs_BA_data[:, i], _, ln_k_BA_data[i], _, flux0_BA_data[i], _ = \
 				proc_FFS(L, Temp, h, \
-						N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA, M_far_from_A, M_far_from_B, Nt_sample_A, Nt_sample_B, \
+						N_init_states_AB, N_init_states_BA, \
+						M_interfaces_AB, M_interfaces_BA, \
+						M_sample_BF_A_to, M_sample_BF_B_to, \
+						M_match_BF_A_to, M_match_BF_B_to, \
+						Nt_sample_A, Nt_sample_B, \
 						interface_mode, init_gen_mode=init_gen_mode)
 			
 		print('%s %lf %%' % (mode, (i+1) / (N_runs) * 100))
@@ -1094,16 +970,16 @@ def run_many(L, Temp, h, N_runs, Nt_per_BF_run=None, verbose=None, to_plot_time_
 		ax_PB_log.errorbar(m_BA[1:], PA_BA[1:], yerr=d_PA_BA[1:], fmt='.', label='$P_A$', color=my.get_my_color(2))
 		m_AB_fine = np.linspace(min(m_AB), max(m_AB), 1000)
 		m_BA_fine = np.linspace(min(m_BA), max(m_BA), 1000)
-		ax_PB_log.plot(m_AB_fine[:-1], PB_opt_fnc(m_AB_fine[:-1]), label='$P_{B, fit}$', color=my.get_my_color(1))
-		ax_PB_log.plot(m_BA_fine[1:], PA_opt_fnc(m_BA_fine[1:]), label='$P_{A, fit}$', color=my.get_my_color(2))
+		#ax_PB_log.plot(m_AB_fine[:-1], PB_opt_fnc(m_AB_fine[:-1]), label='$P_{B, fit}$', color=my.get_my_color(1))
+		#ax_PB_log.plot(m_BA_fine[1:], PA_opt_fnc(m_BA_fine[1:]), label='$P_{A, fit}$', color=my.get_my_color(2))
 		
 		ax_PB.plot([min(m), max(m)], [1/2] * 2, '--', label='$P = 1/2$')
 		if(interface_mode == 'M'):
 			ax_PB.plot([0] * 2, [0, 1], '--', label='$m = 0$')
 		ax_PB.errorbar(m_AB[:-1], PB_AB[:-1], yerr=d_PB_AB[:-1], fmt='.', label='$P_B$', color=my.get_my_color(1))
 		ax_PB.errorbar(m_BA[1:], PA_BA[1:], yerr=d_PA_BA[1:], fmt='.', label='$P_A$', color=my.get_my_color(2))
-		ax_PB.plot(m_AB_fine[:-1], PB_opt_fnc(m_AB_fine[:-1]), label='$P_{B, fit}$', color=my.get_my_color(1))
-		ax_PB.plot(m_BA_fine[1:], PA_opt_fnc(m_BA_fine[1:]), label='$P_{A, fit}$', color=my.get_my_color(2))
+		#ax_PB.plot(m_AB_fine[:-1], PB_opt_fnc(m_AB_fine[:-1]), label='$P_{B, fit}$', color=my.get_my_color(1))
+		#ax_PB.plot(m_BA_fine[1:], PA_opt_fnc(m_BA_fine[1:]), label='$P_{A, fit}$', color=my.get_my_color(2))
 		
 		#ax_PB_sigmoid.plot([min(m), max(m)], [0] * 2, '--', label='$P = 1/2$')
 		#ax_PB_sigmoid.plot([0] * 2, [min(PB_sigmoid), max(PB_sigmoid)], '--', label='$m = 0$')
@@ -1198,27 +1074,29 @@ M_interfaces_table['M'][11]['BA'][20][-117] = np.array([-117, -115, -113, -109, 
 M_interfaces_table['M'][11]['AB'][30][-117] = np.array([-117, -115, -113, -111, -109, -107, -105, -103, -99, -95, -91, -85, -81, -75, -71, -65, -59, -53, -47, -41, -35, -29, -23, -15,  -7,  1, 11, 27, 51, 117], dtype=int)
 M_interfaces_table['M'][11]['BA'][30][-117] = np.array([-117, -115, -113, -111, -109, -107, -105, -101, -99, -95, -91, -87, -83, -77, -73, -69, -63, -59, -53, -49, -43, -37, -31, -25, -17, -9,  1, 15, 49, 117], dtype=int)
 
-M_interfaces_table['M'][11]['AB'][20][-101] = np.array([-101, -99, -97, -95, -93, -91, -89, -85, -81, -75, -69, -63, -57, -49, -39, -29, -17, -3, 17, 101], dtype=int)
-M_interfaces_table['M'][11]['BA'][20][-101] = np.array([-101, -99, -97, -95, -93, -91, -89, -87, -83, -79, -73, -69, -61, -55, -47, -37, -25, -13, 7, 101], dtype=int)
+M_interfaces_table['M'][11]['AB'][20][-101] = np.array([-101, -99, -97, -95, -93, -91, -89, -85, -81, -75, -69, -63, -57, -49, -41, -29, -17, -5, 17, 101], dtype=int)
+M_interfaces_table['M'][11]['BA'][20][-101] = np.array([-101, -99, -97, -95, -93, -91, -89, -87, -83, -77, -73, -69, -61, -53, -45, -37, -25, -13, 11, 101], dtype=int)
 M_interfaces_table['CS'][11]['AB'][20][4] = np.array([4, 5, 7, 8, 9, 11, 13, 15, 18, 21, 24, 27, 31, 36, 40, 45, 51, 58, 69, 100], dtype=int)
 M_interfaces_table['CS'][11]['BA'][20][4] = np.array([4, 6, 7, 9, 11, 15, 18, 22, 25, 28, 31, 35, 38, 41, 45, 49, 54, 60, 69, 100], dtype=int)
 
 def main():
-	[L, h, Temp, mode, Nt, Nt_narrowest, N_init_states_FFS, to_recomp, to_get_EM, verbose, my_seed, N_M_interfaces, N_runs, init_gen_mode, dM_0, dM_max, interface_mode, M_min_BF, M_max_BF, Nt_sample_A, Nt_sample_B], _ = \
-		my.parse_args(sys.argv, ['-L', '-h', '-Temp', '-mode', '-Nt', '-Nt_narrowest', '-N_init_states_FFS', '-to_recomp', '-to_get_EM', '-verbose', '-my_seed', '-N_M_interfaces', '-N_runs', '-init_gen_mode', '-dM_0', '-dM_max', '-interface_mode', '-M_min_BF', '-M_min_BF', '-Nt_sample_A', '-Nt_sample_B'], \
-					  possible_values=[None, None, None, None, None, None, None, my.yn_flags, my.yn_flags, None, None, None, None, None, None, None, None, None, None, None, None], \
+	[L, h, Temp, mode, Nt, Nt_narrowest, N_init_states_FFS, to_recomp, to_get_EM, verbose, my_seed, N_M_interfaces, N_runs, init_gen_mode, dM_0, dM_max, interface_mode, OP_min_BF, OP_max_BF, Nt_sample_A, Nt_sample_B], _ = \
+		my.parse_args(sys.argv, ['-L', '-h', '-Temp', '-mode', '-Nt', '-Nt_narrowest', '-N_init_states_FFS', '-to_recomp', '-to_get_EM', '-verbose', '-my_seed', '-N_M_interfaces', '-N_runs', '-init_gen_mode', '-dM_0', '-dM_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B'], \
+					  possible_values=[None, None, None, None, None, None, None, my.yn_flags, None, None, None, None, None, None, None, None, None, None, None, None, None], \
 					  possible_arg_numbers=[[0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1]], \
-					  default_values=[['11'], ['-0.01'], ['2.1'], ['BF'], ['-1000000'], ['-5000'], ['10000'], [my.no_flags[0]], [my.yes_flags[0]], ['1'], ['23'], ['-30'], ['3'], ['-2'], ['4'], [None], ['M'], [None], [None], ['-10000000'], ['-10000000']])
+					  default_values=[['11'], ['-0.01'], ['2.1'], ['BF'], ['-1000000'], ['-5000'], ['10000'], [my.no_flags[0]], ['1'], ['1'], ['23'], ['-30'], ['3'], ['-2'], ['4'], [None], ['M'], [None], [None], ['-1000000'], ['-1000000']])
 	
 	L = int(L[0])
 	L2 = L**2
 	h = float(h[0])   # arbitrary small number that gives nice pictures
+	
+	set_OP_defaults(L2)
 
 	my_seed = int(my_seed[0])
 	to_recomp = (to_recomp[0] in my.yes_flags)
 	mode = mode[0]
 	to_get_EM = (to_get_EM[0] in my.yes_flags)
-	verbose = (verbose[0] in my.yes_flags)
+	verbose = int(verbose[0])
 	N_init_states_FFS = int(N_init_states_FFS[0])
 	Nt = int(Nt[0])
 	Nt_narrowest = int(Nt_narrowest[0])
@@ -1231,16 +1109,8 @@ def main():
 	Nt_sample_A = int(Nt_sample_A[0])
 	Nt_sample_B = int(Nt_sample_B[0])
 	
-	if(M_min_BF[0] is None):
-		if(interface_mode == 'M'):
-			M_min_BF = -L2 - 1
-			M_max_BF = L2 + 1
-		elif(interface_mode == 'CS'):
-			M_min_BF = -1
-			M_max_BF = L2 + 1
-	else:
-		M_min_BF = int(M_min_BF[0])
-		M_max_BF = int(M_max_BF[0])
+	OP_min_BF = OP_min_default[interface_mode] if(OP_min_BF[0] is None) else int(OP_min_BF[0])
+	OP_max_BF = OP_max_default[interface_mode] if(OP_max_BF[0] is None) else int(OP_max_BF[0])
 
 	# -------- T < Tc, transitions ---------
 	Temp = float(Temp[0])  # T_c = 2.27
@@ -1262,6 +1132,8 @@ def main():
 	Nt, Nt_sample_A, Nt_sample_B, Nt_narrowest = tuple([((int(-n * np.exp(3 - dE_avg/Temp)) + 1) if(n < 0) else n) for n in [Nt, Nt_sample_A, Nt_sample_B, Nt_narrowest]])
 
 	if('FFS' in mode):
+		M_left = OP_min_default[interface_mode]
+		M_right = OP_max_default[interface_mode] - 1
 		if(interface_mode == 'M'):
 			M_0 = -L2 + dM_0
 			if(dM_max is None):
@@ -1269,33 +1141,33 @@ def main():
 			else:
 				dM_max = int(dM_max)
 				M_max = L2 - dM_max
-			M_left = -L2-1
-			M_right = L2
-			M_far_from_A = -int(L2 * 0.7)
-			M_far_from_B = - M_far_from_A
+			M_sample_BF_A_to = -int(L2 * 0.4)
+			M_match_BF_A_to = -int(L2 * 0.6)   # this should be sufficiently < M_sample_to, because BF_profile is distorted near the M_sample_to; But is also should be > OP_interface[1] since we need enough points to match F curves.
+			M_sample_BF_B_to = -M_sample_BF_A_to
+			M_match_BF_B_to = -M_match_BF_A_to
 
 		elif(interface_mode == 'CS'):
 			M_0 = dM_0
-			assert(dM_max is not None), 'ERROR: do dM_max provided for CS interface_mode'
+			assert(dM_max is not None), 'ERROR: no dM_max provided for CS interface_mode'
 			dM_max = int(dM_max)
 			M_max = L**2 - dM_max
-			M_left = -1
-			M_right = L2
-			M_far_from_A = 20
-			M_far_from_B = L2 - 40
+			M_sample_BF_A_to = 40
+			M_match_BF_A_to = 20   # this should be sufficiently < M_sample_to, because BF_profile is distorted near the M_sample_to; But is also should be > OP_interface[1] since we need enough points to match F curves.
+			M_sample_BF_B_to = L2 - 50
+			M_match_BF_B_to = L2 - 30
 			
 		else:
 			print('ERROR: %s interface_mode is not supported' % (interface_mode))
 			return
-		
 
 		# =========== if the necessary set in not in the table - this will work and nothing will erase its results ========
 		M_interfaces_AB = M_0 + np.round(np.arange(abs(N_M_interfaces)) * (M_max - M_0) / (abs(N_M_interfaces) - 1) / 2) * 2
 			# this gives Ms such that there are always pairs +-M[i], so flipping this does not move the intefraces, which is (is it?) good for backwords FFS (B->A)
-		if(interface_mode == 'M'):
-			M_interfaces_BA = -np.flip(M_interfaces_AB)
-		elif(interface_mode == 'CS'):
-			M_interfaces_BA = np.copy(M_interfaces_AB)
+		# if(interface_mode == 'M'):
+			# M_interfaces_BA = -np.flip(M_interfaces_AB)
+		# elif(interface_mode == 'CS'):
+			# M_interfaces_BA = np.copy(M_interfaces_AB)
+		M_interfaces_BA = flip_M(M_interfaces_AB, L2, interface_mode)
 
 		if(N_M_interfaces > 0):
 			if(N_M_interfaces in M_interfaces_table[interface_mode][L]['AB']):
@@ -1323,16 +1195,24 @@ def main():
 		
 	if(mode == 'BF_many'):
 		run_many(L, Temp, h, N_runs, Nt_per_BF_run=Nt, to_plot_k_distr=True, N_k_bins=int(np.round(np.sqrt(N_runs) / 2) + 1))
+	
 	elif(mode == 'BF_1'):
-		proc_T(L, Temp, h, Nt, to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=True, to_plot_correlations=True)
+		proc_T(L, Temp, h, Nt, \
+				to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=True, to_plot_correlations=True, \
+				OP_min=OP_min_BF, OP_max=OP_max_BF, interface_mode='M', to_estimate_k=True)
 		
 	elif(mode == 'FFS'):
 		proc_FFS(L, Temp, h, \
-				N_init_states_AB, N_init_states_BA, M_interfaces_AB, M_interfaces_BA, M_far_from_A, M_far_from_B, Nt_sample_A, Nt_sample_B, \
-				interface_mode, to_plot_hists=True, init_gen_mode=init_gen_mode)
+				N_init_states_AB, N_init_states_BA, \
+				M_interfaces_AB, M_interfaces_BA, \
+				M_sample_BF_A_to, M_sample_BF_B_to, \
+				M_match_BF_A_to, M_match_BF_B_to, \
+				Nt_sample_A, Nt_sample_B, \
+				interface_mode, init_gen_mode=init_gen_mode, \
+				to_plot_hists=True)
 		
 	elif(mode == 'FFS_AB'):
-		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, M_far_from_A, Nt_sample_A, interface_mode, \
+		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, M_sample_BF_A_to, M_match_BF_A_to, Nt_sample_A, interface_mode, \
 					to_get_EM=to_get_EM, init_gen_mode=init_gen_mode, to_plot_time_evol=True, to_plot_hists=True)
 		
 	elif(mode == 'FFS_many'):
@@ -1342,7 +1222,8 @@ def main():
 				N_init_states_AB=N_init_states_AB, N_init_states_BA=N_init_states_BA, \
 				M_interfaces_AB=M_interfaces_AB, M_interfaces_BA=M_interfaces_BA, \
 				to_plot_k_distr=True, N_k_bins=N_k_bins, mode='FFS', \
-				M_far_from_A=M_far_from_A, M_far_from_B=M_far_from_B, \
+				M_sample_BF_A_to=M_sample_BF_A_to, M_sample_BF_B_to=M_sample_BF_B_to, \
+				M_match_BF_A_to=M_match_BF_A_to, M_match_BF_B_to=M_match_BF_B_to, \
 				Nt_sample_A=Nt_sample_A, Nt_sample_B=Nt_sample_B)
 	
 	elif(mode in ['FFS_BF_compare', 'BF_FFS_compare']):
@@ -1356,7 +1237,8 @@ def main():
 				M_interfaces_BA=M_interfaces_BA, \
 				to_plot_k_distr=False, N_k_bins=N_k_bins, \
 				mode='FFS', interface_mode=interface_mode, \
-				M_far_from_A=M_far_from_A, M_far_from_B=M_far_from_B, \
+				M_sample_BF_A_to=M_sample_BF_A_to, M_sample_BF_B_to=M_sample_BF_B_to, \
+				M_match_BF_A_to=M_match_BF_A_to, M_match_BF_B_to=M_match_BF_B_to, \
 				Nt_sample_A=Nt_sample_A, Nt_sample_B=Nt_sample_B)
 
 		F_BF, d_F_BF, M_hist_centers_BF, M_hist_lens_BF, ln_k_AB_BF, d_ln_k_AB_BF, ln_k_BA_BF, d_ln_k_BA_BF = \
@@ -1377,10 +1259,14 @@ def main():
 		ax_F.errorbar(M_hist_centers_FFS, F_FFS, yerr=d_F_FFS, label='FFS')
 		ax_F.legend()
 		
-		print('k_AB_FFS    \in    [' + my.f2s(k_AB_FFS_min) + '; ' + my.f2s(k_AB_FFS_max) + ']    =    (' + my.f2s(k_AB_FFS_mean) + ' +- ' + my.f2s(d_k_AB_FFS) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_AB_FFS))
-		print('k_BA_FFS    \in    [' + my.f2s(k_BA_FFS_min) + '; ' + my.f2s(k_BA_FFS_max) + ']    =    (' + my.f2s(k_BA_FFS_mean) + ' +- ' + my.f2s(d_k_BA_FFS) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_BA_FFS))
-		print('k_AB_BF    \in    [' + my.f2s(k_AB_BF_min) + '; ' + my.f2s(k_AB_BF_max) + ']    =    (' + my.f2s(k_AB_BF_mean) + ' +- ' + my.f2s(d_k_AB_BF) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_AB_BF))
-		print('k_BA_BF    \in    [' + my.f2s(k_BA_BF_min) + '; ' + my.f2s(k_BA_BF_max) + ']    =    (' + my.f2s(k_BA_BF_mean) + ' +- ' + my.f2s(d_k_BA_BF) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_BA_BF))
+		# print('k_AB_FFS    \in    [' + my.f2s(k_AB_FFS_min) + '; ' + my.f2s(k_AB_FFS_max) + ']    =    (' + my.errorbar_str(k_AB_FFS_mean, d_k_AB_FFS) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_AB_FFS))
+		# print('k_BA_FFS    \in    [' + my.f2s(k_BA_FFS_min) + '; ' + my.f2s(k_BA_FFS_max) + ']    =    (' + my.errorbar_str(k_BA_FFS_mean, d_k_BA_FFS) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_BA_FFS))
+		# print('k_AB_BF    \in    [' + my.f2s(k_AB_BF_min) + '; ' + my.f2s(k_AB_BF_max) + ']    =    (' + my.errorbar_str(k_AB_BF_mean, d_k_AB_BF) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_AB_BF))
+		# print('k_BA_BF    \in    [' + my.f2s(k_BA_BF_min) + '; ' + my.f2s(k_BA_BF_max) + ']    =    (' + my.errorbar_str(k_BA_BF_mean, d_k_BA_BF) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_BA_BF))
+		print('k_AB_FFS    \in    [' + '; '.join(my.same_scale_strs([k_AB_FFS_min, k_AB_FFS_max], x_to_compare_to=[k_AB_FFS_max - k_AB_FFS_min])) + ']    =    (' + my.errorbar_str(k_AB_FFS_mean, d_k_AB_FFS) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_AB_FFS))
+		print('k_BA_FFS    \in    [' + '; '.join(my.same_scale_strs([k_BA_FFS_min, k_BA_FFS_max], x_to_compare_to=[k_BA_FFS_max - k_BA_FFS_min])) + ']    =    (' + my.errorbar_str(k_BA_FFS_mean, d_k_BA_FFS) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_BA_FFS))
+		print('k_AB_BF    \in    [' + '; '.join(my.same_scale_strs([k_AB_BF_min, k_AB_BF_max], x_to_compare_to=[k_AB_BF_max - k_AB_BF_min])) + ']    =    (' + my.errorbar_str(k_AB_BF_mean, d_k_AB_BF) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_AB_BF))
+		print('k_BA_BF    \in    [' + '; '.join(my.same_scale_strs([k_BA_BF_min, k_BA_BF_max], x_to_compare_to=[k_BA_BF_max - k_BA_BF_min])) + ']    =    (' + my.errorbar_str(k_BA_BF_mean, d_k_BA_BF) + ')    (1/step);    dk/k =', my.f2s(d_ln_k_BA_BF))
 
 	elif(mode == 'XXX'):
 		fig_E, ax_E = my.get_fig('T', '$E/L^2$', xscl='log')

@@ -42,10 +42,10 @@ namespace Izing
 				  int *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
 				  int **biggest_cluster_sizes, int to_remember_EM, int verbose, int init_gen_mode, int interfaces_mode);
 	int run_bruteforce_C(int L, double Temp, double h, int N_states, int *states,
-						 int *OP_arr_len, double **E, int **M, int **biggest_cluster_sizes,
+						 int *OP_arr_len, int *Nt, double **E, int **M, int **biggest_cluster_sizes,
 						 int to_remember_timeevol, int interface_mode,
-						 int OP_min_stop_state, int OP_max_stop_state,
-						 int OP_min_save_state, int OP_max_save_state, int verbose, int Nt_max=-1);
+						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
+						 int OP_min_save_state, int OP_max_save_state, int verbose, int Nt_max);
 	double process_step(int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int *Nt, int *OP_arr_len,
 						int N_init_states, int N_next_states, int L, double Temp, double h, int OP_0, int OP_next,
 						int to_save_next_states, bool to_remember_EM, int interfaces_mode, int verbose);

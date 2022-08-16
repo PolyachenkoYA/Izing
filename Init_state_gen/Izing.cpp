@@ -77,6 +77,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max,
 
 // ----------------- create return objects --------------
 	int Nt = 0;
+	int N_states_saved = 0;
 	int OP_arr_len = 128;   // the initial value that will be doubling when necessary
 	py::array_t<int> state = py::array_t<int>(L2);   // technically there are N+2 states' sets, but we are not interested in the first and the last sets
 	py::buffer_info state_info = state.request();
@@ -86,11 +87,10 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max,
 	int *_M = (int*) malloc(sizeof(int) * OP_arr_len);
 	int *_biggest_cluster_sizes = (int*) malloc(sizeof(int) * OP_arr_len);
 
-	Izing::run_bruteforce_C(L, Temp, h, 1, state_ptr,
-							&OP_arr_len, &_E, &_M, &_biggest_cluster_sizes,
-							1, interface_mode, OP_min, OP_max,
-							Izing::OP_min_default[interface_mode - 1] - 2,
-							Izing::OP_min_default[interface_mode - 1] - 1,
+	Izing::run_bruteforce_C(L, Temp, h, -1, state_ptr,
+							&OP_arr_len, &Nt, &_E, &_M, &_biggest_cluster_sizes,
+							1, interface_mode, OP_min, OP_max, &N_states_saved,
+							OP_min,OP_max,
 							verbose, Nt_max);
 
 //	int *cluster_element_inds = (int*) malloc(sizeof(int) * L2);
@@ -110,7 +110,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max,
 
 	int N_last_elements_to_print = std::min(Nt, 10);
 	if(verbose >= 2){
-		printf("Brute-force core done\n");
+		printf("Brute-force core done, Nt = \n", Nt);
 		Izing::print_E(&(_E[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 		Izing::print_M(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 //		Izing::print_biggest_cluster_sizes(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
@@ -252,6 +252,8 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 		}
 		printf("\n");
 	}
+
+	Izing::set_OP_default(L2);
 
 	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states_ptr, N_init_states_ptr,
 					 Nt_ptr, &OP_arr_len, OP_interfaces_ptr, N_OP_interfaces,
@@ -714,42 +716,50 @@ namespace Izing
 	}
 
 	int run_bruteforce_C(int L, double Temp, double h, int N_states, int *states,
-						 int *OP_arr_len, double **E, int **M, int **biggest_cluster_sizes,
+						 int *OP_arr_len, int *Nt, double **E, int **M, int **biggest_cluster_sizes,
 						 int to_remember_timeevol, int interface_mode,
-						 int OP_min_stop_state, int OP_max_stop_state,
+						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int verbose, int Nt_max)
 	{
 		int L2 = L*L;
+		int state_size_in_bytes = sizeof(int) * L2;
 
 		int *cluster_element_inds = (int*) malloc(sizeof(int) * L2);
 		int *cluster_sizes = (int*) malloc(sizeof(int) * L2);
 		int *is_checked = (int*) malloc(sizeof(int) * L2);
+		int *state_under_process = (int*) malloc(state_size_in_bytes);
 
 		generate_state(states, L, 0);
 //		print_S(states, L, '0'); 		getchar();
-		int Nt = 0;
-		int N_states_done = 1;
+		*N_states_done += 1;
 		int restart_state_ID;
 
 		if(verbose){
-			printf("using: L=%d  T=%lf  h=%lf  OP_mode=%d  verbose=%d\n", L, Temp, h, interface_mode, verbose);
+			printf("running brute-force:\nL=%d  T=%lf  h=%lf  OP_mode=%d  OP\\in[%d;%d]  N_states_to_gen=%d  Nt_max=%d  verbose=%d\n", L, Temp, h, interface_mode, OP_min_stop_state, OP_max_stop_state, N_states, Nt_max, verbose);
 		}
 
-		while(N_states_done < N_states){
-			restart_state_ID = gsl_rng_uniform_int(rng, N_states_done);
+		while(1){
+			restart_state_ID = gsl_rng_uniform_int(rng, *N_states_done);
+
 			if(verbose >= 2){
-				printf("generated %d states, restarting from state[%d]", N_states_done, restart_state_ID);
+				printf("generated %d states, restarting from state[%d]\n", *N_states_done, restart_state_ID);
 			}
 
-			run_state(&(states[L2 * restart_state_ID]), L, Temp, h, OP_min_stop_state, OP_max_stop_state,
+			memcpy(state_under_process, &(states[L2 * restart_state_ID]), state_size_in_bytes);   // get a copy of the chosen init state
+
+			run_state(state_under_process, L, Temp, h, OP_min_stop_state, OP_max_stop_state,
 					  E, M, biggest_cluster_sizes, cluster_element_inds, cluster_sizes,
-					  is_checked, &Nt, OP_arr_len, to_remember_timeevol, interface_mode, verbose, Nt_max,
-					  states, &N_states_done, N_states, OP_min_save_state, OP_max_save_state);
+					  is_checked, Nt, OP_arr_len, to_remember_timeevol, interface_mode, verbose, Nt_max,
+					  states, N_states_done, N_states, OP_min_save_state, OP_max_save_state);
+
+			if(N_states > 0) if(*N_states_done >= N_states) break;
+			if(Nt_max > 0) if(*Nt >= Nt_max) break;
 		}
 
 		free(cluster_element_inds);
 		free(cluster_sizes);
 		free(is_checked);
+		free(state_under_process);
 
 		return 0;
 	}
@@ -782,6 +792,10 @@ namespace Izing
 		int L2 = L*L;
 //		int state_size_in_bytes = sizeof(int) * L2;
 
+		if(verbose){
+			printf("generating states:\nN_init_states=%d, gen_mode=%d, OP_A <= %d, OP_mode=%d\n", N_init_states, mode, OP_thr_save_state, interface_mode);
+		}
+
 		if(mode >= -1){
 			// generate N_init_states states in A
 			// Here they are identical, but I think it's better to generate them accordingly to equilibrium distribution in A
@@ -789,37 +803,14 @@ namespace Izing
 				generate_state(&(init_states[i * L2]), L, mode);
 			}
 		} else if(mode == -2){
+			int N_states_done = 0;
+			int Nt = 0;
 			run_bruteforce_C(L, Temp, h, N_init_states, init_states,
-							 nullptr, nullptr, nullptr, nullptr,
+							 nullptr, &Nt, nullptr, nullptr, nullptr,
 							 0, interface_mode,
 							 OP_min_default[interface_mode - 1], OP_peak_default[interface_mode - 1] + (L2 / 20) * 2,
-							 OP_min_default[interface_mode - 1], OP_thr_save_state,
-							 verbose);
-
-//			generate_state(init_states, L, 0);
-//			int N_states_done = 1;
-//			int Nt = 0;
-//			int restart_state_ID;
-//
-//			int *cluster_element_inds = (int*) malloc(sizeof(int) * L2);
-//			int *cluster_sizes = (int*) malloc(sizeof(int) * L2);
-//			int *is_checked = (int*) malloc(sizeof(int) * L2);
-//
-//			while(N_states_done < N_init_states){
-//				restart_state_ID = gsl_rng_uniform_int(rng, N_states_done);
-//				if(verbose >= 2){
-//					printf("generated %d states, restarting from state[%d]", N_states_done, restart_state_ID);
-//				}
-//
-//				run_state(&(init_states[L2 * restart_state_ID]), L, Temp, h, -L2-1, (L2 / 20) * 2 + L2 % 2,
-//						  nullptr, nullptr, nullptr, cluster_element_inds, cluster_sizes,
-//						  is_checked, &Nt, nullptr, false, 1, verbose, -1,
-//						  init_states, &N_states_done, N_init_states, OP_thr_save_state);
-//			}
-//
-//			free(cluster_element_inds);
-//			free(cluster_sizes);
-//			free(is_checked);
+							 &N_states_done, OP_min_default[interface_mode - 1], OP_thr_save_state,
+							 verbose, -1);
 		}
 
 		return 0;
