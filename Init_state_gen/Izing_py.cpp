@@ -24,6 +24,7 @@ PYBIND11_MODULE(izing, m)
 		  py::arg("to_remember_timeevol")=0,
 		  py::arg("init_gen_mode")=-2,
 		  py::arg("interface_mode")=1,
+		  py::arg("default_spin_state")=-1,
 		  py::arg("verbose")=py::none()
     );
 
@@ -36,9 +37,12 @@ PYBIND11_MODULE(izing, m)
 		  py::arg("Temp"),
 		  py::arg("h"),
 		  py::arg("Nt_max"),
-		  py::arg("OP_to_save_min")=py::none(),
-		  py::arg("OP_to_save_max")=py::none(),
+		  py::arg("OP_A"),
+		  py::arg("OP_B"),
+		  py::arg("OP_min")=py::none(),
+		  py::arg("OP_max")=py::none(),
 		  py::arg("interface_mode")=py::none(),
+		  py::arg("default_spin_state")=py::none(),
 		  py::arg("verbose")=py::none()
 	);
 

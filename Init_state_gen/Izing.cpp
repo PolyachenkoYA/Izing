@@ -46,9 +46,24 @@ py::int_ set_verbose(int new_verbose)
 	return 0;
 }
 
+int compute_hA(py::array_t<int> *h_A, int *OP, int Nt, int OP_A, int OP_B)
+{
+	py::buffer_info h_A_info = (*h_A).request();
+	int *h_A_ptr = static_cast<int *>(h_A_info.ptr);
+	h_A_ptr[0] = OP[0] - OP_A <= OP_B - OP[0] ? 1 : 0;   // if closer to A at t=0, then 1, else 0
+	int i;
+	for(i = 1; i < Nt; ++i){
+		h_A_ptr[i] = h_A_ptr[i-1] == 1 ? (OP[i] <= OP_B ? 1 : 0) : (OP[i] > OP_A ? 0 : 1);
+	}
+
+	return 0;
+}
+
 py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max,
+						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
-						 std::optional<int> _interface_mode, std::optional<int> _verbose)
+						 std::optional<int> _interface_mode, std::optional<int> _default_spin_state,
+						 std::optional<int> _verbose)
 /**
  *
  * @param L - the side-size of the lattice
@@ -70,10 +85,13 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max,
 	assert(Temp > 0);
 	int verbose = (_verbose.has_value() ? _verbose.value() : Izing::verbose_dafault);
 	int interface_mode = (_interface_mode.has_value() ? _interface_mode.value() : 1);   // 'M' mode
-	assert((interface_mode == 1) || (interface_mode == 2));
+	assert((interface_mode > 0) && (interface_mode <= N_interface_modes));
+	int default_spin_state = (_default_spin_state.has_value() ? _default_spin_state.value() : Izing::verbose_dafault);
 	int OP_min = (_OP_min.has_value() ? _OP_min.value() : Izing::OP_min_default[interface_mode - 1]);
 	int OP_max = (_OP_max.has_value() ? _OP_max.value() : Izing::OP_max_default[interface_mode - 1]);
 	assert(OP_max > OP_min);
+	int OP_A = (_OP_A.has_value() ? _OP_A.value() : OP_min);
+	int OP_B = (_OP_B.has_value() ? _OP_B.value() : OP_max);
 
 // ----------------- create return objects --------------
 	int Nt = 0;
@@ -89,28 +107,13 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max,
 
 	Izing::run_bruteforce_C(L, Temp, h, -1, state_ptr,
 							&OP_arr_len, &Nt, &_E, &_M, &_biggest_cluster_sizes,
-							1, interface_mode, OP_min, OP_max, &N_states_saved,
-							OP_min,OP_max,
-							verbose, Nt_max);
-
-//	int *cluster_element_inds = (int*) malloc(sizeof(int) * L2);
-//	int *cluster_sizes = (int*) malloc(sizeof(int) * L2);
-//	int *is_checked = (int*) malloc(sizeof(int) * L2);
-//
-//	if(verbose){
-//		printf("using: L=%d  T=%lf  h=%lf  verbose=%d\n", L, Temp, h, verbose);
-//	}
-//
-//	Izing::get_init_states_C(L, Temp, h, 1, state_ptr, 0, 0, 1, verbose); // allocate all spins = -1
-//	// OP_thr and interface_mode don't matter for mode==0
-//
-//	Izing::run_state(state_ptr, L, Temp, h, OP_to_save_min, OP_to_save_max, &_E, &_M,
-//					 &_biggest_cluster_sizes, cluster_element_inds, cluster_sizes, is_checked,
-//					 &Nt, &OP_arr_len, true, 1, verbose, Nt_max, nullptr);
+							1, interface_mode, default_spin_state,
+							OP_min, OP_max, &N_states_saved,
+							OP_min,OP_max, verbose, Nt_max);
 
 	int N_last_elements_to_print = std::min(Nt, 10);
 	if(verbose >= 2){
-		printf("Brute-force core done, Nt = \n", Nt);
+		printf("Brute-force core done, Nt = %d\n", Nt);
 		Izing::print_E(&(_E[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 		Izing::print_M(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 //		Izing::print_biggest_cluster_sizes(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
@@ -134,10 +137,15 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max,
 	memcpy(biggest_cluster_sizes_ptr, _biggest_cluster_sizes, sizeof(int) * Nt);
 	free(_biggest_cluster_sizes);
 
-//	free(cluster_element_inds);
-//	free(cluster_sizes);
-//	free(is_checked);
-
+	py::array_t<int> hA = py::array_t<int>(Nt);
+	switch (interface_mode) {
+		case 1:
+			compute_hA(&hA, M_ptr, Nt, OP_A, OP_B);
+			break;
+		case 2:
+			compute_hA(&hA, biggest_cluster_sizes_ptr, Nt, OP_A, OP_B);
+			break;
+	}
 	if(verbose >= 2){
 		printf("internal memory for EM freed\n");
 		Izing::print_E(&(E_ptr[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'P');
@@ -145,12 +153,13 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max,
 		printf("exiting py::run_bruteforce\n");
 	}
 
-	return py::make_tuple(E, M, biggest_cluster_sizes);
+	return py::make_tuple(E, M, biggest_cluster_sizes, hA);
 }
 
 // int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt, int *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M, int to_remember_timeevol, int verbose)
 py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
-				  int to_remember_timeevol, int init_gen_mode, int interface_mode, std::optional<int> _verbose)
+				  int to_remember_timeevol, int init_gen_mode, int interface_mode, int default_spin_state,
+				  std::optional<int> _verbose)
 /**
  *
  * @param L - the side-size of the lattice
@@ -198,13 +207,13 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 	int N_OP_interfaces = OP_interfaces_info.shape[0] - 2;
 	assert(N_OP_interfaces + 2 == N_init_states_info.shape[0]);
 	switch (interface_mode) {
-		case 1:   // M
+		case mode_ID_M:   // M
 			for(i = 0; i <= N_OP_interfaces; ++i) {
 				assert(OP_interfaces_ptr[i+1] > OP_interfaces_ptr[i]);
 				assert((OP_interfaces_ptr[i+1] - OP_interfaces_ptr[1]) % 2 == 0);   // M_step = 2, so there must be integer number of M_steps between all the M-s on interfaces
 			}
 			break;
-		case 2:   // CS
+		case mode_ID_CS:   // CS
 			for(i = 0; i <= N_OP_interfaces; ++i) {
 				assert(OP_interfaces_ptr[i + 1] > OP_interfaces_ptr[i]);
 			}
@@ -258,7 +267,8 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states_ptr, N_init_states_ptr,
 					 Nt_ptr, &OP_arr_len, OP_interfaces_ptr, N_OP_interfaces,
 					 probs_ptr, d_probs_ptr, &_E, &_M, &_biggest_cluster_sizes,
-					 to_remember_timeevol, verbose, init_gen_mode, interface_mode);
+					 to_remember_timeevol, verbose, init_gen_mode, interface_mode,
+					 default_spin_state);
 
 	if(verbose >= 2){
 		printf("FFS core done\nNt: ");
@@ -281,38 +291,30 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 	py::array_t<int> biggest_cluster_sizes;
     if(to_remember_timeevol){
 		if(verbose >= 2){
-			printf("allocating EM, Nt_total = %d\n", Nt_total);
-		}
-        E = py::array_t<double>(Nt_total);
-        M = py::array_t<int>(Nt_total);
-		biggest_cluster_sizes = py::array_t<int>(Nt_total);
-        py::buffer_info E_info = E.request();
-        py::buffer_info M_info = M.request();
-		py::buffer_info biggest_cluster_sizes_info = biggest_cluster_sizes.request();
-        double *E_ptr = static_cast<double *>(E_info.ptr);
-		int *M_ptr = static_cast<int *>(M_info.ptr);
-		int *biggest_cluster_sizes_ptr = static_cast<int *>(biggest_cluster_sizes_info.ptr);
-
-		if(verbose >= 2){
-			printf("numpy arrays created\n", Nt_total);
+			printf("copying time evolution, Nt_total = %d\n", Nt_total);
 		}
 
+		E = py::array_t<double>(Nt_total);
+		py::buffer_info E_info = E.request();
+		double *E_ptr = static_cast<double *>(E_info.ptr);
         memcpy(E_ptr, _E, sizeof(double) * Nt_total);
+		free(_E);
 
-		if(verbose >= 2){
-			printf("E copied\n", Nt_total);
-		}
-
+		M = py::array_t<int>(Nt_total);
+		py::buffer_info M_info = M.request();
+		int *M_ptr = static_cast<int *>(M_info.ptr);
         memcpy(M_ptr, _M, sizeof(int) * Nt_total);
+		free(_M);
+
+		biggest_cluster_sizes = py::array_t<int>(Nt_total);
+		py::buffer_info biggest_cluster_sizes_info = biggest_cluster_sizes.request();
+		int *biggest_cluster_sizes_ptr = static_cast<int *>(biggest_cluster_sizes_info.ptr);
 		memcpy(biggest_cluster_sizes_ptr, _biggest_cluster_sizes, sizeof(int) * Nt_total);
+		free(_biggest_cluster_sizes);
 
 		if(verbose >= 2){
 			printf("data copied\n", Nt_total);
 		}
-
-        free(_E);
-        free(_M);
-		free(_biggest_cluster_sizes);
 
 		if(verbose >= 2){
 			printf("internal memory for EM freed\n");
@@ -332,23 +334,28 @@ namespace Izing
     gsl_rng *rng;
     int seed;
     int verbose_dafault;
-	int OP_min_default[2];
-	int OP_max_default[2];
-	int OP_peak_default[2];
+	int OP_min_default[N_interface_modes];
+	int OP_max_default[N_interface_modes];
+	int OP_peak_default[N_interface_modes];
+	int OP_step[N_interface_modes];
 
 	void set_OP_default(int L2)
 	{
 		OP_min_default[0] = -L2-1;
-		OP_min_default[1] = -1;
 		OP_max_default[0] = L2+1;
+		OP_peak_default[0] = L2 % 2;
+		OP_step[0] = 2;
+
+		OP_min_default[1] = -1;
 		OP_max_default[1] = L2+1;
-		OP_peak_default[0] = 0;
 		OP_peak_default[1] = L2 / 2;
+		OP_step[1] = 1;
 	}
 
 	int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt,
 				  int *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
-				  int **biggest_cluster_sizes, int to_remember_timeevol, int verbose, int init_gen_mode, int interfaces_mode)
+				  int **biggest_cluster_sizes, int to_remember_timeevol, int verbose, int init_gen_mode, int interface_mode,
+				  char default_spin_state)
 	/**
 	 *
 	 * @param flux0 - see run_FFS description (return section)
@@ -375,7 +382,8 @@ namespace Izing
 	{
 		int i, j;
 // get the initial states; they should be sampled from the distribution in [-L^2; M_0), but they are all set to have M == -L^2 because then they all will fall into the local optimum and almost forget the initial state, so it's almost equivalent to sampling from the proper distribution if 'F(M_0) - F_min >~ T'
-		get_init_states_C(L, Temp, h, N_init_states[0], states, init_gen_mode, OP_interfaces[1], interfaces_mode, verbose);
+		get_init_states_C(L, Temp, h, N_init_states[0], states, init_gen_mode,
+						  OP_interfaces[1], interface_mode, default_spin_state, verbose);
 		if(verbose){
 			printf("Init states (N = %d) generated with mode %d\n", N_init_states[0], init_gen_mode);
 		}
@@ -392,7 +400,8 @@ namespace Izing
 									i < N_OP_interfaces ? &(states[L2 * (N_states_analyzed + N_init_states[i])]) : nullptr,
 									E, M, biggest_cluster_sizes, &Nt_total, OP_arr_len, N_init_states[i], N_init_states[i+1],
 									L, Temp, h, OP_interfaces[i == 0 ? 0 : 1], OP_interfaces[i+1],
-									i < N_OP_interfaces, to_remember_timeevol, interfaces_mode, verbose);
+									i < N_OP_interfaces, to_remember_timeevol,
+									interface_mode, default_spin_state, verbose);
 			//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
 			// M_0 = OP_interfaces[i == 0 ? 0 : 1]
 			// M_0 = i == 0 ? -L2-1 : -L2
@@ -449,8 +458,9 @@ namespace Izing
 	}
 
 	double process_step(int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int *Nt, int *OP_arr_len,
-						int N_init_states, int N_next_states, int L, double Temp, double h, int OP_0, int OP_next,
-						int to_save_next_states, bool to_remember_timeevol, int interfaces_mode, int verbose)
+						int N_init_states, int N_next_states, int L, double Temp, double h, int OP_0, int OP_next, int to_save_next_states,
+						bool to_remember_timeevol, int interfaces_mode, char default_spin_state,
+						int verbose)
 	/**
 	 *
 	 * @param init_states - are assumed to contain 'N_init_states * state_size_in_bytes' ints representing states to start simulations from
@@ -497,7 +507,8 @@ namespace Izing
 			}
 			memcpy(state_under_process, &(init_states[init_state_to_process_ID * L2]), state_size_in_bytes);   // get a copy of the chosen init state
 			if(run_state(state_under_process, L, Temp, h, OP_0, OP_next, E, M, biggest_cluster_sizes, cluster_element_inds, \
-						 cluster_sizes, is_checked, Nt, OP_arr_len, to_remember_timeevol, interfaces_mode, verbose)){   // run it until it reaches M_0 or M_next
+						 cluster_sizes, is_checked, Nt, OP_arr_len, to_remember_timeevol, interfaces_mode,
+						 default_spin_state, verbose)){   // run it until it reaches M_0 or M_next
 				// Interpolation is needed if 's' and 'OP' are continuous
 
 				// Nt is not reinitialized to 0 and that's correct because it shows the total number of EM datapoints
@@ -535,8 +546,8 @@ namespace Izing
 
 	int run_state(int *s, int L, double Temp, double h, int OP_0, int OP_next, double **E, int **M, int **biggest_cluster_sizes,
 				  int *cluster_element_inds, int *cluster_sizes, int *is_checked, int *Nt, int *OP_arr_len, bool to_remember_timeevol,
-				  int interfaces_mode, int verbose, int Nt_max, int* states_to_save, int *N_states_saved, int N_states_to_save,
-				  int OP_min_save_state, int OP_max_save_state)
+				  int interfaces_mode, char default_spin_state, int verbose, int Nt_max, int* states_to_save,
+				  int *N_states_saved, int N_states_to_save,  int OP_min_save_state, int OP_max_save_state)
 	/**
 	 *	Run state saving states in (OP_min_save_state, OP_max_save_state) and saving OPs for the whole (OP_0; OP_next)
 	 *
@@ -587,6 +598,7 @@ namespace Izing
 
 		double Emin = -(2 + abs(h)) * L2;
 		double Emax = 2 * L2;
+//		char default_spin_state = sgn(h);
 		double E_tolerance = 1e-3;   // J=1
 		int Nt_for_numerical_error = int(1e13 * E_tolerance / L2);
 		// the error accumulates, so we need to recompute form scratch time to time
@@ -601,7 +613,7 @@ namespace Izing
 
 			clear_clusters(cluster_element_inds, cluster_sizes, &N_clusters_current);
 			uncheck_state(is_checked, L2);
-			cluster_state(s, L, cluster_element_inds, cluster_sizes, &N_clusters_current, is_checked, -1);
+			cluster_state(s, L, cluster_element_inds, cluster_sizes, &N_clusters_current, is_checked, default_spin_state);
 			biggest_cluster_sizes_current = max(cluster_sizes, N_clusters_current);
 
 			M_current -= 2 * s[ix*L + iy];
@@ -611,10 +623,10 @@ namespace Izing
 				case 0:
 					OP_current = E_current;
 					break;
-				case 1:
+				case mode_ID_M:
 					OP_current = M_current;
 					break;
-				case 2:
+				case mode_ID_CS:
 					OP_current = biggest_cluster_sizes_current;
 					break;
 			}
@@ -717,19 +729,29 @@ namespace Izing
 
 	int run_bruteforce_C(int L, double Temp, double h, int N_states, int *states,
 						 int *OP_arr_len, int *Nt, double **E, int **M, int **biggest_cluster_sizes,
-						 int to_remember_timeevol, int interface_mode,
+						 int to_remember_timeevol, int interface_mode, char default_spin_state,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int verbose, int Nt_max)
 	{
 		int L2 = L*L;
 		int state_size_in_bytes = sizeof(int) * L2;
 
+		assert(OP_max_stop_state - OP_min_stop_state >= 1);
+
 		int *cluster_element_inds = (int*) malloc(sizeof(int) * L2);
 		int *cluster_sizes = (int*) malloc(sizeof(int) * L2);
 		int *is_checked = (int*) malloc(sizeof(int) * L2);
 		int *state_under_process = (int*) malloc(state_size_in_bytes);
 
-		generate_state(states, L, 0);
+		int init_gen_parameter;
+		switch (interface_mode) {
+			case mode_ID_M:
+				init_gen_parameter = (L2 - (OP_min_stop_state + 1) * default_spin_state) / 2;
+				if(2 * init_gen_parameter == L2 - OP_min_stop_state * default_spin_state) init_gen_parameter += OP_step[interface_mode - 1];
+			case mode_ID_CS:
+				init_gen_parameter = OP_min_stop_state + 1;
+		}
+		generate_state(states, L, init_gen_parameter, interface_mode, default_spin_state);
 //		print_S(states, L, '0'); 		getchar();
 		*N_states_done += 1;
 		int restart_state_ID;
@@ -749,8 +771,9 @@ namespace Izing
 
 			run_state(state_under_process, L, Temp, h, OP_min_stop_state, OP_max_stop_state,
 					  E, M, biggest_cluster_sizes, cluster_element_inds, cluster_sizes,
-					  is_checked, Nt, OP_arr_len, to_remember_timeevol, interface_mode, verbose, Nt_max,
-					  states, N_states_done, N_states, OP_min_save_state, OP_max_save_state);
+					  is_checked, Nt, OP_arr_len, to_remember_timeevol, interface_mode, default_spin_state,
+					  verbose, Nt_max,  states, N_states_done, N_states,
+					  OP_min_save_state, OP_max_save_state);
 
 			if(N_states > 0) if(*N_states_done >= N_states) break;
 			if(Nt_max > 0) if(*Nt >= Nt_max) break;
@@ -764,7 +787,8 @@ namespace Izing
 		return 0;
 	}
 
-	int get_init_states_C(int L, double Temp, double h, int N_init_states, int *init_states, int mode, int OP_thr_save_state, int interface_mode, int verbose)
+	int get_init_states_C(int L, double Temp, double h, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
+						  int interface_mode, char default_spin_state, int verbose)
 	/**
 	 *
 	 * @param L - see run_FFS
@@ -800,14 +824,14 @@ namespace Izing
 			// generate N_init_states states in A
 			// Here they are identical, but I think it's better to generate them accordingly to equilibrium distribution in A
 			for(i = 0; i < N_init_states; ++i){
-				generate_state(&(init_states[i * L2]), L, mode);
+				generate_state(&(init_states[i * L2]), L, mode, interface_mode, default_spin_state);
 			}
 		} else if(mode == -2){
 			int N_states_done = 0;
 			int Nt = 0;
 			run_bruteforce_C(L, Temp, h, N_init_states, init_states,
 							 nullptr, &Nt, nullptr, nullptr, nullptr,
-							 0, interface_mode,
+							 0, interface_mode, default_spin_state,
 							 OP_min_default[interface_mode - 1], OP_peak_default[interface_mode - 1] + (L2 / 20) * 2,
 							 &N_states_done, OP_min_default[interface_mode - 1], OP_thr_save_state,
 							 verbose, -1);
@@ -838,8 +862,8 @@ namespace Izing
 		while(i < L2){
 			if(!is_checked[i]){
 				if(s[i] == default_state) {
-//					is_checked[i] = -1;
-					is_checked[i] = L2 + 1;
+					is_checked[i] = -1;
+//					is_checked[i] = L2 + 1;
 				} else {
 					add_to_cluster(s, L, is_checked, &(cluster_element_inds[N_clustered_elements]), &(cluster_sizes[*N_clusters]), i, (*N_clusters) + 1, default_state);
 					N_clustered_elements += cluster_sizes[*N_clusters];
@@ -862,10 +886,6 @@ namespace Izing
 				cluster[*cluster_size] = pos;
 				++(*cluster_size);
 
-//				if(pos - L >= 0) add_to_cluster(s, L, is_checked, cluster, cluster_size, pos - L);
-//				if((pos - 1) / L == (pos / L)) add_to_cluster(s, L, is_checked, cluster, cluster_size, pos - 1);
-//				if((pos + 1) / L == (pos / L)) add_to_cluster(s, L, is_checked, cluster, cluster_size, pos + 1);
-//				if(pos + L < L2) add_to_cluster(s, L, is_checked, cluster, cluster_size, pos + L);
 				add_to_cluster(s, L, is_checked, cluster, cluster_size, md(pos - L, L2), cluster_label, default_state);
 				add_to_cluster(s, L, is_checked, cluster, cluster_size, pos % L == 0 ? pos + L - 1 : pos - 1, cluster_label, default_state);
 				add_to_cluster(s, L, is_checked, cluster, cluster_size, (pos + 1) % L == 0 ? pos - L + 1 : pos + 1, cluster_label, default_state);
@@ -964,7 +984,7 @@ namespace Izing
 		return - h * _M + _E;
 	}
 
-	int generate_state(int *s, int L, int mode)
+	int generate_state(int *s, int L, int mode, int interface_mode, int default_spin_state)
 	/**
 	 * Generates (fill with values) a single state 's' of size 'L' in a 'mode' way
 	 * @param s - the state to fill
@@ -977,26 +997,37 @@ namespace Izing
 		int L2 = L*L;
 
 		if(mode >= 0){   // generate |mode| spins UP, and the rest spins DOWN
-			for(i = 0; i < L2; ++i) s[i] = -1;
+			for(i = 0; i < L2; ++i) s[i] = default_spin_state;
 			if(mode > 0){
 				int N_down_spins = mode;
 				assert(N_down_spins <= L2);
 
-				int *indices_to_flip = (int*) malloc(sizeof(int) * L2);
-				for(i = 0; i < L2; ++i) indices_to_flip[i] = i;
-				int max = L2;
-				int next_rand;
-				int swap_var;
-				for(i = 0; i < N_down_spins; ++i){   // generate N_down_spins uniformly distributed indices in [0; L2-1]
-					next_rand = gsl_rng_uniform_int(rng, max);
-					swap_var = indices_to_flip[next_rand];
-					indices_to_flip[next_rand] = indices_to_flip[max - 1];
-					indices_to_flip[max - 1] = swap_var;
-					--max;
+				switch (interface_mode) {
+					case mode_ID_M:
+					{
+						int *indices_to_flip = (int*) malloc(sizeof(int) * L2);
+						for(i = 0; i < L2; ++i) indices_to_flip[i] = i;
+						int max = L2;
+						int next_rand;
+						int swap_var;
+						for(i = 0; i < N_down_spins; ++i){   // generate N_down_spins uniformly distributed indices in [0; L2-1]
+							next_rand = gsl_rng_uniform_int(rng, max);
+							swap_var = indices_to_flip[next_rand];
+							indices_to_flip[next_rand] = indices_to_flip[max - 1];
+							indices_to_flip[max - 1] = swap_var;
+							--max;
 
-					s[swap_var] = 1;
+							s[swap_var] = -default_spin_state;
+						}
+						free(indices_to_flip);
+					}
+						break;
+					case mode_ID_CS:
+						for(i = 0; i < N_down_spins; ++i){
+							s[i] = -default_spin_state;
+						}
+						break;
 				}
-				free(indices_to_flip);
 			}
 		} else if(mode == -1){   // random
 			for(i = 0; i < L2; ++i) s[i] = gsl_rng_uniform_int(rng, 2) * 2 - 1;
