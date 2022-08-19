@@ -761,16 +761,32 @@ def plot_correlation(x, y, x_lbl, y_lbl):
 	
 	return ax, R
 
-def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, \
+def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins_up_init=None, \
 			to_plot_time_evol=False, to_plot_F=False, to_plot_ETS=False, to_plot_correlations=False, \
 			to_estimate_k=False, EM_stride=-3000, OP_min=None, OP_max=None, OP_A=None, OP_B=None):
 	L2 = L**2
+	
 	if(OP_min is None):
 		OP_min = OP_min_default[interface_mode]
 	if(OP_max is None):
 		OP_max = OP_max_default[interface_mode]
 	
-	(E, M, CS, hA) = izing.run_bruteforce(L, Temp, h, Nt, OP_A, OP_B, OP_min, OP_max, interface_mode=OP_C_id[interface_mode], default_spin_state=def_spin_state, verbose=verbose)
+	if(N_spins_up_init is None):
+		if(interface_mode == 'M'):
+			N_spins_up_init = (L2 - (OP_min + 1) * def_spin_state) // 2
+			if(OP_min == L2 - 2 * N_spins_up_init):
+				N_spins_up_init += 1
+		elif(interface_mode == 'CS'):
+			N_spins_up_init = OP_min + 1
+	if(interface_mode == 'M'):
+		OP_init = (L2 - 2 * N_spins_up_init) * def_spin_state
+	elif(interface_mode == 'CS'):
+		OP_init = N_spins_up_init
+	
+	(E, M, CS, hA) = izing.run_bruteforce(L, Temp, h, Nt, N_spins_up_init=N_spins_up_init, OP_A=OP_A, OP_B=OP_B, \
+										OP_min=OP_min, OP_max=OP_max, \
+										interface_mode=OP_C_id[interface_mode], default_spin_state=def_spin_state, \
+										verbose=verbose)
 	
 	if(EM_stride < 0):
 		EM_stride = np.int_(- Nt / EM_stride)
@@ -845,11 +861,15 @@ def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, \
 	#C = ((m_std['E'] * L2)**2 / Temp**2) / L2   # heat capacity per spin
 
 	if(to_plot_F):
+		F_limits = [min(F), max(F)]
+		hist_limits = [min(rho_interp1d(hist_centers)), max(rho_interp1d(hist_centers))]
+		ax_F.plot([OP_init / OP_scale[interface_mode]] * 2, F_limits, '--', label='init state')
+		ax_hist.plot([OP_init / OP_scale[interface_mode]] * 2, hist_limits, '--', label='init state')
 		if(interface_mode == 'CS'):
-			ax_hist.plot([BC_cluster_size] * 2, [min(rho_interp1d(hist_centers)), max(rho_interp1d(hist_centers))], '--', label='$L_{BC} = L^2 / \pi$')
+			ax_hist.plot([BC_cluster_size] * 2, hist_limits, '--', label='$L_{BC} = L^2 / \pi$')
 			ax_hist.legend()
-			ax_F.plot([BC_cluster_size] * 2, [min(F), max(F)], '--', label='$S_{BC} = L^2 / \pi$')
-			ax_F.legend()
+			ax_F.plot([BC_cluster_size] * 2, F_limits, '--', label='$S_{BC} = L^2 / \pi$')
+		ax_F.legend()
 	
 	# if(to_plot_correlations):
 		# feature_labels_ordered = list(hist_edges.keys())
@@ -863,7 +883,7 @@ def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, \
 	return F, d_F, hist_centers, hist_lens, rho_interp1d, d_rho_interp1d, k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, m_avg, d_m_avg, E_avg#, C
 
 def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
-			OP_A=None, OP_B=None, \
+			OP_A=None, OP_B=None, N_spins_up_init=None, \
 			M_interfaces_AB=None, M_interfaces_BA=None, \
 			M_sample_BF_A_to=None, M_sample_BF_B_to=None, \
 			M_match_BF_A_to=None, M_match_BF_B_to=None, \
@@ -915,7 +935,7 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 		if(mode == 'BF'):
 			F_BF, d_F_BF, hist_centers_BF, hist_lens_BF, rho_interp1d_BF, d_rho_interp1d_BF, k_bc_AB_BF, k_bc_BA_BF, k_AB_BF, _, k_BA_BF, _, _, _, _ = \
 				proc_T(L, Temp, h, Nt_per_BF_run, interface_mode, def_spin_state, \
-						OP_A=OP_A, OP_B=OP_B, \
+						OP_A=OP_A, OP_B=OP_B, N_spins_up_init=N_spins_up_init, \
 						verbose=verbose, to_plot_time_evol=to_plot_time_evol, \
 						to_plot_F=False, to_plot_correlations=False, to_plot_ETS=False, \
 						EM_stride=EM_stride, to_estimate_k=True)
@@ -1188,11 +1208,10 @@ M_interfaces_table[('CS', 11, 'AB', 20, 7, 101)] = np.array([7, 8, 9, 10, 11, 12
 M_interfaces_table[('CS', 11, 'BA', 20, 7, 101)] = np.array([20, 21, 22, 23, 24, 25, 26, 27, 28, 30, 32, 34, 37, 40, 43, 47, 52, 58, 68, 114], dtype=int)
 
 def main():
-	[L, h, Temp, mode, Nt, Nt_narrowest, N_init_states_FFS, to_recomp, to_get_EM, verbose, my_seed, N_M_interfaces, N_runs, init_gen_mode, dM_0, dM_max, interface_mode, OP_min_BF, OP_max_BF, Nt_sample_A, Nt_sample_B, def_spin_state], _ = \
-		my.parse_args(sys.argv, ['-L', '-h', '-Temp', '-mode', '-Nt', '-Nt_narrowest', '-N_init_states_FFS', '-to_recomp', '-to_get_EM', '-verbose', '-my_seed', '-N_M_interfaces', '-N_runs', '-init_gen_mode', '-dM_0', '-dM_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B', '-def_spin_state'], \
-					  possible_values=[None, None, None, None, None, None, None, my.yn_flags, None, None, None, None, None, None, None, None, None, None, None, None, None, ['1', '-1']], \
-					  possible_arg_numbers=[[0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1]], \
-					  default_values=[['11'], ['-0.01'], ['2.1'], ['BF'], ['-1000000'], ['-5000'], ['10000'], [my.no_flags[0]], ['1'], ['1'], ['23'], ['-30'], ['3'], ['-2'], ['4'], [None], ['M'], [None], [None], ['-1000000'], ['-1000000'], ['-1']])
+	[L, h, Temp, mode, Nt, Nt_narrowest, N_init_states_FFS, to_recomp, to_get_EM, verbose, my_seed, N_M_interfaces, N_runs, init_gen_mode, dM_0, dM_max, interface_mode, OP_min_BF, OP_max_BF, Nt_sample_A, Nt_sample_B, def_spin_state, N_spins_up_init, to_plot_ETS], _ = \
+		my.parse_args(sys.argv, ['-L', '-h', '-Temp', '-mode', '-Nt', '-Nt_narrowest', '-N_init_states_FFS', '-to_recomp', '-to_get_EM', '-verbose', '-my_seed', '-N_M_interfaces', '-N_runs', '-init_gen_mode', '-dM_0', '-dM_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B', '-def_spin_state', '-N_spins_up_init', '-to_plot_ETS'], \
+					  possible_arg_numbers=[[0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1]], \
+					  default_values=[['11'], ['-0.01'], ['2.1'], ['BF'], ['-1000000'], ['-5000'], ['10000'], [my.no_flags[0]], ['1'], ['1'], ['23'], ['-30'], ['3'], ['-2'], ['4'], [None], ['M'], [None], [None], ['-1000000'], ['-1000000'], ['-1'], [None], [my.no_flags[0]]])
 	
 	# efficiency info:
 	# [M0=20, NM=20] : Nt / Nt_narrowest ~ 1e4
@@ -1220,6 +1239,8 @@ def main():
 	Nt_sample_A = int(Nt_sample_A[0])
 	Nt_sample_B = int(Nt_sample_B[0])
 	def_spin_state = int(def_spin_state[0])
+	N_spins_up_init = (None if(N_spins_up_init[0] is None) else int(N_spins_up_init[0]))
+	to_plot_ETS = (to_plot_ETS[0] in my.yes_flags)
 	
 	OP_min_BF = OP_min_default[interface_mode] if(OP_min_BF[0] is None) else int(OP_min_BF[0])
 	OP_max_BF = OP_max_default[interface_mode] if(OP_max_BF[0] is None) else int(OP_max_BF[0])
@@ -1274,8 +1295,8 @@ def main():
 		M_interfaces_BA = flip_M(M_interfaces_AB, L2, interface_mode)
 
 		if(N_M_interfaces > 0):
-			interface_AB_UID = (interface_mode, L, 'AB', N_M_interfaces, M_0, M_max)
-			interface_BA_UID = (interface_mode, L, 'BA', N_M_interfaces, M_0, M_max)
+			interface_AB_UID = (interface_mode, L, 'AB' if(h < 0) else 'BA', N_M_interfaces, M_0, M_max)
+			interface_BA_UID = (interface_mode, L, 'BA' if(h < 0) else 'AB', N_M_interfaces, M_0, M_max)
 			if(interface_AB_UID in M_interfaces_table):
 				M_interfaces_AB = M_interfaces_table[interface_AB_UID]
 			if(interface_BA_UID in M_interfaces_table):
@@ -1299,13 +1320,13 @@ def main():
 		
 	if(mode == 'BF_many'):
 		run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, Nt_per_BF_run=Nt, \
-				OP_A=M_0, OP_B=M_max, \
+				OP_A=M_0, OP_B=M_max, N_spins_up_init=N_spins_up_init, \
 				to_plot_k_distr=True, N_k_bins=int(np.round(np.sqrt(N_runs) / 2) + 1))
 	
 	elif(mode == 'BF_1'):
 		proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, \
-				OP_A=M_0, OP_B=M_max, \
-				to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=True, to_plot_correlations=True, \
+				OP_A=M_0, OP_B=M_max, N_spins_up_init=N_spins_up_init, \
+				to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=to_plot_ETS, to_plot_correlations=True, \
 				OP_min=OP_min_BF, OP_max=OP_max_BF, to_estimate_k=True)
 		
 	elif(mode == 'FFS'):

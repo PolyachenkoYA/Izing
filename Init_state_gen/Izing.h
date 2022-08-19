@@ -52,7 +52,7 @@ namespace Izing
 						 int *OP_arr_len, int *Nt, double **E, int **M, int **biggest_cluster_sizes,
 						 int to_remember_timeevol, int interface_mode, char default_spin_state,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
-						 int OP_min_save_state, int OP_max_save_state, int verbose, int Nt_max);
+						 int OP_min_save_state, int OP_max_save_state, int N_spins_up_init, int verbose, int Nt_max);
 	double process_step(int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int *Nt, int *OP_arr_len,
 						int N_init_states, int N_next_states, int L, double Temp, double h, int OP_0, int OP_next,
 						int to_save_next_states, bool to_remember_EM, int interfaces_mode, char default_spin_state,
@@ -67,10 +67,11 @@ namespace Izing
 	int init_rand_C(int my_seed);
 	double comp_E(const int* s, int N, double h);
 	int comp_M(const int *s, int L);
-	int generate_state(int *s, int L, int mode, int interface_mode, int default_spin_state);
+	int generate_state(int *s, int L, int mode, int interface_mode, int default_spin_state, int verbose);
 	int get_flip_point(int *s, int L, double h, double Temp, int *ix, int *iy, double *dE);
 	double get_dE(int *s, int L, double h, int ix, int iy);
 	void set_OP_default(int L2);
+	int get_OP_from_spinsup(int N_spins_up, int L2, int interface_mode, int default_spin_state);
 
 	void cluster_state(const int *s, int L, int *cluster_element_inds, int *cluster_sizes, int *N_clusters, int *is_checked, int default_state);
 	int add_to_cluster(const int* s, int L, int* is_checked, int* cluster, int* cluster_size, int pos, int cluster_label, int default_state);
@@ -84,7 +85,7 @@ namespace Izing
 py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states,
 				  pybind11::array_t<int> OP_interfaces, int to_remember_timeevol, int init_gen_mode, int interface_mode,
 				  int default_spin_state, std::optional<int> _verbose);
-py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max,
+py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional<int> _N_spins_up_init,
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
 						 std::optional<int> _interface_mode, std::optional<int> _default_spin_state,
