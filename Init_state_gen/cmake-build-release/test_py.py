@@ -70,12 +70,13 @@ if(__name__ == "__main__"):
 
 # ========================== functions ==================
 
-def get_OP_hist_edges(i_m_def, i_m=None, OP_min=None, OP_max=None):
-	if(i_m is None):
-		assert((OP_min is None) and (OP_max is None)), 'ERROR: interface_mode was provided (%s), but no proper OP boundaries (%s, %s)' % (str(i_m), str(OP_min), str(OP_max))
+def get_OP_hist_edges(interface_mode, OP_min=None, OP_max=None):
+	OP_min = OP_min_default[interface_mode] if(OP_min is None) else max(OP_min, OP_min_default[interface_mode])
+	OP_max = OP_max_default[interface_mode] if(OP_max is None) else min(OP_max, OP_max_default[interface_mode] - 1)
 	
-	return (np.arange(max(OP_min, OP_min_default[i_m_def]) + 1 - OP_step[i_m_def] / 2, min(OP_max, OP_max_default[i_m_def] - 1) + OP_step[i_m_def] * (1/2 + 1e-3), OP_step[i_m_def]) if(i_m == i_m_def) \
-			else np.arange(OP_min_default[i_m_def] + 1 - OP_step[i_m_def] / 2, OP_max_default[i_m_def] - 1 + OP_step[i_m_def] * (1/2 + 1e-3), OP_step[i_m_def])) / OP_scale[i_m_def]
+	return (np.arange(OP_min + 1 - OP_step[interface_mode] / 2, OP_max + OP_step[interface_mode] * (1/2 + 1e-3), OP_step[interface_mode])) / OP_scale[interface_mode]
+	#return      (np.arange( + 1 - OP_step[i_m_def] / 2,  + OP_step[i_m_def] * (1/2 + 1e-3), OP_step[i_m_def]) if(i_m == i_m_def) \
+	#		else np.arange(            OP_min_default[i_m_def]  + 1 - OP_step[i_m_def] / 2,             OP_max_default[i_m_def] - 1  + OP_step[i_m_def] * (1/2 + 1e-3), OP_step[i_m_def])) / OP_scale[i_m_def]
 #	These formula assume:
 #		1. We want edges at [x_min - step/2; .....; x_max + step/2]
 #		2. OP_min/max_default = x_min/max -+ 1; '-+1' is independent of 'interface_mode' because we consider only integer OPs, and 1 is the minimal difference, so it's actually ~ '-+eps'
@@ -331,7 +332,7 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 							interface_mode, def_spin_state, \
 							m_data=None, Nt=None, M_hist_edges=None, memory_time=1, \
 							to_plot_time_evol=False, to_plot_hists=False, stride=1, \
-							x_lbl='', y_lbl='', Ms_alpha=0.5):
+							x_lbl='', y_lbl='', Ms_alpha=0.5, OP_match_BF_to=None):
 	L2 = L**2
 	ln_k_AB = np.log(flux0 * 1) + np.sum(np.log(probs))   # [flux0 * 1] = 1, because [flux] = 1/time = 1/step
 	d_ln_k_AB = np.sqrt((d_flux0 / flux0)**2 + np.sum((d_probs / probs)**2))
@@ -339,13 +340,13 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 	
 	print('Nt:', Nt)
 	#print('N_init_guess: ', np.exp(np.mean(np.log(Nt))) / Nt)
-	print('flux0 = (%s) 1/step' % my.error_str(flux0, d_flux0))
+	print('flux0 = (%s) 1/step' % (my.errorbar_str(flux0, d_flux0)))
 	print('-log10(P):', -np.log(probs) / np.log(10))
 	print('d_P / P:', d_probs / probs)
 	if(d_ln_k_AB > 0.3):
 		print('k_AB \\in [' + '; '.join(my.same_scale_strs([k_AB_low, k_AB_up], x_to_compare_to=[k_AB_up - k_AB_low])) + '] 1/step with 68% prob')
 	else:
-		print('k_AB = (%s) 1/step' % my.error_str(k_AB, k_AB * d_ln_k_AB))
+		print('k_AB = (%s) 1/step' % my.errorbar_str(k_AB, k_AB * d_ln_k_AB))
 	
 	m = M_interfaces / OP_scale[interface_mode]
 	
@@ -354,10 +355,9 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 	d_P_B = np.empty(N_M_interfaces)
 	P_B[N_M_interfaces - 1] = 1
 	d_P_B[N_M_interfaces - 1] = 0
-	for i in range(N_M_interfaces - 1):
-		_p = probs[(i + 1):]
-		P_B[i] = np.prod(_p)
-		d_P_B[i] = P_B[i] * (1 - P_B[i]) * np.sqrt(np.sum((d_probs[(i + 1):] / _p)**2))
+	for i in range(N_M_interfaces - 2, -1, -1):
+		P_B[i] = P_B[i + 1] * probs[i]
+		d_P_B[i] = P_B[i] * (1 - P_B[i]) * np.sqrt((d_P_B[i + 1] / P_B[i + 1])**2 + (d_probs[i] / probs[i])**2)
 	
 	#P_B_opt, P_B_opt_fnc, P_B_opt_fnc_inv = PB_fit_optimize(P_B[:-1], d_P_B[:-1], m[:-1], m[0], m[-1], P_B[0], P_B[-1], tht0=[0, 0.15])
 	#P_B_x0_opt = P_B_opt.x[0]
@@ -421,11 +421,11 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 		small_rho = 1e-2 / Nt_totals[-1] / N_M_hist
 		rho_s = np.zeros((N_M_hist, N_M_interfaces))
 		d_rho_s = np.zeros((N_M_hist, N_M_interfaces))
+		M_hist_ok_inds = np.zeros((N_M_hist, N_M_interfaces), dtype=bool)
 		rho_for_sum = np.empty((N_M_hist, N_M_interfaces - 1))
 		d_rho_for_sum = np.zeros((N_M_hist, N_M_interfaces - 1))
 		rho_w = np.empty(N_M_interfaces - 1)
 		d_rho_w = np.empty(N_M_interfaces - 1)
-		M_hist_ok_inds = np.zeros((N_M_hist, N_M_interfaces - 1), dtype=bool)
 		timesteps = [np.arange(Nt[0])]
 		for i in range(N_M_interfaces):
 			#timesteps.append(np.arange(Nt[i]) + (0 if(i == 0) else Nt_totals[i-1]))
@@ -445,33 +445,40 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 				d_rho_w[i-1] = rho_w[i-1] * d_P_B[i - 1] / P_B[i - 1]
 				rho_for_sum[:, i-1] = rho_s[:, i] * rho_w[i-1]
 				#d_rho_for_sum[M_hist_ok_inds, i] = rho_for_sum[M_hist_ok_inds, i] * np.sqrt((d_rho_s[M_hist_ok_inds, i] / rho_s[M_hist_ok_inds, i])**2 + (0 if(i == 0) else np.sum((d_probs[:i] / probs[:i])**2)))
-				d_rho_for_sum[M_hist_ok_inds, i-1] = rho_for_sum[M_hist_ok_inds, i-1] * np.sqrt((d_rho_s[M_hist_ok_inds, i] / rho_s[M_hist_ok_inds, i])**2 + (d_rho_w[i-1] / rho_w[i-1])**2)
+				d_rho_for_sum[M_hist_ok_inds[:, i], i-1] = rho_for_sum[M_hist_ok_inds[:, i], i-1] * np.sqrt((d_rho_s[M_hist_ok_inds[:, i], i] / rho_s[M_hist_ok_inds[:, i], i])**2 + (d_rho_w[i-1] / rho_w[i-1])**2)
 		
 		rho = np.sum(rho_for_sum, axis=1)
 		d_rho = np.sqrt(np.sum(d_rho_for_sum**2, axis=1))
 		M_hist_ok_inds_FFS = (rho > 0)
 		F = np.zeros(N_M_hist)
-		F = -Temp * np.log(rho[M_hist_ok_inds_FFS] * M_hist_lens[M_hist_ok_inds_FFS])
-		d_F = Temp * d_rho[M_hist_ok_inds_FFS] / rho[M_hist_ok_inds_FFS]
+		d_F = np.zeros(N_M_hist)
+		F[M_hist_ok_inds_FFS] = -Temp * np.log(rho[M_hist_ok_inds_FFS] * M_hist_lens[M_hist_ok_inds_FFS])
+		d_F[M_hist_ok_inds_FFS] = Temp * d_rho[M_hist_ok_inds_FFS] / rho[M_hist_ok_inds_FFS]
 		
 		BF_inds = M_hist_centers <= OP_match_BF_to / OP_scale[interface_mode]
 		F_BF = -Temp * np.log(rho_s[BF_inds, 0] * M_hist_lens[BF_inds])
 		d_F_BF = Temp * d_rho_s[BF_inds, 0] / rho_s[BF_inds, 0]
 		
-		FFS_match_points_inds = (M_hist_centers > OP_interfaces[0] / OP_scale[interface_mode]) & BF_inds
-		BF_match_points = (M_hist_centers[BF_inds] > OP_interfaces[0] / OP_scale[interface_mode])
+		FFS_match_points_inds = (M_hist_centers > M_interfaces[0] / OP_scale[interface_mode]) & BF_inds
+		BF_match_points = (M_hist_centers[BF_inds] > M_interfaces[0] / OP_scale[interface_mode])
+		#print(d_F.shape, FFS_match_points_inds.shape, d_F_BF.shape, BF_match_points.shape)
+		#input('a')
 		w2 = 1 / (d_F[FFS_match_points_inds]**2 + d_F_BF[BF_match_points]**2)
 		dF_FFS_BF = F[FFS_match_points_inds] - F_BF[BF_match_points]
 		#F_shift = np.sum(dF_FFS_BF * w2) / np.sum(w2)
 		F_shift = np.average(dF_FFS_BF, weights=w2)
 		F_BF = F_BF + F_shift
+		#print('dF = ', F_shift)
 		
-		state_A_FFS_inds = M_hist_centers <= (OP_interfaces[0] + OP_step[interface_mode]) / OP_scale[interface_mode] & BF_inds
-		state_A_BF_inds = M_hist_centers[BF_inds] <= (OP_interfaces[0] + OP_step[interface_mode]) / OP_scale[interface_mode]
-		rho[state_A_FFS_inds] = np.exp(-F_BF[state_A_BF_inds] / Temp) / hist_lens[state_A_FFS_inds]
-		d_rho[state_A_inds] = rho[state_A_FFS_inds] * d_F_BF[state_A_BF_inds] / Temp
+		state_A_FFS_inds = (M_hist_centers <= (M_interfaces[0] + OP_step[interface_mode]) / OP_scale[interface_mode]) & BF_inds
+		state_A_BF_inds = M_hist_centers[BF_inds] <= (M_interfaces[0] + OP_step[interface_mode]) / OP_scale[interface_mode]
+		rho[state_A_FFS_inds] = np.exp(-F_BF[state_A_BF_inds] / Temp) / M_hist_lens[state_A_FFS_inds]
+		d_rho[state_A_FFS_inds] = rho[state_A_FFS_inds] * d_F_BF[state_A_BF_inds] / Temp
 		
+		#print(M_hist_centers[rho * M_hist_lens <= 0])
+		#print(M_hist_centers[state_A_FFS_inds])
 		F = -Temp * np.log(rho * M_hist_lens)
+		F_BF = F_BF - min(F)
 		F = F - min(F)
 		d_F = Temp * d_rho / rho
 		
@@ -565,48 +572,48 @@ def proc_FFS_AB(L, Temp, h, N_init_states, OP_interfaces, OP_sample_BF_to, OP_ma
 	ln_k_AB, d_ln_k_AB, rho, d_rho, M_hist_centers, M_hist_lens, \
 		ax_M, ax_Mhists, ax_F, ax_PB_log, ax_PB, ax_fl, ax_fl_i = \
 			proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, OP_interfaces, N_init_states, \
-						interface_mode, def_spin_state, \
-						m_data=data[interface_mode] / OP_scale[interface_mode], Nt=Nt, M_hist_edges=get_OP_hist_edges(interface_mode), \
+						interface_mode, def_spin_state, OP_match_BF_to=OP_match_BF_to, \
+						m_data=data[interface_mode] / OP_scale[interface_mode], Nt=Nt, M_hist_edges=get_OP_hist_edges(interface_mode, OP_max=OP_interfaces[-1]), \
 						memory_time=max(1, m_std_overestimate[interface_mode] / OP_step[interface_mode]), 
 						to_plot_time_evol=to_plot_time_evol, to_plot_hists=to_plot_hists, stride=EM_stride, \
 						x_lbl=feature_label[interface_mode], y_lbl=title[interface_mode], Ms_alpha=Ms_alpha)
 	
-	if(to_get_EM):
-		F_BF, d_F_BF, hist_centers_BF, hist_lens_BF, rho_interp1d_BF, d_rho_interp1d_BF, _, _, _, _, _, _, _, _, _ = \
-			proc_T(L, Temp, h, Nt_BF, interface_mode, def_spin_state, OP_min=OP_interfaces[0], OP_max=OP_sample_BF_to, to_estimate_k=False, \
-					to_plot_time_evol=False, to_plot_F=False, to_plot_ETS=False, to_plot_correlations=False)
+	# if(to_get_EM):
+		# F_BF, d_F_BF, hist_centers_BF, hist_lens_BF, rho_interp1d_BF, d_rho_interp1d_BF, _, _, _, _, _, _, _, _, _ = \
+			# proc_T(L, Temp, h, Nt_BF, interface_mode, def_spin_state, OP_min=OP_interfaces[0], OP_max=OP_sample_BF_to, to_estimate_k=False, \
+					# to_plot_time_evol=False, to_plot_F=False, to_plot_ETS=False, to_plot_correlations=False)
 		
-		# ======== interpolate BF results to the FFS grid =========
-		F_BF_interp = scipy.interpolate.interp1d(hist_centers_BF, F_BF, fill_value='extrapolate')
-		d_F_BF_interp = scipy.interpolate.interp1d(hist_centers_BF, d_F_BF, fill_value='extrapolate')
-		hist_lens_BF_interp = scipy.interpolate.interp1d(hist_centers_BF, hist_lens_BF, fill_value='extrapolate')
-		F_BF = F_BF_interp(M_hist_centers)
-		d_F_BF = d_F_BF_interp(M_hist_centers)
-		hist_lens_BF = hist_lens_BF_interp(M_hist_centers)
+		# # ======== interpolate BF results to the FFS grid =========
+		# F_BF_interp = scipy.interpolate.interp1d(hist_centers_BF, F_BF, fill_value='extrapolate')
+		# d_F_BF_interp = scipy.interpolate.interp1d(hist_centers_BF, d_F_BF, fill_value='extrapolate')
+		# hist_lens_BF_interp = scipy.interpolate.interp1d(hist_centers_BF, hist_lens_BF, fill_value='extrapolate')
+		# F_BF = F_BF_interp(M_hist_centers)
+		# d_F_BF = d_F_BF_interp(M_hist_centers)
+		# hist_lens_BF = hist_lens_BF_interp(M_hist_centers)
 		
-		# ======== get FFS 1-side profile =========
-		F_FFS = -Temp * np.log(rho * M_hist_lens)
-		d_F_FFS = Temp * d_rho / rho
+		# # ======== get FFS 1-side profile =========
+		# F_FFS = -Temp * np.log(rho * M_hist_lens)
+		# d_F_FFS = Temp * d_rho / rho
 		
-		w2 = 1 / (d_F_FFS**2 + d_F_BF**2)
-		dF_FFS_BF = F_FFS - F_BF
-		F_match_points_inds = (M_hist_centers > OP_interfaces[1] / OP_scale[interface_mode]) & (M_hist_centers <= OP_match_BF_to / OP_scale[interface_mode])
-		#F_shift = np.sum(dF_FFS_BF * w2) / np.sum(w2)
-		F_shift = np.average(dF_FFS_BF[F_match_points_inds], weights=w2[F_match_points_inds])
-		F_BF = F_BF + F_shift
+		# w2 = 1 / (d_F_FFS**2 + d_F_BF**2)
+		# dF_FFS_BF = F_FFS - F_BF
+		# F_match_points_inds = (M_hist_centers > OP_interfaces[1] / OP_scale[interface_mode]) & (M_hist_centers <= OP_match_BF_to / OP_scale[interface_mode])
+		# #F_shift = np.sum(dF_FFS_BF * w2) / np.sum(w2)
+		# F_shift = np.average(dF_FFS_BF[F_match_points_inds], weights=w2[F_match_points_inds])
+		# F_BF = F_BF + F_shift
 		
-		state_A_inds = M_hist_centers <= (OP_interfaces[1] + OP_step[interface_mode]) / OP_scale[interface_mode]
-		rho[state_A_inds] = np.exp(-F_BF[state_A_inds] / Temp) / hist_lens_BF[state_A_inds]
-		d_rho[state_A_inds] = rho[state_A_inds] * d_F_BF[state_A_inds] / Temp
+		# state_A_inds = M_hist_centers <= (OP_interfaces[1] + OP_step[interface_mode]) / OP_scale[interface_mode]
+		# rho[state_A_inds] = np.exp(-F_BF[state_A_inds] / Temp) / hist_lens_BF[state_A_inds]
+		# d_rho[state_A_inds] = rho[state_A_inds] * d_F_BF[state_A_inds] / Temp
 		
-		F = -Temp * np.log(rho * M_hist_lens)
-		F = F - min(F)
-		d_F = Temp * d_rho / rho
+		# F = -Temp * np.log(rho * M_hist_lens)
+		# F = F - min(F)
+		# d_F = Temp * d_rho / rho
 		
-		if(to_plot_hists):
-			#fig_F, ax_F = my.get_fig(title[interface_mode], 'F/J', title='$F_{AB}(%s)$' % (feature_label[interface_mode]))
-			ax_F.errorbar(M_hist_centers, F, yerr=d_F, label='$FFS + A_{BF}$')
-			ax_F.legend()
+		# if(to_plot_hists):
+			# #fig_F, ax_F = my.get_fig(title[interface_mode], 'F/J', title='$F_{AB}(%s)$' % (feature_label[interface_mode]))
+			# ax_F.errorbar(M_hist_centers, F, yerr=d_F, label='$FFS + A_{BF}$')
+			# ax_F.legend()
 	
 	return probs, d_probs, ln_k_AB, d_ln_k_AB, flux0, d_flux0, rho, d_rho, M_hist_centers, M_hist_lens
 
@@ -824,11 +831,11 @@ def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins
 	#hist_edges['CS'] = np.arange(L2 + 2) - 1/2
 	
 	data['M'] = M
-	hist_edges['M'] =  get_OP_hist_edges('M', interface_mode, OP_min, OP_max)
+	hist_edges['M'] =  get_OP_hist_edges(interface_mode, OP_min if(interface_mode == 'M') else None, OP_max if(interface_mode == 'M') else None)
 	del M
 
 	data['CS'] = CS
-	hist_edges['CS'] = get_OP_hist_edges('CS', interface_mode, OP_min, OP_max)
+	hist_edges['CS'] = get_OP_hist_edges(interface_mode, OP_min if(interface_mode == 'CS') else None, OP_max if(interface_mode == 'CS') else None)
 	
 	N_features = len(hist_edges.keys())
 	
@@ -1224,7 +1231,7 @@ def main():
 	[L, h, Temp, mode, Nt, Nt_narrowest, N_init_states_FFS, to_recomp, to_get_EM, verbose, my_seed, N_M_interfaces, N_runs, init_gen_mode, dM_0, dM_max, interface_mode, OP_min_BF, OP_max_BF, Nt_sample_A, Nt_sample_B, def_spin_state, N_spins_up_init, to_plot_ETS], _ = \
 		my.parse_args(sys.argv, ['-L', '-h', '-Temp', '-mode', '-Nt', '-Nt_narrowest', '-N_init_states_FFS', '-to_recomp', '-to_get_EM', '-verbose', '-my_seed', '-N_M_interfaces', '-N_runs', '-init_gen_mode', '-dM_0', '-dM_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B', '-def_spin_state', '-N_spins_up_init', '-to_plot_ETS'], \
 					  possible_arg_numbers=[[0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1]], \
-					  default_values=[['11'], ['-0.01'], ['2.1'], ['BF'], ['-1000000'], ['-5000'], ['10000'], [my.no_flags[0]], ['1'], ['1'], ['23'], ['-30'], ['3'], ['-2'], ['4'], [None], ['M'], [None], [None], ['-1000000'], ['-1000000'], ['-1'], [None], [my.no_flags[0]]])
+					  default_values=[['11'], ['-0.01'], ['2.1'], ['BF'], ['-1000000'], ['-5000'], ['10000'], [my.no_flags[0]], ['1'], ['1'], ['23'], ['-30'], ['3'], ['-3'], ['20'], [None], ['M'], [None], [None], ['-1000000'], ['-1000000'], ['-1'], [None], [my.no_flags[0]]])
 	
 	# efficiency info:
 	# [M0=20, NM=20] : Nt / Nt_narrowest ~ 1e4

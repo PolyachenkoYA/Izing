@@ -229,8 +229,8 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 //        A       1       2 ...n-1       n-1        B
 //        0       1       2 ...n-1       n-1       n
 	py::array_t<int> Nt = py::array_t<int>(N_OP_interfaces);
-	py::array_t<double> probs = py::array_t<double>(N_OP_interfaces);
-	py::array_t<double> d_probs = py::array_t<double>(N_OP_interfaces);
+	py::array_t<double> probs = py::array_t<double>(N_OP_interfaces - 1);
+	py::array_t<double> d_probs = py::array_t<double>(N_OP_interfaces - 1);
 	py::buffer_info Nt_info = Nt.request();
 	py::buffer_info probs_info = probs.request();
 	py::buffer_info d_probs_info = d_probs.request();
