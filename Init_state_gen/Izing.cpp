@@ -85,7 +85,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional
 	assert(Temp > 0);
 	int verbose = (_verbose.has_value() ? _verbose.value() : Izing::verbose_dafault);
 	int interface_mode = (_interface_mode.has_value() ? _interface_mode.value() : 1);   // 'M' mode
-	assert((interface_mode > 0) && (interface_mode <= N_interface_modes));
+	assert((interface_mode >= 0) && (interface_mode < N_interface_modes));
 	int default_spin_state = (_default_spin_state.has_value() ? _default_spin_state.value() : Izing::verbose_dafault);
 	int OP_min = (_OP_min.has_value() ? _OP_min.value() : Izing::OP_min_default[interface_mode]);
 	int OP_max = (_OP_max.has_value() ? _OP_max.value() : Izing::OP_max_default[interface_mode]);
@@ -199,6 +199,7 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 
 	assert(L > 0);
 	assert(Temp > 0);
+	assert((interface_mode >= 0) && (interface_mode < N_interface_modes));
 	py::buffer_info OP_interfaces_info = OP_interfaces.request();
 	py::buffer_info N_init_states_info = N_init_states.request();
 	int *OP_interfaces_ptr = static_cast<int *>(OP_interfaces_info.ptr);
@@ -353,7 +354,7 @@ namespace Izing
 
 	int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt,
 				  int *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
-				  int **biggest_cluster_sizes, int verbose, int init_gen_mode, int interface_mode, char default_spin_state)
+				  int **biggest_cluster_sizes, int verbose, int init_gen_mode, int interface_mode, int default_spin_state)
 	/**
 	 *
 	 * @param flux0 - see run_FFS description (return section)
@@ -383,7 +384,7 @@ namespace Izing
 // get the initial states; they should be sampled from the distribution in [-L^2; M_0), but they are all set to have M == -L^2 because then they all will fall into the local optimum and almost forget the initial state, so it's almost equivalent to sampling from the proper distribution if 'F(M_0) - F_min >~ T'
 		int h_A_len = 128;
 		int Nt_total = 0;
-		Nt[0] = 0;
+//		Nt[0] = 0;
 		int *h_A = (int*) malloc(sizeof(int) * h_A_len);
 		get_init_states_C(L, Temp, h, N_init_states[0], states, init_gen_mode,
 						  OP_interfaces[0], interface_mode, default_spin_state,
@@ -436,7 +437,7 @@ namespace Izing
 		d_ln_k_AB = sqrt(d_ln_k_AB);
 
 		if(verbose){
-			printf("-ln(k_AB * [1 step]) = (%lf +- %lf)\n", - ln_k_AB, d_ln_k_AB);
+			printf("-log10(k_AB * [1 step]) = (%lf +- %lf)\n", - ln_k_AB / log(10), d_ln_k_AB / log(10));
 			if(verbose >= 2){
 				int N_last_elements_to_print = 10;
 				printf("Nt_total = %d\n", Nt_total);
@@ -453,7 +454,7 @@ namespace Izing
 
 	double process_step(int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int *Nt, int *OP_arr_len,
 						int N_init_states, int N_next_states, int L, double Temp, double h, int OP_0, int OP_next,
-						int interfaces_mode, char default_spin_state, int verbose)
+						int interfaces_mode, int default_spin_state, int verbose)
 	/**
 	 *
 	 * @param init_states - are assumed to contain 'N_init_states * state_size_in_bytes' ints representing states to start simulations from
@@ -536,7 +537,7 @@ namespace Izing
 
 	int run_state(int *s, int L, double Temp, double h, int OP_0, int OP_next, double **E, int **M, int **biggest_cluster_sizes, int **h_A,
 				  int *cluster_element_inds, int *cluster_sizes, int *is_checked, int *Nt, int *OP_arr_len,
-				  int interfaces_mode, char default_spin_state, int verbose, int Nt_max, int* states_to_save,
+				  int interfaces_mode, int default_spin_state, int verbose, int Nt_max, int* states_to_save,
 				  int *N_states_saved, int N_states_to_save,  int OP_min_save_state, int OP_max_save_state, int OP_A, int OP_B)
 	/**
 	 *	Run state saving states in (OP_min_save_state, OP_max_save_state) and saving OPs for the whole (OP_0; OP_next)
@@ -588,7 +589,7 @@ namespace Izing
 
 //		double Emin = -(2 + abs(h)) * L2;
 //		double Emax = 2 * L2;
-//		char default_spin_state = sgn(h);
+//		int default_spin_state = sgn(h);
 		double E_tolerance = 1e-3;   // J=1
 		int Nt_for_numerical_error = int(1e13 * E_tolerance / L2);
 		// the error accumulates, so we need to recompute form scratch time to time
@@ -744,7 +745,7 @@ namespace Izing
 
 	int run_bruteforce_C(int L, double Temp, double h, int N_states, int *states,
 						 int *OP_arr_len, int *Nt, double **E, int **M, int **biggest_cluster_sizes, int **h_A,
-						 int interface_mode, char default_spin_state,
+						 int interface_mode, int default_spin_state,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state,
 						 int N_spins_up_init, int verbose, int Nt_max)
@@ -781,7 +782,7 @@ namespace Izing
 		int restart_state_ID;
 
 		if(verbose){
-			printf("running brute-force:\nL=%d  T=%lf  h=%lf  OP_mode=%d  OP\\in[%d;%d]  N_states_to_gen=%d  Nt_max=%d  verbose=%d\n", L, Temp, h, interface_mode, OP_min_stop_state, OP_max_stop_state, N_states, Nt_max, verbose);
+			printf("running brute-force:\nL=%d  T=%lf  h=%lf  OP_mode=%d  OP\\in(%d;%d]  N_states_to_gen=%d  Nt_max=%d  verbose=%d\n", L, Temp, h, interface_mode, OP_min_stop_state, OP_max_stop_state, N_states, Nt_max, verbose);
 			printf("N_spins_up_init:%d, OP_min_stop_statep:%d, OP_min_save_state:%d, OP_max_save_state:%d, OP_max_stop_state:%d\n", N_spins_up_init, OP_min_stop_state, OP_min_save_state, OP_max_save_state, OP_max_stop_state);
 		}
 
@@ -813,7 +814,7 @@ namespace Izing
 	}
 
 	int get_init_states_C(int L, double Temp, double h, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
-						  int interface_mode, char default_spin_state, double **E, int **M, int **biggest_cluster_size, int **h_A,
+						  int interface_mode, int default_spin_state, double **E, int **M, int **biggest_cluster_size, int **h_A,
 						  int *Nt, int *OP_arr_len, int verbose)
 	/**
 	 *

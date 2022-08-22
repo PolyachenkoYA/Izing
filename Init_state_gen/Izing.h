@@ -13,9 +13,9 @@
 
 namespace py = pybind11;
 
-#define N_interface_modes 2
 #define mode_ID_M 0
 #define mode_ID_CS 1
+#define N_interface_modes 2
 
 namespace Izing
 {
@@ -47,24 +47,24 @@ namespace Izing
 
 	int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, int *Nt,
 				  int *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
-				  int **biggest_cluster_sizes, int verbose, int init_gen_mode, int interface_mode, char default_spin_state);
+				  int **biggest_cluster_sizes, int verbose, int init_gen_mode, int interface_mode, int default_spin_state);
 	int run_bruteforce_C(int L, double Temp, double h, int N_states, int *states,
 						 int *OP_arr_len, int *Nt, double **E, int **M, int **biggest_cluster_sizes, int **h_A,
-						 int interface_mode, char default_spin_state,
+						 int interface_mode, int default_spin_state,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state,
 						 int N_spins_up_init, int verbose, int Nt_max);
 	double process_step(int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int *Nt, int *OP_arr_len,
 						int N_init_states, int N_next_states, int L, double Temp, double h, int OP_0, int OP_next,
-						int interfaces_mode, char default_spin_state, int verbose);
+						int interfaces_mode, int default_spin_state, int verbose);
 	int run_state(int *s, int L, double Temp, double h, int OP_0, int OP_next,
 				  double **E, int **M, int **biggest_cluster_sizes, int **h_A,
 				  int *cluster_element_inds, int *cluster_sizes, int *is_checked, int *Nt, int *OP_arr_len,
-				  int interfaces_mode, char default_spin_state, int verbose, int Nt_max=-1, int* states_to_save=nullptr,
+				  int interfaces_mode, int default_spin_state, int verbose, int Nt_max=-1, int* states_to_save=nullptr,
 				  int *N_states_saved=nullptr, int N_states_to_save=-1,  int OP_min_save_state=0, int OP_max_save_state=0,
 				  int OP_A=0, int OP_B=0);
 	int get_init_states_C(int L, double Temp, double h, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
-						  int interface_mode, char default_spin_state, double **E, int **M, int **biggest_cluster_size, int **h_A,
+						  int interface_mode, int default_spin_state, double **E, int **M, int **biggest_cluster_size, int **h_A,
 						  int *Nt, int *OP_arr_len, int verbose);
 
 	int init_rand_C(int my_seed);
