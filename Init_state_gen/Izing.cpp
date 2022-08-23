@@ -274,7 +274,7 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 		printf("FFS core done\nNt: ");
 	}
 	int Nt_total = 0;
-	for(i = 0; i < N_OP_interfaces + 1; ++i) {
+	for(i = 0; i < N_OP_interfaces; ++i) {
 		if(verbose >= 2){
 			printf("%d ", Nt_ptr[i]);
 		}
@@ -314,9 +314,6 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 
 		if(verbose >= 2){
 			printf("data copied\n", Nt_total);
-		}
-
-		if(verbose >= 2){
 			printf("internal memory for EM freed\n");
 			Izing::print_E(E_ptr, Nt_total < 10 ? Nt_total : 10, 'P');
 			Izing::print_M(M_ptr, Nt_total < 10 ? Nt_total : 10, 'P');
@@ -563,7 +560,7 @@ namespace Izing
 	{
 		int L2 = L*L;
 		int state_size_in_bytes = sizeof(int) * L2;
-		double OP_current;
+		int OP_current;
 		int M_current = comp_M(s, L); // remember the 1st M;
 		double E_current = comp_E(s, L, h); // remember the 1st energy;
 		int N_clusters_current = L2;   // so that all uninitialized cluster_sizes are set to 0

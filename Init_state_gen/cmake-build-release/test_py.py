@@ -146,39 +146,40 @@ def flip_M(M, L2, interface_mode):
 def get_sigmoid_fit(PB, d_PB, m, h, xi=5, fit_w=0.1):
 	PB_sigmoid = -np.log(1 / PB - 1)
 	d_PB_sigmoid = d_PB / (PB * (1 - PB))
-	small_m_inds = (-fit_w - h * xi < m) & (m < fit_w - h * xi)
-	fit1 = np.polyfit(m[small_m_inds], PB_sigmoid[small_m_inds], 1, w=1/d_PB_sigmoid[small_m_inds])
-	m0 = - fit1[1] / fit1[0]
+	linfit_inds = (-fit_w - h * xi < m) & (m < fit_w - h * xi)
+	linfit = np.polyfit(m[linfit_inds], PB_sigmoid[linfit_inds], 1, w=1/d_PB_sigmoid[linfit_inds])
+	m0 = - linfit[1] / linfit[0]
 	
-	return PB_sigmoid, d_PB_sigmoid, small_m_inds, fit1, m0
+	return PB_sigmoid, d_PB_sigmoid, linfit, linfit_inds, m0
 
-def plot_PB_AB(ax, ax_log, ax_sgm, h, m, PB, d_PB, title, clr=None, N_fine_points=1000):
-	PB_sgm, d_PB_sgm, small_m_inds, fit1, m0 = get_sigmoid_fit(PB, d_PB, m, h)
+def plot_PB_AB(ax, ax_log, ax_sgm, h, title, m, PB, d_PB=None, PB_sgm=None, d_PB_sgm=None, linfit=None, linfit_inds=None, m0=None, d_m0=None, clr=None, N_fine_points=-10):
 	ax_log.errorbar(m, PB, yerr=d_PB, fmt='.', label='$' + title + '$', color=clr)
+	
+	m_near_m0 = m[linfit_inds]
+	m0_str = 'm_0 = ' + (my.f2s(m0) if(d_m0 is None) else my.errorbar_str(m0, d_m0))
 	ax.errorbar(m, PB, yerr=d_PB, fmt='.', label='$' + title + '$', color=clr)
-	ax_sgm.errorbar(m, PB_sgm, yerr=d_PB_sgm, fmt='.', label='$' + title + '$', color=clr)
-	x_draw = m[small_m_inds]
-	ax_sgm.plot(x_draw, np.polyval(fit1, x_draw), label='$m_0 = ' + my.f2s(m0) + '$', color=clr)
+	if(linfit is not None):
+		ax.plot(m_near_m0, 1 / (1 + np.exp((m0 - m_near_m0) * linfit[0])), label='$' + m0_str + '$', color=clr)
+	
+	if(PB_sgm is not None):
+		ax_sgm.errorbar(m, PB_sgm, yerr=d_PB_sgm, fmt='.', label='$' + title + '$', color=clr)
+		ax_sgm.plot(m_near_m0, np.polyval(linfit, m_near_m0), label='$' + m0_str + '$', color=clr)
+	# if(N_fine_points < 0):
+		# N_fine_points = int(-(max(m) - min(m)) / min(m[1:] - m[:-1]) * N_fine_points)
 	#m_fine = np.linspace(min(m), max(m), N_fine_points)
 	#ax_PB.plot(m_AB_fine[:-1], PB_opt_fnc(m_AB_fine[:-1]), label='$P_{B, fit}$', color=my.get_my_color(1))
 	#ax_PB_log.plot(m_AB_fine[:-1], PB_opt_fnc(m_AB_fine[:-1]), label='$P_{B, fit}$', color=my.get_my_color(1))
 	#ax_PB_sigmoid.plot(m_AB_fine[:-1], -np.log(PB_fit_b / (PB_opt_fnc(m_AB_fine[:-1]) - PB_fit_a) - 1), label='$P_{B, fit}$', color=my.get_my_color(1))
 
-	return PB_sgm, d_PB_sgm, small_m_inds, fit1, m0
-
-def mark_PB_plot(ax, ax_log, ax_sgm, m, PB, interface_mode):
-	PB_sgm = -np.log(1/PB - 1)
-	
+def mark_PB_plot(ax, ax_log, ax_sgm, m, PB, PB_sgm, interface_mode):
 	ax_log.plot([min(m), max(m)], [1/2] * 2, '--', label='$P = 1/2$')
-	if(interface_mode == 'M'):
-		ax_log.plot([0] * 2, [min(PB), 1], '--', label='$m = 0$')
-	
 	ax.plot([min(m), max(m)], [1/2] * 2, '--', label='$P = 1/2$')
-	if(interface_mode == 'M'):
-		ax.plot([0] * 2, [0, 1], '--', label='$m = 0$')
-	
 	ax_sgm.plot([min(m), max(m)], [0] * 2, '--', label='$P = 1/2$')
-	ax_sgm.plot([0] * 2, [min(PB_sgm), max(PB_sgm)], '--', label='$m = 0$')
+	
+	if(interface_mode == 'M'):
+		ax_sgm.plot([0] * 2, [min(PB_sgm), max(PB_sgm)], '--', label='$m = 0$')
+		ax_log.plot([0] * 2, [min(PB), 1], '--', label='$m = 0$')
+		ax.plot([0] * 2, [0, 1], '--', label='$m = 0$')
 
 def proc_FFS(L, Temp, h, \
 			N_init_states_AB, N_init_states_BA, \
@@ -252,13 +253,15 @@ def proc_FFS(L, Temp, h, \
 	M_sample_BF_B_to = flip_M(M_sample_BF_B_to, L2, interface_mode)
 	M_match_BF_B_to = flip_M(M_match_BF_B_to, L2, interface_mode)
 
-	probs_AB, d_probs_AB, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, rho_AB, d_rho_AB, M_hist_centers_AB, M_hist_lens_AB = \
-		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, M_sample_BF_A_to, M_match_BF_A_to, \
+	probs_AB, d_probs_AB, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, rho_AB, d_rho_AB, M_hist_centers_AB, M_hist_lens_AB, \
+		PB, d_PB, PB_sigmoid, d_PB_sigmoid, linfit_AB, linfit_AB_inds, m0_AB = \
+			proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, M_sample_BF_A_to, M_match_BF_A_to, \
 					interface_mode, def_spin_state, \
 					init_gen_mode=init_gen_mode, to_get_EM=True, verbose=verbose)
 	
-	probs_BA, d_probs_BA, ln_k_BA, d_ln_k_BA, flux0_BA, d_flux0_BA, rho_BA, d_rho_BA, M_hist_centers_BA, M_hist_lens_BA = \
-		proc_FFS_AB(L, Temp, -h, N_init_states_BA, M_interfaces_BA, M_sample_BF_B_to, M_match_BF_B_to, \
+	probs_BA, d_probs_BA, ln_k_BA, d_ln_k_BA, flux0_BA, d_flux0_BA, rho_BA, d_rho_BA, M_hist_centers_BA, M_hist_lens_BA, \
+		PA, d_PA, PA_sigmoid, d_PA_sigmoid, linfit_BA, linfit_BA_inds, m0_BA= \
+			proc_FFS_AB(L, Temp, -h, N_init_states_BA, M_interfaces_BA, M_sample_BF_B_to, M_match_BF_B_to, \
 					interface_mode, def_spin_state, \
 					init_gen_mode=init_gen_mode, to_get_EM=True, verbose=verbose)
 	
@@ -267,11 +270,18 @@ def proc_FFS(L, Temp, h, \
 	d_probs_BA = np.flip(d_probs_BA)
 	rho_BA = np.flip(rho_BA)
 	d_rho_BA = np.flip(d_rho_BA)
-	M_hist_centers_BA = flip_M(M_hist_centers_BA, L2, interface_mode)
-	M_interfaces_BA = flip_M(M_interfaces_BA, L2, interface_mode)
-		
 	M_hist_lens_BA = np.flip(M_hist_lens_BA)
 	N_init_states_BA = np.flip(N_init_states_BA)
+	PA = np.flip(PA)
+	d_PA = np.flip(d_PA)
+	PA_sigmoid = np.flip(PA_sigmoid)
+	d_PA_sigmoid = np.flip(d_PA_sigmoid)
+	linfit_BA_inds = np.flip(linfit_BA_inds)
+	linfit_BA[0] = -linfit_BA[0]   #   y -> -y   ==>   k -> -k;   b -> -b
+
+	M_hist_centers_BA = flip_M(M_hist_centers_BA, L2, interface_mode)
+	M_interfaces_BA = flip_M(M_interfaces_BA, L2, interface_mode)
+	m0_BA = flip_M(m0_BA, L2, interface_mode)
 	
 	#assert(np.all(abs(M_hist_centers_AB - M_hist_centers_BA) < 1 / L**2 * 1e-3))
 	#assert(np.all(abs(M_hist_lens_AB - M_hist_lens_BA) < 1 / L**2 * 1e-3))
@@ -326,7 +336,8 @@ def proc_FFS(L, Temp, h, \
 		ax_F.errorbar(m, F, yerr=d_F, fmt='.', label='FFS data')
 		ax_F.legend()
 	
-	return F, d_F, m, m_lens, rho_fnc, d_rho_fnc, probs_AB, d_probs_AB, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, probs_BA, d_probs_BA, ln_k_BA, d_ln_k_BA, flux0_BA, d_flux0_BA
+	return F, d_F, m, m_lens, rho_fnc, d_rho_fnc, probs_AB, d_probs_AB, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, probs_BA, d_probs_BA, ln_k_BA, d_ln_k_BA, flux0_BA, d_flux0_BA, \
+			PB, d_PB, PA, d_PA, PB_sigmoid, d_PB_sigmoid, PA_sigmoid, d_PA_sigmoid, linfit_AB, linfit_BA, linfit_AB_inds, linfit_BA_inds, m0_AB, m0_BA
 
 # def get_intermediate_vals(x0, s, x1, x2, p1, p2):
 	# y1 = np.exp((x0 - x1) / s) + 1
@@ -406,7 +417,7 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 	#P_B_opt, P_B_opt_fnc, P_B_opt_fnc_inv = PB_fit_optimize(P_B[:-1], d_P_B[:-1], m[:-1], m[0], m[-1], P_B[0], P_B[-1], tht0=[0, 0.15])
 	#P_B_x0_opt = P_B_opt.x[0]
 	#P_B_s_opt = P_B_opt.x[1]
-	P_B_sigmoid, d_P_B_sigmoid, small_m_inds, fit1, m0 = \
+	P_B_sigmoid, d_P_B_sigmoid, linfit, linfit_inds, m0 = \
 		get_sigmoid_fit(P_B[:-1], d_P_B[:-1], m[:-1], h)
 	
 	M_optimize_f_interp_vals = 1 - np.log(P_B) / np.log(P_B[0])
@@ -559,16 +570,11 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 			fig_PB, ax_PB = my.get_fig(y_lbl, r'$P_B(' + x_lbl + ') = P(i|0)$', title=r'$P_B(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
 			fig_PB_sgm, ax_PB_sgm = my.get_fig(y_lbl, r'$-\ln(1/P_B - 1)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
 			
-			mark_PB_plot(ax_PB, ax_PB_log, ax_PB_sgm, m, P_B[:-1], interface_mode)
-			plot_PB_AB(ax_PB, ax_PB_log, ax_PB_sgm, h, m[:-1], P_B[:-1], d_P_B[:-1], 'P_B')
+			mark_PB_plot(ax_PB, ax_PB_log, ax_PB_sgm, m, P_B[:-1], P_B_sigmoid, interface_mode)
+			plot_PB_AB(ax_PB, ax_PB_log, ax_PB_sgm, h, 'P_B', m[:-1], P_B[:-1], d_PB=d_P_B[:-1], PB_sgm=P_B_sigmoid, d_PB_sgm=d_P_B_sigmoid, linfit=linfit, linfit_inds=linfit_inds, m0=m0)
 			ax_PB_log.legend()
 			ax_PB.legend()
 			ax_PB_sgm.legend()
-			
-			#ax_PB_log.errorbar(m, P_B, yerr=d_P_B, fmt='.', label='data')
-			#ax_PB_log.plot(m[:-1], P_B_opt_fnc(m[:-1]), label='fit')
-			#ax_PB.errorbar(m, P_B, yerr=d_P_B, fmt='.', label='data')
-			#ax_PB.plot(m[:-1], P_B_opt_fnc(m[:-1]), label=r'fit; $(x_0, \sigma) = (%s, %s)$' % (my.f2s(P_B_x0_opt), my.f2s(P_B_s_opt)))
 			
 			fig_fl, ax_fl = my.get_fig(y_lbl, r'$1 - \ln[P_B(' + x_lbl + ')] / \ln[P_B(0)] = f(\lambda_i)$', title=r'$f(\lambda_i)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
 			fig_fl_i, ax_fl_i = my.get_fig(r'$index(' + x_lbl + '_i)$', r'$1 - \ln[P_B(' + x_lbl + '_i)] / \ln[P_B(0)] = f(\lambda_i)$', title=r'$f(\lambda_i)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
@@ -594,11 +600,12 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 			ax_F = None
 			ax_Mhists = None
 			
-		return ln_k_AB, d_ln_k_AB, rho, d_rho, M_hist_centers, M_hist_lens, \
+		return ln_k_AB, d_ln_k_AB, P_B, d_P_B, P_B_sigmoid, d_P_B_sigmoid, linfit, linfit_inds, m0, \
+				rho, d_rho, M_hist_centers, M_hist_lens, \
 				ax_M, ax_Mhists, ax_F, ax_PB_log, ax_PB, ax_fl, ax_fl_i
 	
 	else:
-		return ln_k_AB, d_ln_k_AB
+		return ln_k_AB, d_ln_k_AB, P_B, d_P_B, P_B_sigmoid, d_P_B_sigmoid, linfit, linfit_inds, m0
 
 def proc_FFS_AB(L, Temp, h, N_init_states, OP_interfaces, OP_sample_BF_to, OP_match_BF_to, 
 				interface_mode, def_spin_state, verbose=None, to_get_EM=False, \
@@ -632,7 +639,8 @@ def proc_FFS_AB(L, Temp, h, N_init_states, OP_interfaces, OP_sample_BF_to, OP_ma
 	assert(OP_interfaces[0] < OP_match_BF_to), 'ERROR: OP_interfaces start at %d, but the state is match to BF only through %d' % (OP_interfaces[0], OP_match_BF_to)
 	assert(OP_match_BF_to < OP_sample_BF_to), 'ERROR: OP_match_to = %d >= OP_sample_to = %d' % (OP_match_BF_to, OP_sample_BF_to)
 	
-	ln_k_AB, d_ln_k_AB, rho, d_rho, M_hist_centers, M_hist_lens, \
+	ln_k_AB, d_ln_k_AB, P_B, d_P_B, P_B_sigmoid, d_P_B_sigmoid, linfit, linfit_inds, m0, \
+		rho, d_rho, M_hist_centers, M_hist_lens, \
 		ax_M, ax_Mhists, ax_F, ax_PB_log, ax_PB, ax_fl, ax_fl_i = \
 			proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, OP_interfaces, N_init_states, \
 						interface_mode, def_spin_state, OP_match_BF_to=OP_match_BF_to, \
@@ -641,7 +649,8 @@ def proc_FFS_AB(L, Temp, h, N_init_states, OP_interfaces, OP_sample_BF_to, OP_ma
 						to_plot_time_evol=to_plot_time_evol, to_plot_hists=to_plot_hists, stride=EM_stride, \
 						x_lbl=feature_label[interface_mode], y_lbl=title[interface_mode], Ms_alpha=Ms_alpha)
 	
-	return probs, d_probs, ln_k_AB, d_ln_k_AB, flux0, d_flux0, rho, d_rho, M_hist_centers, M_hist_lens
+	return probs, d_probs, ln_k_AB, d_ln_k_AB, flux0, d_flux0, rho, d_rho, M_hist_centers, M_hist_lens, \
+			P_B, d_P_B, P_B_sigmoid, d_P_B_sigmoid, linfit, linfit_inds, m0
 
 def exp_integrate(x, f):
 	# integrates \int_{exp(f(x))dx}
@@ -931,9 +940,23 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 	elif(mode == 'FFS'):
 		flux0_AB_data = np.empty(N_runs) 
 		flux0_BA_data = np.empty(N_runs)
+		m0_AB_data = np.empty(N_runs) 
+		m0_BA_data = np.empty(N_runs)
 		probs_AB_data = np.empty((N_M_interfaces_AB - 1, N_runs))
 		probs_BA_data = np.empty((N_M_interfaces_BA - 1, N_runs))
-
+		PB_AB_data = np.empty((N_M_interfaces_AB, N_runs))
+		PA_BA_data = np.empty((N_M_interfaces_BA, N_runs))
+		d_PB_AB_data = np.empty((N_M_interfaces_AB, N_runs))
+		d_PA_BA_data = np.empty((N_M_interfaces_BA, N_runs))
+		PB_sigmoid_data = np.empty((N_M_interfaces_AB - 1, N_runs))
+		PA_sigmoid_data = np.empty((N_M_interfaces_BA - 1, N_runs))
+		d_PB_sigmoid_data = np.empty((N_M_interfaces_AB - 1, N_runs))
+		d_PA_sigmoid_data = np.empty((N_M_interfaces_BA - 1, N_runs))
+		PB_linfit_data = np.empty((2, N_runs))
+		PA_linfit_data = np.empty((2, N_runs))
+		PB_linfit_inds_data = np.empty((N_M_interfaces_BA - 1, N_runs), dtype=bool)
+		PA_linfit_inds_data = np.empty((N_M_interfaces_BA - 1, N_runs), dtype=bool)
+	
 	for i in range(N_runs):
 		izing.init_rand(i + old_seed)
 		if(mode == 'BF'):
@@ -951,8 +974,13 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 			ln_k_BA_data[i] = np.log(k_BA_BF * 1)
 		elif(mode == 'FFS'):
 			F_data[:, i], d_F_data[:, i], M_hist_centers_new, M_hist_lens_new, rho_fncs[i], d_rho_fncs[i], probs_AB_data[:, i], _, \
-			ln_k_AB_data[i], _, flux0_AB_data[i], _, probs_BA_data[:, i], _, ln_k_BA_data[i], _, flux0_BA_data[i], _ = \
-				proc_FFS(L, Temp, h, \
+				ln_k_AB_data[i], _, flux0_AB_data[i], _, probs_BA_data[:, i], _, ln_k_BA_data[i], _, flux0_BA_data[i], _, \
+				PB_AB_data[:, i], d_PB_AB_data[:, i], PA_BA_data[:, i], d_PA_BA_data[:, i], \
+				PB_sigmoid_data[:, i], d_PB_sigmoid_data[:, i], PA_sigmoid_data[:, i], d_PA_sigmoid_data[:, i], \
+				PB_linfit_data[:, i], PA_linfit_data[:, i], \
+				PB_linfit_inds_data[:, i], PA_linfit_inds_data[:, i], \
+				m0_AB_data[i], m0_BA_data[i] = \
+					proc_FFS(L, Temp, h, \
 						N_init_states_AB, N_init_states_BA, \
 						M_interfaces_AB, M_interfaces_BA, \
 						M_sample_BF_A_to, M_sample_BF_B_to, \
@@ -985,20 +1013,10 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 		
 		flux0_AB, d_flux0_AB = get_average(flux0_AB_data, mode='log')
 		flux0_BA, d_flux0_BA = get_average(flux0_BA_data, mode='log')
+		m0_AB, d_m0_AB = get_average(m0_AB_data)
+		m0_BA, d_m0_BA = get_average(m0_BA_data)
 		probs_AB, d_probs_AB = get_average(probs_AB_data, mode='log', axis=1)
 		probs_BA, d_probs_BA = get_average(probs_BA_data, mode='log', axis=1)
-		
-		PB_AB_data = np.empty((N_M_interfaces_AB, N_runs))
-		PA_BA_data = np.empty((N_M_interfaces_BA, N_runs))
-		PB_AB_data[N_M_interfaces_AB - 1, :] = 1
-		PA_BA_data[0, :] = 1
-		for i in range(N_M_interfaces_AB - 2, -1, -1):
-			PB_AB_data[i, :] =  PB_AB_data[i + 1, :] * probs_AB_data[i, :]   
-			# np.prod(probs_AB_data[(i + 1):(N_M_interfaces_AB), :], axis=0)
-		for i in range(0, N_M_interfaces_BA - 1, 1):
-			PA_BA_data[i + 1, :] = PA_BA_data[i, :] * probs_AB_data[i, :]
-			#PA_BA_data[i + 1, :] = np.prod(probs_BA_data[:(i + 1), :], axis=0)
-			
 		PB_AB, d_PB_AB = get_average(PB_AB_data, mode='log', axis=1)
 		PA_BA, d_PA_BA = get_average(PA_BA_data, mode='log', axis=1)
 		
@@ -1022,22 +1040,10 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 		#d_PA_sigmoid = d_PA_BA[1:] * PA_fit_b / ((PA_BA[1:] - PA_fit_a) * (PA_fit_b - PA_BA[1:] + PA_fit_a))
 
 		# =========================== 2-param sigmoid =======================
-		PB_sigmoid, d_PB_sigmoid, small_m_AB_inds, fit1_AB, m0_AB = \
+		PB_sigmoid, d_PB_sigmoid, linfit_AB, linfit_AB_inds, m0_AB_fit = \
 			get_sigmoid_fit(PB_AB[:-1], d_PB_AB[:-1], m_AB[:-1], h)
-		PA_sigmoid, d_PA_sigmoid, small_m_BA_inds, fit1_BA, m0_BA = \
+		PA_sigmoid, d_PA_sigmoid, linfit_BA, linfit_BA_inds, m0_BA_fit = \
 			get_sigmoid_fit(PA_BA[1:], d_PA_BA[1:], m_BA[1:], h)
-		# PB_sigmoid = -np.log(1 / PB_AB[:-1] - 1)
-		# d_PB_sigmoid = d_PB_AB[:-1] / (PB_AB[:-1] * (1 - PB_AB[:-1]))
-		# PA_sigmoid = -np.log(1 / PA_BA[1:] - 1)
-		# d_PA_sigmoid = d_PA_BA[1:] / (PA_BA[1:] * (1 - PA_BA[1:]))
-		
-		# xi = 5   # shift of the maxima due to 'h'
-		# small_m_AB_inds = (-0.1 - h * xi < m_AB[:-1]) & (m_AB[:-1] < 0.1 - h * xi)
-		# small_m_BA_inds = (-0.1 - h * xi < m_BA[1:]) & (m_BA[1:] < 0.1 - h * xi)
-		# fit1_AB = np.polyfit(m_AB[:-1][small_m_AB_inds], PB_sigmoid[small_m_AB_inds], 1, w=1/d_PB_sigmoid[small_m_AB_inds])
-		# fit1_BA = np.polyfit(m_BA[1:][small_m_BA_inds], PA_sigmoid[small_m_BA_inds], 1, w=1/d_PA_sigmoid[small_m_BA_inds])
-		# m0_AB = - fit1_AB[1] / fit1_AB[0]
-		# m0_BA = - fit1_BA[1] / fit1_BA[0]
 		
 	if(to_plot_k_distr):
 		plot_k_distr(np.exp(ln_k_AB_data) / 1, N_k_bins, 'k_{AB}', units='step')
@@ -1060,20 +1066,29 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 		fig_PB, ax_PB = my.get_fig(title[interface_mode], r'$P_B(' + feature_label[interface_mode] + ') = P(i|0)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
 		fig_PB_sigmoid, ax_PB_sigmoid = my.get_fig(title[interface_mode], r'$-\ln(1/P_B - 1)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
 		
-		mark_PB_plot(ax_PB, ax_PB_log, ax_PB_sigmoid, m, PB_AB, interface_mode)
-		# ax_PB_log.plot([min(m), max(m)], [1/2] * 2, '--', label='$P = 1/2$')
-		# if(interface_mode == 'M'):
-			# ax_PB_log.plot([0] * 2, [min(PB_AB), 1], '--', label='$m = 0$')
-		
-		# ax_PB.plot([min(m), max(m)], [1/2] * 2, '--', label='$P = 1/2$')
-		# if(interface_mode == 'M'):
-			# ax_PB.plot([0] * 2, [0, 1], '--', label='$m = 0$')
-		
-		# ax_PB_sigmoid.plot([min(m), max(m)], [0] * 2, '--', label='$P = 1/2$')
-		# ax_PB_sigmoid.plot([0] * 2, [min(PB_sigmoid), max(PB_sigmoid)], '--', label='$m = 0$')
-		
-		plot_PB_AB(ax_PB, ax_PB_log, ax_PB_sgm, h, m_AB[:-1], PB_AB[:-1], d_PB_AB[:-1], 'P_B', my.get_my_color(1))
-		plot_PB_AB(ax_PB, ax_PB_log, ax_PB_sgm, h, m_BA[1:], PA_BA[1:], d_PA_BA[1:], 'P_A', my.get_my_color(2))
+		mark_PB_plot(ax_PB, ax_PB_log, ax_PB_sigmoid, m, PB_AB, PB_sigmoid, interface_mode)
+		# for i in range(N_runs):
+			# plot_PB_AB(ax_PB, ax_PB_log, ax_PB_sigmoid, h, 'P_{B' + str(i) + '}', m_AB[:-1], PB_AB_data[:-1, i], d_PB=d_PB_AB_data[:-1, i], \
+						# PB_sgm=PB_sigmoid_data[:, i], d_PB_sgm=d_PB_sigmoid_data[:, i], \
+						# linfit=PB_linfit_data[:, i], linfit_inds=PB_linfit_inds_data[:, i], \
+						# m0=m0_AB_data[i], d_m0=None, \
+						# clr=my.get_my_color(-i-1))
+			# plot_PB_AB(ax_PB, ax_PB_log, ax_PB_sigmoid, h, 'P_{A' + str(i) + '}', m_BA[1:], PA_BA_data[1:, i], d_PB=d_PA_BA_data[1:, i], \
+						# PB_sgm=PA_sigmoid_data[:, i], d_PB_sgm=d_PA_sigmoid_data[:, i], \
+						# linfit=PA_linfit_data[:, i], linfit_inds=PA_linfit_inds_data[:, i], \
+						# m0=m0_BA_data[i], d_m0=None, \
+						# clr=my.get_my_color(i+1))
+		plot_PB_AB(ax_PB, ax_PB_log, ax_PB_sigmoid, h, 'P_B', m_AB[:-1], PB_AB[:-1], d_PB=d_PB_AB[:-1], \
+					PB_sgm=PB_sigmoid, d_PB_sgm=d_PB_sigmoid, \
+					linfit=linfit_AB, linfit_inds=linfit_AB_inds, \
+					m0=m0_AB, d_m0=d_m0_AB, \
+					clr=my.get_my_color(1))
+					
+		plot_PB_AB(ax_PB, ax_PB_log, ax_PB_sigmoid, h, 'P_A', m_BA[1:], PA_BA[1:], d_PB=d_PA_BA[1:], \
+					PB_sgm=PA_sigmoid, d_PB_sgm=d_PA_sigmoid, \
+					linfit=linfit_BA, linfit_inds=linfit_BA_inds, \
+					m0=m0_BA, d_m0=d_m0_BA, \
+					clr=my.get_my_color(2))
 		
 		ax_PB_log.legend()
 		ax_PB.legend()
@@ -1212,6 +1227,8 @@ def main():
 		tuple([((int(-n * np.exp(3 - dE_avg/Temp)) + 1) if(n < 0) else n) for n in \
 				[Nt, N_states_FFS]])
 
+	BC_cluster_size = L2 / np.pi
+
 	if(interface_mode == 'M'):
 		M_0 = -L2 + dM_0
 		if(dM_max is None):
@@ -1225,6 +1242,9 @@ def main():
 		dM_max = int(dM_max)
 		M_max = L**2 - dM_max
 
+	if(('compare' in mode) or ('many' in mode)):
+		N_k_bins=int(np.round(np.sqrt(N_runs) / 2) + 1)
+	
 	if('FFS' in mode):
 		M_left = OP_min_default[interface_mode]
 		M_right = OP_max_default[interface_mode] - 1
@@ -1273,7 +1293,7 @@ def main():
 	elif(mode == 'BF_many'):
 		run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, Nt_per_BF_run=Nt, \
 				OP_A=M_0, OP_B=M_max, N_spins_up_init=N_spins_up_init, \
-				to_plot_k_distr=True, N_k_bins=int(np.round(np.sqrt(N_runs) / 2) + 1), \
+				to_plot_k_distr=True, N_k_bins=N_k_bins, \
 				mode='BF')
 	
 	elif(mode == 'FFS_AB'):
@@ -1292,9 +1312,9 @@ def main():
 				to_plot_hists=True)
 		
 	elif(mode == 'FFS_many'):
-		N_k_bins = int(np.round(np.sqrt(N_runs) / 2)) + 1
 		run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
-				M_interfaces_AB, M_interfaces_BA, \
+				M_interfaces_AB=M_interfaces_AB, \
+				M_interfaces_BA=M_interfaces_BA, \
 				M_sample_BF_A_to=M_sample_BF_A_to, M_sample_BF_B_to=M_sample_BF_B_to, \
 				M_match_BF_A_to=M_match_BF_A_to, M_match_BF_B_to=M_match_BF_B_to, \
 				N_init_states_AB=N_init_states_AB, N_init_states_BA=N_init_states_BA, \
@@ -1302,8 +1322,6 @@ def main():
 				init_gen_mode=init_gen_mode)
 	
 	elif(mode in ['FFS_BF_compare', 'BF_FFS_compare']):
-		BC_cluster_size = L2 / np.pi
-		N_k_bins = int(np.round(np.sqrt(N_runs) / 2)) + 1
 		F_FFS, d_F_FFS, M_hist_centers_FFS, M_hist_lens_FFS, ln_k_AB_FFS, d_ln_k_AB_FFS, ln_k_BA_FFS, d_ln_k_BA_FFS, flux0_AB_FFS, d_flux0_AB_FFS, flux0_BA_FFS, d_flux0_BA_FFS, prob_AB_FFS, d_prob_AB_FFS, prob_BA_FFS, d_prob_BA_FFS = \
 			run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 				N_init_states_AB=N_init_states_AB, \
