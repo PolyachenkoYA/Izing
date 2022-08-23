@@ -109,7 +109,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional
 
 	Izing::run_bruteforce_C(L, Temp, h, -1, state_ptr,
 							&OP_arr_len, &Nt, &_E, &_M, &_biggest_cluster_sizes, &_h_A,
-							interface_mode, default_spin_state,
+							interface_mode, default_spin_state, OP_A, OP_B,
 							OP_min, OP_max, &N_states_saved,
 							OP_min,OP_max, N_spins_up_init, verbose, Nt_max);
 
@@ -385,6 +385,7 @@ namespace Izing
 		int *h_A = (int*) malloc(sizeof(int) * h_A_len);
 		get_init_states_C(L, Temp, h, N_init_states[0], states, init_gen_mode,
 						  OP_interfaces[0], interface_mode, default_spin_state,
+						  OP_interfaces[0], OP_interfaces[N_OP_interfaces - 1],
 						  E, M, biggest_cluster_sizes, &h_A, &Nt_total, OP_arr_len,
 						  verbose);
 		Nt[0] = Nt_total;
@@ -742,7 +743,7 @@ namespace Izing
 
 	int run_bruteforce_C(int L, double Temp, double h, int N_states, int *states,
 						 int *OP_arr_len, int *Nt, double **E, int **M, int **biggest_cluster_sizes, int **h_A,
-						 int interface_mode, int default_spin_state,
+						 int interface_mode, int default_spin_state, int OP_A, int OP_B,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state,
 						 int N_spins_up_init, int verbose, int Nt_max)
@@ -796,7 +797,7 @@ namespace Izing
 					  E, M, biggest_cluster_sizes, h_A, cluster_element_inds, cluster_sizes,
 					  is_checked, Nt, OP_arr_len, interface_mode, default_spin_state,
 					  verbose, Nt_max, states, N_states_done, N_states,
-					  OP_min_save_state, OP_max_save_state);
+					  OP_min_save_state, OP_max_save_state, OP_A, OP_B);
 
 			if(N_states > 0) if(*N_states_done >= N_states) break;
 			if(Nt_max > 0) if(*Nt >= Nt_max) break;
@@ -811,7 +812,8 @@ namespace Izing
 	}
 
 	int get_init_states_C(int L, double Temp, double h, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
-						  int interface_mode, int default_spin_state, double **E, int **M, int **biggest_cluster_size, int **h_A,
+						  int interface_mode, int default_spin_state, int OP_A, int OP_B,
+						  double **E, int **M, int **biggest_cluster_size, int **h_A,
 						  int *Nt, int *OP_arr_len, int verbose)
 	/**
 	 *
@@ -855,7 +857,7 @@ namespace Izing
 //			int Nt = 0;
 			run_bruteforce_C(L, Temp, h, N_init_states, init_states,
 							 nullptr, Nt, nullptr, nullptr, nullptr, nullptr,
-							 interface_mode, default_spin_state,
+							 interface_mode, default_spin_state, 0, 0,
 							 OP_min_default[interface_mode], OP_peak_default[interface_mode] + (L2 / 20) * 2,
 							 &N_states_done, OP_min_default[interface_mode], OP_thr_save_state, -1,
 							 verbose, -1);
@@ -864,7 +866,7 @@ namespace Izing
 //			int Nt = 0;
 			run_bruteforce_C(L, Temp, h, N_init_states, init_states,
 							 OP_arr_len, Nt, E, M, biggest_cluster_size, h_A,
-							 interface_mode, default_spin_state,
+							 interface_mode, default_spin_state, OP_A, OP_B,
 							 OP_min_default[interface_mode], OP_max_default[interface_mode],
 							 &N_states_done, OP_thr_save_state - 1, OP_thr_save_state, -1,
 							 verbose, -1);

@@ -50,7 +50,7 @@ namespace Izing
 				  int **biggest_cluster_sizes, int verbose, int init_gen_mode, int interface_mode, int default_spin_state);
 	int run_bruteforce_C(int L, double Temp, double h, int N_states, int *states,
 						 int *OP_arr_len, int *Nt, double **E, int **M, int **biggest_cluster_sizes, int **h_A,
-						 int interface_mode, int default_spin_state,
+						 int interface_mode, int default_spin_state, int OP_A, int OP_B,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state,
 						 int N_spins_up_init, int verbose, int Nt_max);
@@ -64,7 +64,8 @@ namespace Izing
 				  int *N_states_saved=nullptr, int N_states_to_save=-1,  int OP_min_save_state=0, int OP_max_save_state=0,
 				  int OP_A=0, int OP_B=0);
 	int get_init_states_C(int L, double Temp, double h, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
-						  int interface_mode, int default_spin_state, double **E, int **M, int **biggest_cluster_size, int **h_A,
+						  int interface_mode, int default_spin_state, int OP_A, int OP_B,
+						  double **E, int **M, int **biggest_cluster_size, int **h_A,
 						  int *Nt, int *OP_arr_len, int verbose);
 
 	int init_rand_C(int my_seed);

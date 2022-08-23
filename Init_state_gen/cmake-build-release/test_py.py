@@ -9,6 +9,8 @@ import mylib as my
 
 # ========================== general params ==================
 dE_avg = 6   # J
+print_scale_k = 1e5
+print_scale_flux = 1e2
 OP_min_default = {}
 OP_max_default = {}
 OP_peak_default = {}
@@ -84,7 +86,7 @@ def get_OP_hist_edges(interface_mode, OP_min=None, OP_max=None):
 #		4. OP_max = x_max; which reprensenes '...]' interval end
 #		5. 1e-3 * step is to include the last value since python (and numpy) do the ranges in the '(...]' way
 
-def get_log_errors(l, dl, lbl=None, err0=0.3, units='1/step'):
+def get_log_errors(l, dl, lbl=None, err0=0.3, units='1/step', print_scale=1):
 	"""Returns the confidence interval of a log-norm distributed value
 	
 	Parameters
@@ -106,11 +108,13 @@ def get_log_errors(l, dl, lbl=None, err0=0.3, units='1/step'):
 	x_up = np.exp(l + dl)
 	d_x = x * dl
 	
+	print_scale_str = ('' if(print_scale == 1) else ('%1.1e' % (1/print_scale)))
+	
 	if(lbl is not None):
 		if(dl > err0):
-			print(lbl + ' \\in [' + '; '.join(my.same_scale_strs([x_low, x_up], x_to_compare_to=[x_up - x_low])) + '] ' + units + ' with ~68% prob')
+			print(lbl + '   \\in   [' + '; '.join(my.same_scale_strs([x_low * print_scale, x_up * print_scale], x_to_compare_to=[(x_up - x_low) * print_scale])) + ']' + print_scale_str + '  ' + units + '  with ~68% prob')
 		else:
-			print('%s = (%s) %s, dx/x ~ %s' % (lbl, my.errorbar_str(x, d_x), units, my.f2s(dl, 2)))
+			print('%s   =   (%s)%s  %s,    dx/x ~ %s' % (lbl, my.errorbar_str(x * print_scale, d_x * print_scale), print_scale_str, units, my.f2s(dl, 2)))
 	
 	return x, x_low, x_up, d_x
 
@@ -143,7 +147,7 @@ def flip_M(M, L2, interface_mode):
 	elif(interface_mode == 'CS'):
 		return L2 - np.flip(M)
 
-def get_sigmoid_fit(PB, d_PB, m, m0_guess=0, fit_w=0.1):
+def get_sigmoid_fit(PB, d_PB, m, m0_guess=0, fit_w=0.15):
 	PB_sigmoid = -np.log(1 / PB - 1)
 	d_PB_sigmoid = d_PB / (PB * (1 - PB))
 	linfit_inds = (m0_guess - fit_w < m) & (m < m0_guess + fit_w)
@@ -166,7 +170,9 @@ def plot_PB_AB(ax, ax_log, ax_sgm, h, title, m, PB, d_PB=None, PB_sgm=None, d_PB
 		N_fine_points_near_m0 = N_fine_points if(N_fine_points > 0) else int(-(max(m_near_m0) - min(m_near_m0)) / min(m_near_m0[1:] - m_near_m0[:-1]) * N_fine_points)
 		m_near_m0_fine = np.linspace(min(m_near_m0), max(m_near_m0), N_fine_points_near_m0)
 		if(linfit is not None):
-			ax.plot(m_near_m0_fine, 1 / (1 + np.exp((m0 - m_near_m0_fine) * linfit[0])), label='$' + m0_str + '$', color=clr)
+			sigmoid_points_near_m0 = 1 / (1 + np.exp((m0 - m_near_m0_fine) * linfit[0]))
+			ax.plot(m_near_m0_fine, sigmoid_points_near_m0, label='$' + m0_str + '$', color=clr)
+			ax_log.plot(m_near_m0_fine, sigmoid_points_near_m0, label='$' + m0_str + '$', color=clr)
 	
 	if(PB_sgm is not None):
 		ax_sgm.errorbar(m, PB_sgm, yerr=d_PB_sgm, fmt='.', label='$' + title + '$', color=clr)
@@ -405,11 +411,7 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, d_probs, M_inter
 	print('flux0 = (%s) 1/step' % (my.errorbar_str(flux0, d_flux0)))
 	print('-log10(P):', -np.log(probs) / np.log(10))
 	print('d_P / P:', d_probs / probs)
-	k_AB, k_AB_low, k_AB_up, d_k_AB = get_log_errors(ln_k_AB, d_ln_k_AB, lbl='k_AB')
-	# if(d_ln_k_AB > 0.3):
-		# print('k_AB \\in [' + '; '.join(my.same_scale_strs([k_AB_low, k_AB_up], x_to_compare_to=[k_AB_up - k_AB_low])) + '] 1/step with 68% prob')
-	# else:
-		# print('k_AB = (%s) 1/step' % my.errorbar_str(k_AB, k_AB * d_ln_k_AB))
+	k_AB, k_AB_low, k_AB_up, d_k_AB = get_log_errors(ln_k_AB, d_ln_k_AB, lbl='k_AB', print_scale=print_scale_k)
 	
 	m = M_interfaces / OP_scale[interface_mode]
 	
@@ -693,7 +695,7 @@ def exp2_integrate(fit2, x1):
 	return np.exp(c) / 2 * np.sqrt(np.pi / np.abs(a)) * (scipy.special.erfi(dx) if(a > 0) else scipy.special.erf(dx))
 
 def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, m_peak_guess, m_fit2_width, \
-						 x_lbl=None, y_lbl=None, verbose=None, to_estimate_k=False, hA=None, \
+						 x_lbl=None, y_lbl=None, verbose=None, to_estimate_k=False, hA=None, m_A=None, m_B=None, \
 						 to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, stride=1):
 	Nt = len(m)
 	steps = np.arange(Nt)
@@ -745,6 +747,7 @@ def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, 
 		assert(hA is not None), 'ERROR: k estimation is requested in BF, but no hA provided'
 		#k_AB_ratio = np.sum(hA > 0.5) / np.sum(hA < 0.5)
 		hA_jump = hA[1:] - hA[:-1]   # jump > 0 => {0->1} => from B to A => k_BA ==> k_ratio = k_BA / k_AB
+		jump_inds = np.where(hA_jump != 0)[0]
 
 		N_AB_jumps = np.sum(hA_jump < 0)
 		k_AB = N_AB_jumps / np.sum(hA > 0.5)
@@ -769,6 +772,8 @@ def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, 
 		k_bc_AB = (np.mean(abs(m_hist_centers[m_peak_ind + 1] - m_hist_centers[m_peak_ind - 1]))/2 / 2) * (np.exp(-F_max / Temp) / bc_Z_AB)
 		k_bc_BA = (np.mean(abs(m_hist_centers[m_peak_ind + 1] - m_hist_centers[m_peak_ind - 1]))/2 / 2) * (np.exp(-F_max / Temp) / bc_Z_BA)
 		
+		get_log_errors(np.log(k_AB), d_k_AB / k_AB, lbl='k_AB_BF', print_scale=print_scale_k)
+		get_log_errors(np.log(k_BA), d_k_BA / k_BA, lbl='k_BA_BF', print_scale=print_scale_k)
 	else:
 		k_AB = None
 		d_k_AB = None
@@ -780,27 +785,36 @@ def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, 
 	if(to_plot_time_evol):
 		fig_m, ax_m = my.get_fig('step', y_lbl, title='$' + x_lbl + '$(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
 		ax_m.plot(steps[::stride], m[::stride], label='data')
-		ax_m.plot([stab_step] * 2, [min(m), max(m)], label='equilibr')
-		ax_m.plot([stab_step, Nt], [m_mean] * 2, label=('$<' + x_lbl + '> = ' + my.errorbar_str(m_mean, d_m_mean) + '$'))
+		ax_m.plot([stab_step] * 2, [min(m), max(m)], '--', label='equilibr')
+		ax_m.plot([stab_step, Nt], [m_mean] * 2, '--', label=('$<' + x_lbl + '> = ' + my.errorbar_str(m_mean, d_m_mean) + '$'))
+		if(to_estimate_k):
+			ax_m.plot([0, Nt], [m_A] * 2, '--', label='state A, B', color=my.get_my_color(1))
+			ax_m.plot([0, Nt], [m_B] * 2, '--', label=None, color=my.get_my_color(1))
 		ax_m.legend()
 		
 		fig_hA, ax_hA = my.get_fig('step', '$h_A$', title='$h_{A, ' + x_lbl + '}$(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
-		ax_hA.plot(steps[::stride], hA[::stride], label='data')
+		ax_hA.plot(steps[::stride], hA[::stride], label='$h_A$')
+		ax_hA.plot(steps[jump_inds+1], hA_jump[jump_inds], '.', label='$h_A$ jumps')
 		ax_hA.legend()
 
-		print('k_' + x_lbl + '_AB    =    (' + my.errorbar_str(k_AB, d_k_AB) + ')    (1/step);    dk/k =', my.f2s(d_k_AB / k_AB))
-		print('k_' + x_lbl + '_BA    =    (' + my.errorbar_str(k_BA, d_k_BA) + ')    (1/step);    dk/k =', my.f2s(d_k_BA / k_BA))
+		#print('k_' + x_lbl + '_AB    =    (' + my.errorbar_str(k_AB, d_k_AB) + ')    (1/step);    dk/k =', my.f2s(d_k_AB / k_AB))
+		#print('k_' + x_lbl + '_BA    =    (' + my.errorbar_str(k_BA, d_k_BA) + ')    (1/step);    dk/k =', my.f2s(d_k_BA / k_BA))
 	else:
 		ax_m = None
 	
 	if(to_plot_F):
 		fig_mhist, ax_m_hist = my.get_fig(y_lbl, r'$\rho(' + x_lbl + ')$', title=r'$\rho(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-		ax_m_hist.bar(m_hist_centers, rho, yerr=d_rho, width=m_hist_lens, align='center')
-		#ax_m_hist.legend()
+		ax_m_hist.bar(m_hist_centers, rho, yerr=d_rho, width=m_hist_lens, label=r'$\rho(' + x_lbl + ')$', align='center')
+		if(to_estimate_k):
+			ax_m_hist.plot([m_A] * 2, [0, max(rho)], '--', label='state A,B', color=my.get_my_color(1))
+			ax_m_hist.plot([m_B] * 2, [0, max(rho)], '--', label=None, color=my.get_my_color(1))
+		ax_m_hist.legend()
 		
 		fig_F, ax_F = my.get_fig(y_lbl, r'$F/J$', title=r'$F(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
 		ax_F.errorbar(m_hist_centers, F, yerr=d_F, fmt='.', label='$F(' + x_lbl + ')$')
 		if(to_estimate_k):
+			ax_F.plot([m_A] * 2, [min(F), max(F)], '--', label='state A, B', color=my.get_my_color(1))
+			ax_F.plot([m_B] * 2, [min(F), max(F)], '--', label=None, color=my.get_my_color(1))
 			ax_F.plot(m_hist_centers[m_fit2_inds], np.polyval(m_fit2, m_hist_centers[m_fit2_inds]), label='fit2; $' + x_lbl + '_0 = ' + my.f2s(m_peak) + '$')
 		
 		if(to_plot_ETS):
@@ -808,8 +822,8 @@ def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dm_step, m_hist_edges, 
 			ax_F.plot(m_hist_centers, S * Temp, '.', label='$T \cdot S(' + x_lbl + ')$')
 		ax_F.legend()
 		
-		print('k_' + x_lbl + '_bc_AB   =   ' + my.f2s(k_bc_AB) + '   (1/step);')
-		print('k_' + x_lbl + '_bc_BA   =   ' + my.f2s(k_bc_BA) + '   (1/step);')
+		print('k_' + x_lbl + '_bc_AB   =   ' + my.f2s(k_bc_AB * print_scale_k) + '   (%e/step);' % (1/print_scale_k))
+		print('k_' + x_lbl + '_bc_BA   =   ' + my.f2s(k_bc_BA * print_scale_k) + '   (%e/step);' % (1/print_scale_k))
 	else:
 		ax_m_hist = None
 		ax_F = None
@@ -877,7 +891,8 @@ def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins
 				proc_order_parameter_BF(L, Temp, h, data[interface_mode] / OP_scale[interface_mode], E / L2, stab_step, \
 								dm_step[interface_mode], hist_edges[interface_mode], peak_guess[interface_mode], fit2_width[interface_mode], \
 								x_lbl=feature_label[interface_mode], y_lbl=title[interface_mode], verbose=verbose, to_estimate_k=to_estimate_k, hA=hA, \
-								to_plot_time_evol=to_plot_time_evol, to_plot_F=to_plot_F, to_plot_ETS=to_plot_ETS, stride=EM_stride)
+								to_plot_time_evol=to_plot_time_evol, to_plot_F=to_plot_F, to_plot_ETS=to_plot_ETS, stride=EM_stride, \
+								m_A=OP_A / OP_scale[interface_mode], m_B=OP_B / OP_scale[interface_mode])
 
 	BC_cluster_size = L2 / np.pi
 	#C = ((m_std['E'] * L2)**2 / Temp**2) / L2   # heat capacity per spin
@@ -1159,40 +1174,52 @@ def get_init_states(Ns, N_min, N0=1):
 # =========================== these result in ~equal computation times ===============
 M_interfaces_table = {}
 
-M_interfaces_table[('CS', 11, 'AB', 20, 4, 100)] = np.array([4, 5, 7, 8, 9, 11, 13, 15, 18, 21, 24, 27, 31, 36, 40, 45, 51, 58, 69, 100], dtype=int)
-M_interfaces_table[('CS', 11, 'BA', 20, 4, 100)] = np.array([4, 6, 7, 9, 11, 15, 18, 22, 25, 28, 31, 35, 38, 41, 45, 49, 54, 60, 69, 100], dtype=int)
+M_interfaces_table[('CS', 11, 'AB', 20, 4, 100, 'optimal')] = np.array([4, 5, 7, 8, 9, 11, 13, 15, 18, 21, 24, 27, 31, 36, 40, 45, 51, 58, 69, 100], dtype=int)
+M_interfaces_table[('CS', 11, 'BA', 20, 4, 100, 'optimal')] = np.array([4, 6, 7, 9, 11, 15, 18, 22, 25, 28, 31, 35, 38, 41, 45, 49, 54, 60, 69, 100], dtype=int)
 
-M_interfaces_table[('M', 11, 'AB', 20, -117, 117)] = np.array([-117, -115, -113, -109, -105, -97, -93, -85, -81, -75, -69, -61, -53, -47, -37, -29, -17, -3, 19, 117], dtype=int)
-M_interfaces_table[('M', 11, 'BA', 20, -117, 117)] = np.array([-117, -115, -113, -109, -105, -101, -95, -89, -85, -77, -73, -65, -59, -51, -43, -33, -23, -9, 11, 117], dtype=int)
-M_interfaces_table[('M', 11, 'AB', 30, -117, 117)] = np.array([-117, -115, -113, -111, -109, -107, -105, -103, -99, -95, -91, -85, -81, -75, -71, -65, -59, -53, -47, -41, -35, -29, -23, -15,  -7,  1, 11, 27, 51, 117], dtype=int)
-M_interfaces_table[('M', 11, 'BA', 30, -117, 117)] = np.array([-117, -115, -113, -111, -109, -107, -105, -101, -99, -95, -91, -87, -83, -77, -73, -69, -63, -59, -53, -49, -43, -37, -31, -25, -17, -9,  1, 15, 49, 117], dtype=int)
+M_interfaces_table[('M', 11, 'AB', 20, -117, 117, 'optimal')] = np.array([-117, -115, -113, -109, -105, -97, -93, -85, -81, -75, -69, -61, -53, -47, -37, -29, -17, -3, 19, 117], dtype=int)
+M_interfaces_table[('M', 11, 'BA', 20, -117, 117, 'optimal')] = np.array([-117, -115, -113, -109, -105, -101, -95, -89, -85, -77, -73, -65, -59, -51, -43, -33, -23, -9, 11, 117], dtype=int)
+M_interfaces_table[('M', 11, 'AB', 30, -117, 117, 'optimal')] = np.array([-117, -115, -113, -111, -109, -107, -105, -103, -99, -95, -91, -85, -81, -75, -71, -65, -59, -53, -47, -41, -35, -29, -23, -15,  -7,  1, 11, 27, 51, 117], dtype=int)
+M_interfaces_table[('M', 11, 'BA', 30, -117, 117, 'optimal')] = np.array([-117, -115, -113, -111, -109, -107, -105, -101, -99, -95, -91, -87, -83, -77, -73, -69, -63, -59, -53, -49, -43, -37, -31, -25, -17, -9,  1, 15, 49, 117], dtype=int)
 
-M_interfaces_table[('M', 11, 'AB', 10, -101, 101)] = np.array([-101, -97, -93, -89, -79, -69, -53, -35, -9, 101], dtype=int)
-M_interfaces_table[('M', 11, 'BA', 10, -101, 101)] = np.array([-101, -97, -93, -89, -81, -69, -53, -37, -11, 101], dtype=int)
-M_interfaces_table[('M', 11, 'AB', 13, -101, 101)] = np.array([-101, -97, -93, -89, -79, -69, -53, -35, -9, -3, 3, 9, 101], dtype=int)
-M_interfaces_table[('M', 11, 'BA', 13, -101, 101)] = np.array([-101, -97, -93, -89, -81, -69, -53, -37, -9, -3, 3, 9, 101], dtype=int)
+M_interfaces_table[('M', 11, 'AB', 10, -101, 101, 'optimal')] = np.array([-101, -97, -93, -89, -79, -69, -53, -35, -9, 101], dtype=int)
+M_interfaces_table[('M', 11, 'BA', 10, -101, 101, 'optimal')] = np.array([-101, -97, -93, -89, -81, -69, -53, -37, -11, 101], dtype=int)
 
-M_interfaces_table[('M', 11, 'AB', 20, -101, 101)] = np.array([-101, -99, -97, -95, -93, -91, -89, -85, -81, -77, -73, -65, -59, -51, -43, -33, -23, -9, 11, 101], dtype=int)
-M_interfaces_table[('M', 11, 'BA', 20, -101, 101)] = np.array([-101, -99, -97, -95, -93, -91, -89, -87, -83, -77, -73, -69, -61, -53, -45, -37, -25, -13, 11, 101], dtype=int)
-M_interfaces_table[('M', 11, 'AB', 20, -91, 91)] = np.array([-91, -89, -87, -85, -83, -81, -79, -77, -73, -69, -63, -59, -53, -45, -37, -27, -17, -3, 15, 91], dtype=int)
-M_interfaces_table[('M', 11, 'BA', 20, -91, 91)] = np.array([-91, -89, -87, -85, -83, -81, -79, -77, -75, -71, -67, -63, -55, -51, -43, -33, -23, -9, 11, 91], dtype=int)
-M_interfaces_table[('M', 11, 'AB', 22, -101, 101)] = np.array([-101, -99, -97, -95, -93, -91, -89, -85, -81, -77, -73, -65, -59, -51, -43, -33, -23, -13, -5, 5, 13, 101], dtype=int)
-M_interfaces_table[('M', 11, 'BA', 22, -101, 101)] = np.array([-101, -99, -97, -95, -93, -91, -89, -87, -83, -77, -73, -69, -61, -53, -45, -37, -25, -13, -5, 5, 13, 101], dtype=int)
+M_interfaces_table[('M', 11, 'AB', 13, -101, 101, 'extra')] = np.array([-101, -97, -93, -89, -79, -69, -53, -35, -9, -3, 3, 9, 101], dtype=int)
+M_interfaces_table[('M', 11, 'BA', 13, -101, 101, 'extra')] = np.array([-101, -97, -93, -89, -81, -69, -53, -37, -9, -3, 3, 9, 101], dtype=int)
 
+M_interfaces_table[('M', 11, 'AB', 15, -101, 101, 'optimal')] = np.array([-101, -97, -95, -93, -89, -87, -81, -73, -67, -57, -47, -35, -21, 3, 101], dtype=int)
+M_interfaces_table[('M', 11, 'BA', 15, -101, 101, 'optimal')] = np.array([-101, -97, -95, -93, -89, -85, -81, -73, -65, -57, -45, -33, -17, 5, 101], dtype=int)
+M_interfaces_table[('M', 11, 'AB', 18, -101, 101, 'extra')] = np.array([-101, -97, -95, -93, -89, -87, -81, -73, -67, -57, -47, -35, -19, -9, -3, 3, 9, 101], dtype=int)
+M_interfaces_table[('M', 11, 'BA', 18, -101, 101, 'extra')] = np.array([-101, -97, -95, -93, -89, -85, -81, -73, -65, -57, -45, -33, -17, -9, -3, 3, 9, 101], dtype=int)
 
-M_interfaces_table[('CS', 11, 'AB', 20, 4, 100)] = np.array([4, 5, 7, 8, 9, 11, 13, 15, 18, 21, 24, 27, 31, 36, 40, 45, 51, 58, 69, 100], dtype=int)
-M_interfaces_table[('CS', 11, 'BA', 20, 4, 100)] = np.array([4, 6, 7, 9, 11, 15, 18, 22, 25, 28, 31, 35, 38, 41, 45, 49, 54, 60, 69, 100], dtype=int)
-M_interfaces_table[('CS', 11, 'AB', 20, 5, 105)] = np.array([5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 19, 23, 26, 31, 36, 41, 47, 55, 67, 105], dtype=int)
-M_interfaces_table[('CS', 11, 'BA', 20, 5, 105)] = np.array([16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 28, 31, 34, 37, 41, 45, 51, 58, 68, 116], dtype=int)
-M_interfaces_table[('CS', 11, 'AB', 20, 7, 101)] = np.array([7, 8, 9, 10, 11, 12, 13, 15, 16, 18, 21, 25, 29, 33, 37, 43, 49, 57, 69, 101], dtype=int)
-M_interfaces_table[('CS', 11, 'BA', 20, 7, 101)] = np.array([20, 21, 22, 23, 24, 25, 26, 27, 28, 30, 32, 34, 37, 40, 43, 47, 52, 58, 68, 114], dtype=int)
+M_interfaces_table[('M', 10, 'AB', 18, -80, 80, 'optimal')] = np.array([-80, -78, -76, -74, -72, -70, -68, -64, -60, -56, -52, -44, -36, -28, -20, -8, 8, 80], dtype=int)
+M_interfaces_table[('M', 10, 'BA', 18, -80, 80, 'optimal')] = np.array([-80, -78, -76, -74, -72, -70, -68, -64, -60, -56, -52, -44, -38, -30, -20, -8, 8, 80], dtype=int)
+
+M_interfaces_table[('M', 10, 'AB', 19, -80, 80, 'extra')] = np.array([-80, -78, -76, -74, -72, -70, -68, -64, -60, -56, -52, -44, -36, -28, -20, -8, 0, 8, 80], dtype=int)
+M_interfaces_table[('M', 10, 'BA', 19, -80, 80, 'extra')] = np.array([-80, -78, -76, -74, -72, -70, -68, -64, -60, -56, -52, -44, -38, -30, -20, -8, 0, 8, 80], dtype=int)
+
+M_interfaces_table[('M', 11, 'AB', 20, -101, 101, 'optimal')] = np.array([-101, -99, -97, -95, -93, -91, -89, -85, -81, -77, -73, -65, -59, -51, -43, -33, -23, -9, 11, 101], dtype=int)
+M_interfaces_table[('M', 11, 'BA', 20, -101, 101, 'optimal')] = np.array([-101, -99, -97, -95, -93, -91, -89, -87, -83, -77, -73, -69, -61, -53, -45, -37, -25, -13, 11, 101], dtype=int)
+M_interfaces_table[('M', 11, 'AB', 20, -91, 91, 'optimal')] = np.array([-91, -89, -87, -85, -83, -81, -79, -77, -73, -69, -63, -59, -53, -45, -37, -27, -17, -3, 15, 91], dtype=int)
+M_interfaces_table[('M', 11, 'BA', 20, -91, 91, 'optimal')] = np.array([-91, -89, -87, -85, -83, -81, -79, -77, -75, -71, -67, -63, -55, -51, -43, -33, -23, -9, 11, 91], dtype=int)
+
+M_interfaces_table[('M', 11, 'AB', 22, -101, 101, 'extra')] = np.array([-101, -99, -97, -95, -93, -91, -89, -85, -81, -77, -73, -65, -59, -51, -43, -33, -23, -13, -5, 5, 13, 101], dtype=int)
+M_interfaces_table[('M', 11, 'BA', 22, -101, 101, 'extra')] = np.array([-101, -99, -97, -95, -93, -91, -89, -87, -83, -77, -73, -69, -61, -53, -45, -37, -25, -13, -5, 5, 13, 101], dtype=int)
+
+M_interfaces_table[('CS', 11, 'AB', 20, 4, 100, 'optimal')] = np.array([4, 5, 7, 8, 9, 11, 13, 15, 18, 21, 24, 27, 31, 36, 40, 45, 51, 58, 69, 100], dtype=int)
+M_interfaces_table[('CS', 11, 'BA', 20, 4, 100, 'optimal')] = np.array([4, 6, 7, 9, 11, 15, 18, 22, 25, 28, 31, 35, 38, 41, 45, 49, 54, 60, 69, 100], dtype=int)
+M_interfaces_table[('CS', 11, 'AB', 20, 5, 105, 'optimal')] = np.array([5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 19, 23, 26, 31, 36, 41, 47, 55, 67, 105], dtype=int)
+M_interfaces_table[('CS', 11, 'BA', 20, 5, 105, 'optimal')] = np.array([16, 17, 18, 19, 20, 21, 22, 23, 24, 26, 28, 31, 34, 37, 41, 45, 51, 58, 68, 116], dtype=int)
+M_interfaces_table[('CS', 11, 'AB', 20, 7, 101, 'optimal')] = np.array([7, 8, 9, 10, 11, 12, 13, 15, 16, 18, 21, 25, 29, 33, 37, 43, 49, 57, 69, 101], dtype=int)
+M_interfaces_table[('CS', 11, 'BA', 20, 7, 101, 'optimal')] = np.array([20, 21, 22, 23, 24, 25, 26, 27, 28, 30, 32, 34, 37, 40, 43, 47, 52, 58, 68, 114], dtype=int)
 
 def main():
 	# TODO: remove outdated inputs
-	[L, h, Temp, mode, Nt, N_states_FFS, N_init_states_FFS, to_recomp, to_get_EM, verbose, my_seed, N_M_interfaces, N_runs, init_gen_mode, dM_0, dM_max, interface_mode, OP_min_BF, OP_max_BF, Nt_sample_A, Nt_sample_B, def_spin_state, N_spins_up_init, to_plot_ETS], _ = \
-		my.parse_args(sys.argv, ['-L', '-h', '-Temp', '-mode', '-Nt', '-N_states_FFS', '-N_init_states_FFS', '-to_recomp', '-to_get_EM', '-verbose', '-my_seed', '-N_M_interfaces', '-N_runs', '-init_gen_mode', '-dM_0', '-dM_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B', '-def_spin_state', '-N_spins_up_init', '-to_plot_ETS'], \
-					  possible_arg_numbers=[[0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1]], \
-					  default_values=[['11'], ['-0.01'], ['2.1'], ['BF'], ['-1000000'], ['-5000'], ['10000'], [my.no_flags[0]], ['1'], ['1'], ['23'], ['-30'], ['3'], ['-3'], ['20'], [None], ['M'], [None], [None], ['-1000000'], ['-1000000'], ['-1'], [None], [my.no_flags[0]]])
+	[L, h, Temp, mode, Nt, N_states_FFS, N_init_states_FFS, to_recomp, to_get_EM, verbose, my_seed, N_M_interfaces, N_runs, init_gen_mode, dM_0, dM_max, interface_mode, OP_min_BF, OP_max_BF, Nt_sample_A, Nt_sample_B, def_spin_state, N_spins_up_init, to_plot_ETS, interface_set_mode, timeplot_stride], _ = \
+		my.parse_args(sys.argv, ['-L', '-h', '-Temp', '-mode', '-Nt', '-N_states_FFS', '-N_init_states_FFS', '-to_recomp', '-to_get_EM', '-verbose', '-my_seed', '-N_M_interfaces', '-N_runs', '-init_gen_mode', '-dM_0', '-dM_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B', '-def_spin_state', '-N_spins_up_init', '-to_plot_ETS', '-interface_set_mode', '-timeplot_stride'], \
+					  possible_arg_numbers=[[0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1], [0, 1]], \
+					  default_values=[['11'], ['-0.01'], ['2.1'], ['BF'], ['-1000000'], ['-5000'], ['10000'], [my.no_flags[0]], ['1'], ['1'], ['23'], ['-30'], ['3'], ['-3'], ['20'], [None], ['M'], [None], [None], ['-1000000'], ['-1000000'], ['-1'], [None], [my.no_flags[0]], ['optimal'], ['-3000']])
 	
 	# efficiency info:
 	# [M0=20, NM=20] : Nt / N_states_FFS ~ 1e4
@@ -1220,6 +1247,8 @@ def main():
 	def_spin_state = int(def_spin_state[0])
 	N_spins_up_init = (None if(N_spins_up_init[0] is None) else int(N_spins_up_init[0]))
 	to_plot_ETS = (to_plot_ETS[0] in my.yes_flags)
+	interface_set_mode = interface_set_mode[0]
+	timeplot_stride = int(timeplot_stride[0])
 	
 	OP_min_BF = OP_min_default[interface_mode] if(OP_min_BF[0] is None) else int(OP_min_BF[0])
 	OP_max_BF = OP_max_default[interface_mode] if(OP_max_BF[0] is None) else int(OP_max_BF[0])
@@ -1282,8 +1311,8 @@ def main():
 		M_interfaces_BA = flip_M(M_interfaces_AB, L2, interface_mode)
 
 		if(N_M_interfaces > 0):
-			interface_AB_UID = (interface_mode, L, 'AB' if(h < 0) else 'BA', N_M_interfaces, M_0, M_max)
-			interface_BA_UID = (interface_mode, L, 'BA' if(h < 0) else 'AB', N_M_interfaces, M_0, M_max)
+			interface_AB_UID = (interface_mode, L, 'AB' if(h < 0) else 'BA', N_M_interfaces, M_0, M_max, interface_set_mode)
+			interface_BA_UID = (interface_mode, L, 'BA' if(h < 0) else 'AB', N_M_interfaces, M_0, M_max, interface_set_mode)
 			if(interface_AB_UID in M_interfaces_table):
 				M_interfaces_AB = M_interfaces_table[interface_AB_UID]
 			if(interface_BA_UID in M_interfaces_table):
@@ -1301,7 +1330,7 @@ def main():
 		proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, \
 				OP_A=M_0, OP_B=M_max, N_spins_up_init=N_spins_up_init, \
 				to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=to_plot_ETS, to_plot_correlations=True, \
-				OP_min=OP_min_BF, OP_max=OP_max_BF, to_estimate_k=True)
+				OP_min=OP_min_BF, OP_max=OP_max_BF, to_estimate_k=True, EM_stride=timeplot_stride)
 		
 	elif(mode == 'BF_many'):
 		run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, Nt_per_BF_run=Nt, \
@@ -1311,7 +1340,7 @@ def main():
 	
 	elif(mode == 'FFS_AB'):
 		proc_FFS_AB(L, Temp, h, N_init_states_AB, M_interfaces_AB, M_sample_BF_A_to, M_match_BF_A_to, \
-					interface_mode, def_spin_state, \
+					interface_mode, def_spin_state, EM_stride=timeplot_stride, \
 					to_get_EM=to_get_EM, init_gen_mode=init_gen_mode, to_plot_time_evol=True, to_plot_hists=True)
 		
 	elif(mode == 'FFS'):
@@ -1354,18 +1383,17 @@ def main():
 						Nt_per_BF_run=Nt, mode='BF', \
 						to_plot_k_distr=False, N_k_bins=N_k_bins)
 		
-		k_AB_FFS_mean, k_AB_FFS_min, k_AB_FFS_max, d_k_AB_FFS = get_log_errors(ln_k_AB_FFS, d_ln_k_AB_FFS, lbl='k_AB_FFS')
-		k_BA_FFS_mean, k_BA_FFS_min, k_BA_FFS_max, d_k_BA_FFS = get_log_errors(ln_k_BA_FFS, d_ln_k_BA_FFS, lbl='k_BA_FFS')
-		k_AB_BF_mean, k_AB_BF_min, k_AB_BF_max, d_k_AB_BF = get_log_errors(ln_k_AB_BF, d_ln_k_AB_BF, lbl='k_AB_BF')
-		k_BA_BF_mean, k_BA_BF_min, k_BA_BF_max, d_k_BA_BF = get_log_errors(ln_k_BA_BF, d_ln_k_BA_BF, lbl='k_BA_BF')
-		k_bc_AB_BF_mean, k_bc_AB_BF_min, k_bc_AB_BF_max, d_k_bc_AB_BF = get_log_errors(ln_k_bc_AB_BF, d_ln_k_bc_AB_BF, lbl='k_bc_AB_BF')
-		k_bc_BA_BF_mean, k_bc_BA_BF_min, k_bc_BA_BF_max, d_k_bc_BA_BF = get_log_errors(ln_k_bc_BA_BF, d_ln_k_bc_BA_BF, lbl='k_bc_BA_BF')
-		
-		get_log_errors(np.log(flux0_AB_FFS), d_flux0_AB_FFS / flux0_AB_FFS, lbl='flux0_AB')
-		get_log_errors(np.log(flux0_BA_FFS), d_flux0_BA_FFS / flux0_BA_FFS, lbl='flux0_BA')
-		
 		#assert(np.all(abs(M_hist_centers_BF - M_hist_centers_FFS) < (M_hist_centers_BF[0] - M_hist_centers_BF[1]) * 1e-3)), 'ERROR: returned M_centers do not match'
 		#assert(np.all(abs(M_hist_lens_BF - M_hist_lens_FFS) < M_hist_lens_BF[0] * 1e-3)), 'ERROR: returned M_centers do not match'
+
+		get_log_errors(np.log(flux0_AB_FFS), d_flux0_AB_FFS / flux0_AB_FFS, lbl='flux0_AB', print_scale=print_scale_flux)
+		get_log_errors(np.log(flux0_BA_FFS), d_flux0_BA_FFS / flux0_BA_FFS, lbl='flux0_BA', print_scale=print_scale_flux)
+		k_AB_FFS_mean, k_AB_FFS_min, k_AB_FFS_max, d_k_AB_FFS = get_log_errors(ln_k_AB_FFS, d_ln_k_AB_FFS, lbl='k_AB_FFS', print_scale=print_scale_k)
+		k_BA_FFS_mean, k_BA_FFS_min, k_BA_FFS_max, d_k_BA_FFS = get_log_errors(ln_k_BA_FFS, d_ln_k_BA_FFS, lbl='k_BA_FFS', print_scale=print_scale_k)
+		k_AB_BF_mean, k_AB_BF_min, k_AB_BF_max, d_k_AB_BF = get_log_errors(ln_k_AB_BF, d_ln_k_AB_BF, lbl='k_AB_BF', print_scale=print_scale_k)
+		k_BA_BF_mean, k_BA_BF_min, k_BA_BF_max, d_k_BA_BF = get_log_errors(ln_k_BA_BF, d_ln_k_BA_BF, lbl='k_BA_BF', print_scale=print_scale_k)
+		k_bc_AB_BF_mean, k_bc_AB_BF_min, k_bc_AB_BF_max, d_k_bc_AB_BF = get_log_errors(ln_k_bc_AB_BF, d_ln_k_bc_AB_BF, lbl='k_bc_AB_BF', print_scale=print_scale_k)
+		k_bc_BA_BF_mean, k_bc_BA_BF_min, k_bc_BA_BF_max, d_k_bc_BA_BF = get_log_errors(ln_k_bc_BA_BF, d_ln_k_bc_BA_BF, lbl='k_bc_BA_BF', print_scale=print_scale_k)
 		
 		fig_F, ax_F = my.get_fig(title[interface_mode], r'$F / J$', title=r'$F(' + feature_label[interface_mode] + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
 		ax_F.errorbar(M_hist_centers_BF, F_BF - min(F_BF), yerr=d_F_BF, label='BF')
