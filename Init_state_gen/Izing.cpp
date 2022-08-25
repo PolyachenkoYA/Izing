@@ -197,6 +197,9 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 // -------------- check input ----------------
 	int verbose = (_verbose.has_value() ? _verbose.value() : Izing::verbose_dafault);
 
+	printf("C module:\nL=%d, Temp=%lf, h=%lf, to_remember_timeevol=%d, init_gen_mode=%d, interface_mode=%d, def_spin_state=%d, verbose=%d\n",
+		   L, Temp, h, to_remember_timeevol, init_gen_mode, interface_mode, default_spin_state, verbose);
+
 	assert(L > 0);
 	assert(Temp > 0);
 	assert((interface_mode >= 0) && (interface_mode < N_interface_modes));
@@ -266,7 +269,9 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 
 	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states_ptr, N_init_states_ptr,
 					 Nt_ptr, to_remember_timeevol ? &OP_arr_len : nullptr, OP_interfaces_ptr, N_OP_interfaces,
-					 probs_ptr, d_probs_ptr, &_E, &_M, &_biggest_cluster_sizes,
+					 probs_ptr, d_probs_ptr,  to_remember_timeevol? &_E : nullptr,
+					 to_remember_timeevol ? &_M : nullptr,
+					 to_remember_timeevol ? &_biggest_cluster_sizes : nullptr,
 					 verbose, init_gen_mode, interface_mode,
 					 default_spin_state);
 
@@ -280,17 +285,15 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 		}
 		Nt_total += Nt_ptr[i];
 	}
-	int N_last_elements_to_print = 10;
-	if(verbose >= 2){
-		Izing::print_E(&(_E[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
-		Izing::print_M(&(_M[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
-	}
 
 	py::array_t<double> E;
     py::array_t<int> M;
 	py::array_t<int> biggest_cluster_sizes;
     if(to_remember_timeevol){
+		int N_last_elements_to_print = 10;
 		if(verbose >= 2){
+			Izing::print_E(&(_E[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+			Izing::print_M(&(_M[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 			printf("copying time evolution, Nt_total = %d\n", Nt_total);
 		}
 
@@ -315,8 +318,8 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 		if(verbose >= 2){
 			printf("data copied\n", Nt_total);
 			printf("internal memory for EM freed\n");
-			Izing::print_E(E_ptr, Nt_total < 10 ? Nt_total : 10, 'P');
-			Izing::print_M(M_ptr, Nt_total < 10 ? Nt_total : 10, 'P');
+			Izing::print_E(E_ptr, Nt_total < N_last_elements_to_print ? Nt_total : N_last_elements_to_print, 'P');
+			Izing::print_M(M_ptr, Nt_total < N_last_elements_to_print ? Nt_total : N_last_elements_to_print, 'P');
 		}
     }
 
@@ -379,16 +382,17 @@ namespace Izing
 		int L2 = L*L;
 
 // get the initial states; they should be sampled from the distribution in [-L^2; M_0), but they are all set to have M == -L^2 because then they all will fall into the local optimum and almost forget the initial state, so it's almost equivalent to sampling from the proper distribution if 'F(M_0) - F_min >~ T'
-		int h_A_len = 128;
+		int h_A_len = OP_arr_len ? *OP_arr_len : 128;
 		int Nt_total = 0;
 //		Nt[0] = 0;
 		int *h_A = (int*) malloc(sizeof(int) * h_A_len);
 		get_init_states_C(L, Temp, h, N_init_states[0], states, init_gen_mode,
 						  OP_interfaces[0], interface_mode, default_spin_state,
 						  OP_interfaces[0], OP_interfaces[N_OP_interfaces - 1],
-						  E, M, biggest_cluster_sizes, &h_A, &Nt_total, OP_arr_len,
+						  E, M, biggest_cluster_sizes, &h_A, &Nt_total, &h_A_len,
 						  verbose);
 		Nt[0] = Nt_total;
+		if(OP_arr_len) *OP_arr_len = h_A_len;
 		int h_sum = Izing::sum_array(h_A, Nt[0]);
 		free(h_A);
 		*flux0 = (double)N_init_states[0] / h_sum;   // [1/step]
@@ -439,8 +443,8 @@ namespace Izing
 			if(verbose >= 2){
 				int N_last_elements_to_print = 10;
 				printf("Nt_total = %d\n", Nt_total);
-				print_E(&((*E)[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'f');
-				print_M(&((*M)[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'f');
+				if(E) print_E(&((*E)[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'f');
+				if(M) print_M(&((*M)[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'f');
 				printf("Nt:");
 				for(i = 0; i < N_OP_interfaces; ++i) printf(" %d", Nt[i]);
 				printf("\n");
