@@ -59,6 +59,35 @@ int compute_hA(py::array_t<int> *h_A, int *OP, int Nt, int OP_A, int OP_B)
 	return 0;
 }
 
+py::tuple cluster_state(py::array_t<int> state, int default_state)
+{
+	py::buffer_info state_info = state.request();
+	int *state_ptr = static_cast<int *>(state_info.ptr);
+	assert(state_info.ndim == 1);
+
+	int L2 = state_info.shape[0];
+	int L = lround(sqrt(L2));
+	assert(L * L == L2);   // check for the full square
+
+	py::array_t<int> cluster_element_inds = py::array_t<int>(L2);
+	py::buffer_info cluster_element_inds_info = cluster_element_inds.request();
+	int *cluster_element_inds_ptr = static_cast<int *>(cluster_element_inds_info.ptr);
+
+	py::array_t<int> cluster_sizes = py::array_t<int>(L2);
+	py::buffer_info cluster_sizes_info = cluster_sizes.request();
+	int *cluster_sizes_ptr = static_cast<int *>(cluster_sizes_info.ptr);
+
+	py::array_t<int> is_checked = py::array_t<int>(L2);
+	py::buffer_info is_checked_info = is_checked.request();
+	int *is_checked_ptr = static_cast<int *>(is_checked_info.ptr);
+
+	int N_clusters = L2;
+
+	Izing::cluster_state_C(state_ptr, L, cluster_element_inds_ptr, cluster_sizes_ptr, &N_clusters, is_checked_ptr, default_state);
+
+	return py::make_tuple(cluster_element_inds, cluster_sizes);
+}
+
 py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max, std::optional<int> _N_spins_up_init,
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
@@ -494,36 +523,51 @@ namespace Izing
 //			}
 		}
 		int init_state_to_process_ID;
+		int run_status;
+		int OP_arr_len_old;
+		int Nt_old;
 		while(N_succ < N_next_states){
 			init_state_to_process_ID = gsl_rng_uniform_int(rng, N_init_states);
 			if(verbose >= 2){
 				printf("state[%d] (id in set = %d):\n", N_succ, init_state_to_process_ID);
 			}
 			memcpy(state_under_process, &(init_states[init_state_to_process_ID * L2]), state_size_in_bytes);   // get a copy of the chosen init state
-			if(run_state(state_under_process, L, Temp, h, OP_0, OP_next, E, M, biggest_cluster_sizes, nullptr,
-						 cluster_element_inds, cluster_sizes, is_checked,
-						 Nt, OP_arr_len, interfaces_mode, default_spin_state, verbose)){   // run it until it reaches M_0 or M_next
-				// Interpolation is needed if 's' and 'OP' are continuous
+			Nt_old = *Nt;
+//			OP_arr_len_old = *OP_arr_len;
+			run_status = run_state(state_under_process, L, Temp, h, OP_0, OP_next, E, M, biggest_cluster_sizes, nullptr,
+								  cluster_element_inds, cluster_sizes, is_checked,
+								  Nt, OP_arr_len, interfaces_mode, default_spin_state, verbose);
+			switch (run_status) {
+				case 0:  // reached <=OP_A  => unsuccessful run
+					++N_runs;
+					break;
+				case 1:  // reached ==OP_next  => successful run
+					// Interpolation is needed if 's' and 'OP' are continuous
 
-				// Nt is not reinitialized to 0 and that's correct because it shows the total number of OPs datapoints
-				++N_succ;
-				if(next_states) {   // save the resulting system state for the next step
-					memcpy(&(next_states[(N_succ - 1) * L2]), state_under_process, state_size_in_bytes);
-				}
-				if(verbose) {
-					double progr = (double)N_succ/N_next_states;
-					if(verbose < 2){
-						if(N_succ % (N_next_states / 1000 + 1) == 0){
-							printf("%lf %%          \r", progr * 100);
-							fflush(stdout);
-						}
-					} else { // verbose == 1
-						printf("state %d saved for future, N_runs=%d\n", N_succ - 1, N_runs + 1);
-						printf("%lf %%\n", progr * 100);
+					// Nt is not reinitialized to 0 and that's correct because it shows the total number of OPs datapoints
+					++N_runs;
+					++N_succ;
+					if(next_states) {   // save the resulting system state for the next step
+						memcpy(&(next_states[(N_succ - 1) * L2]), state_under_process, state_size_in_bytes);
 					}
-				}
+					if(verbose) {
+						double progr = (double)N_succ/N_next_states;
+						if(verbose < 2){
+							if(N_succ % (N_next_states / 1000 + 1) == 0){
+								printf("%lf %%          \r", progr * 100);
+								fflush(stdout);
+							}
+						} else { // verbose == 1
+							printf("state %d saved for future, N_runs=%d\n", N_succ - 1, N_runs + 1);
+							printf("%lf %%\n", progr * 100);
+						}
+					}
+					break;
+				case -1:  // reached >OP_next => overshoot => discard the trajectory => revert all the "pointers to the current stage" to their previous values
+					*Nt = Nt_old;
+//					*OP_arr_len = OP_arr_len_old;
+					break;
 			}
-			++N_runs;
 		}
 		if(verbose >= 2) {
 			printf("\n");
@@ -606,7 +650,7 @@ namespace Izing
 
 			clear_clusters(cluster_element_inds, cluster_sizes, &N_clusters_current);
 			uncheck_state(is_checked, L2);
-			cluster_state(s, L, cluster_element_inds, cluster_sizes, &N_clusters_current, is_checked, default_spin_state);
+			cluster_state_C(s, L, cluster_element_inds, cluster_sizes, &N_clusters_current, is_checked, default_spin_state);
 			biggest_cluster_sizes_current = max(cluster_sizes, N_clusters_current);
 
 			M_current -= 2 * s[ix*L + iy];
@@ -729,8 +773,11 @@ namespace Izing
 				}
 			}
 			if(OP_current >= OP_next){
-				if(verbose >= 3) printf("Success run\n");
-				return 1;   // succeeded = reached the interface 'M == M_next'
+				if(verbose >= 3) printf("Reached OP_next, OP_current - OP_next = %d\n", OP_current - OP_next);
+				return 1;
+//				return OP_current == OP_next ? 1 : -1;
+				// 1 == succeeded = reached the interface 'M == M_next'
+				// -1 == overshoot = discard the trajectory
 			}
 		}
 	}
@@ -803,8 +850,21 @@ namespace Izing
 					  verbose, Nt_max, states, N_states_done, N_states,
 					  OP_min_save_state, OP_max_save_state, OP_A, OP_B);
 
-			if(N_states > 0) if(*N_states_done >= N_states) break;
-			if(Nt_max > 0) if(*Nt >= Nt_max) break;
+			if(N_states > 0){
+				if(verbose)	printf("brute-force done %lf              \r", (double)(*N_states_done) / N_states);
+				if(*N_states_done >= N_states) {
+					if(verbose) printf("\n");
+					break;
+				}
+			}
+			if(Nt_max > 0){
+				if(verbose)	printf("brute-force done %lf              \r", (double)(*Nt) / Nt_max);
+				if(*Nt >= Nt_max) {
+					if(verbose) printf("\n");
+					break;
+				}
+			}
+//			if(Nt_max > 0) if(*Nt >= Nt_max) break;
 		}
 
 		free(cluster_element_inds);
@@ -879,8 +939,7 @@ namespace Izing
 		return 0;
 	}
 
-	//void cluster_state(const int *s, int L, std::vector< std::vector < int > > *, int *cluster_sizes, int *N_clusters, int *is_checked, int default_state)
-	void cluster_state(const int *s, int L, int *cluster_element_inds, int *cluster_sizes, int *N_clusters, int *is_checked, int default_state)
+	void cluster_state_C(const int *s, int L, int *cluster_element_inds, int *cluster_sizes, int *N_clusters, int *is_checked, int default_state)
 	/**
 	 *
 	 * @param s - the state to cluster

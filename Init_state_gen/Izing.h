@@ -77,7 +77,7 @@ namespace Izing
 	void set_OP_default(int L2);
 	int get_OP_from_spinsup(int N_spins_up, int L2, int interface_mode, int default_spin_state);
 
-	void cluster_state(const int *s, int L, int *cluster_element_inds, int *cluster_sizes, int *N_clusters, int *is_checked, int default_state);
+	void cluster_state_C(const int *s, int L, int *cluster_element_inds, int *cluster_sizes, int *N_clusters, int *is_checked, int default_state);
 	int add_to_cluster(const int* s, int L, int* is_checked, int* cluster, int* cluster_size, int pos, int cluster_label, int default_state);
 	int is_infinite_cluster(const int* cluster, const int* cluster_size, int L, char *present_rows, char *present_columns);
 	void uncheck_state(int *is_checked, int N);
