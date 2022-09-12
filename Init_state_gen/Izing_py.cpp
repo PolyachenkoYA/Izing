@@ -38,12 +38,21 @@ PYBIND11_MODULE(izing, m)
 		  py::arg("h"),
 		  py::arg("Nt_max"),
 		  py::arg("N_spins_up_init")=py::none(),
+		  py::arg("to_remember_timeevol")=py::none(),
 		  py::arg("OP_A")=py::none(),
 		  py::arg("OP_B")=py::none(),
 		  py::arg("OP_min")=py::none(),
 		  py::arg("OP_max")=py::none(),
 		  py::arg("interface_mode")=py::none(),
 		  py::arg("default_spin_state")=py::none(),
+		  py::arg("verbose")=py::none()
+	);
+
+// py::tuple cluster_state(py::array_t<int> state, int default_state)
+	m.def("cluster_state", &cluster_state,
+		  "Get clusters for a given state",
+		  py::arg("state"),
+		  py::arg("default_state")=-1,
 		  py::arg("verbose")=py::none()
 	);
 

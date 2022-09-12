@@ -24,6 +24,10 @@ int main(int argc, char** argv) {
     int verbose = atoi(argv[13]);
     int my_seed = atoi(argv[14]);
 
+	def_spin_state = -1;
+	verbose = 1;
+	my_seed = 2;
+
 	L = 11;
 	Temp = 2.1;
 	h = -0.01;
@@ -33,9 +37,6 @@ int main(int argc, char** argv) {
 	init_gen_mode = -3;
 	to_remember_timeevol = 1;
 	interface_mode = mode_ID_M;
-	def_spin_state = -1;
-	verbose = 1;
-	my_seed = 2;
 
 	// for valgrind
 	N_init_states_default = 50;
