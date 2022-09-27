@@ -69,6 +69,11 @@ OP_interfaces_table[('CS', 32, 0.13, 11, 24, 500, 'spaced')] = np.array([24, 47,
 OP_interfaces_table[('CS', 32, 0.13, 9, 24, 200, 'spaced')] = np.array([24, 29, 34, 39, 44, 52, 62, 85, 200], dtype=int)
 OP_interfaces_table[('CS', 32, 0.13, 9, 24, 500, 'spaced')] = np.array([24, 29, 34, 39, 44, 52, 62, 85, 500], dtype=int)
 OP_interfaces_table[('CS', 100, 0.13, 9, 24, 500, 'spaced')] = np.array([24, 29, 34, 39, 44, 52, 62, 85, 500], dtype=int)
+OP_interfaces_table[('CS', 18, 0.13, 9, 24, 500, 'spaced')] = np.array([24, 29, 34, 39, 44, 52, 62, 85, 500], dtype=int)
+OP_interfaces_table[('CS', 10, 0.13, 9, 24, 500, 'spaced')] = np.array([24, 29, 34, 39, 44, 52, 62, 85, 500], dtype=int)
+OP_interfaces_table[('CS', 100, 0.13, 9, 24, 200, 'spaced')] = np.array([24, 29, 34, 39, 44, 52, 62, 85, 200], dtype=int)
+OP_interfaces_table[('CS', 18, 0.13, 9, 24, 200, 'spaced')] = np.array([24, 29, 34, 39, 44, 52, 62, 85, 200], dtype=int)
+OP_interfaces_table[('CS', 10, 0.13, 9, 24, 200, 'spaced')] = np.array([24, 29, 34, 39, 44, 52, 62, 85, 200], dtype=int)
 
 OP_interfaces_table[('CS', 32, 0.12, 11, 24, 500, 'optimal')] = np.array([24, 25, 26, 28, 32, 37, 42, 50, 84, 200, 500], dtype=int)
 OP_interfaces_table[('CS', 32, 0.12, 10, 24, 220, 'optimal')] = np.array([24, 25, 26, 29, 33, 40, 50, 67, 91, 220], dtype=int)

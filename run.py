@@ -381,7 +381,9 @@ def proc_FFS(L, Temp, h, \
 		F = F - F[0]
 	
 		if(to_plot_hists):
-			fig_F, ax_F = my.get_fig(title[interface_mode], r'$F(%s) = -T \ln(\rho(%s) \cdot d%s(%s))$' % (feature_label[interface_mode], feature_label[interface_mode], feature_label[interface_mode], feature_label[interface_mode]), title=r'$F(' + feature_label[interface_mode] + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+			ThL_lbl = 'T/J = ' + str(Temp) + '; h/J = ' + str(h) + '; L = ' + str(L)
+			fig_F, ax_F = my.get_fig(title[interface_mode], r'$F(%s) = -T \ln(\rho(%s) \cdot d%s(%s))$' % (feature_label[interface_mode], feature_label[interface_mode], feature_label[interface_mode], feature_label[interface_mode]), \
+									title=r'$F(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
 			ax_F.errorbar(OP, F, yerr=d_F, fmt='.', label='FFS data')
 			ax_F.legend()
 	else:
@@ -515,7 +517,9 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, \
 		OP_hist_lens = (OP_hist_edges[1:] - OP_hist_edges[:-1])
 		OP_hist_centers = (OP_hist_edges[1:] + OP_hist_edges[:-1]) / 2
 		N_OP_hist = len(OP_hist_centers)
-	
+	else:
+		OP_hist_centers = None
+		OP_hist_lens = None
 	
 	if(to_plot_hists):
 		if(states is not None):
@@ -536,15 +540,14 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, \
 				OP_init_hist[:, i] = OP_init_hist[:, i] / N_init_states[i]
 				d_OP_init_hist[:, i] = np.sqrt(OP_init_hist[:, i] * (1 - OP_init_hist[:, i]) / N_init_states[i])
 				
-			fig_OPinit_hists, ax_OPinit_hists = my.get_fig(y_lbl, r'$p_i(' + x_lbl + ')$', title=r'$p(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h), yscl='log')
+			ThL_lbl = 'T/J = ' + str(Temp) + '; h/J = ' + str(h) + '; L = ' + str(L)
+			fig_OPinit_hists, ax_OPinit_hists = my.get_fig(y_lbl, r'$p_i(' + x_lbl + ')$', title=r'$p(' + x_lbl + ')$; ' + ThL_lbl, yscl='log')
 			for i in range(N_OP_interfaces):
 				ax_OPinit_hists.bar(OP_hist_centers, OP_init_hist[:, i], yerr=d_OP_init_hist[:, i], width=OP_hist_lens, align='center', label='OP = ' + str(OP_interfaces[i]), alpha=Ms_alpha)
 			ax_OPinit_hists.legend()
 		
 	rho = None
 	d_rho = None
-	OP_hist_centers = None
-	OP_hist_lens = None
 	
 	ax_PB_log = None
 	ax_PB = None
@@ -668,8 +671,9 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, \
 		F = F - F[0]
 		d_F = Temp * d_rho / rho
 		
+		ThL_lbl = 'T/J = ' + str(Temp) + '; h/J = ' + str(h) + '; L = ' + str(L)
 		if(to_plot_time_evol):
-			fig_OP, ax_OP = my.get_fig('step', y_lbl, title=x_lbl + '(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
+			fig_OP, ax_OP = my.get_fig('step', y_lbl, title=x_lbl + '(step); ' + ThL_lbl)
 			
 			for i in range(N_OP_interfaces):
 				ax_OP.plot(timesteps[i][::stride], OP[i][::stride], label='data, i=%d' % (i))
@@ -677,7 +681,7 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, \
 			ax_OP.legend()
 		
 		if(to_plot_hists):
-			fig_OPhists, ax_OPhists = my.get_fig(y_lbl, r'$\rho_i(' + x_lbl + ') \cdot P(i | A)$', title=r'$\rho(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h), yscl='log')
+			fig_OPhists, ax_OPhists = my.get_fig(y_lbl, r'$\rho_i(' + x_lbl + ') \cdot P(i | A)$', title=r'$\rho(' + x_lbl + ')$; ' + ThL_lbl, yscl='log')
 			for i in range(N_OP_interfaces - 1):
 				ax_OPhists.bar(OP_hist_centers, rho_for_sum[:, i], yerr=d_rho_for_sum[:, i], width=OP_hist_lens, align='center', label=str(i), alpha=Ms_alpha)
 			
@@ -685,21 +689,21 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, \
 				ax_OPhists.plot([OP_interfaces_scaled[i]] * 2, [min(rho), max(rho)], '--', label=('interfaces' if(i == 0) else None), color=my.get_my_color(0))
 			ax_OPhists.legend()
 			
-			fig_OPjumps_hists, ax_OPjumps_hists = my.get_fig('d' + x_lbl, 'probability', title=x_lbl + ' jumps distribution; T/J = ' + str(Temp) + '; h/J = ' + str(h), yscl='log')
+			fig_OPjumps_hists, ax_OPjumps_hists = my.get_fig('d' + x_lbl, 'probability', title=x_lbl + ' jumps distribution; ' + ThL_lbl, yscl='log')
 			for i in range(N_OP_interfaces):
 				ax_OPjumps_hists.plot(OP_possible_jumps[interface_mode], OP_jumps_hists[:, i], label='$' + x_lbl + ' \in (' + str((OP_min_default[interface_mode]) if(i == 0) else OP_interfaces_scaled[i-1]) + ';' + str(OP_interfaces_scaled[i]) + ']$')
 			ax_OPjumps_hists.legend()
 			
-			fig_F, ax_F = my.get_fig(y_lbl, r'$F(' + x_lbl + r') = -T \ln(\rho(%s) \cdot d%s(%s))$' % (x_lbl, x_lbl, x_lbl), title=r'$F(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+			fig_F, ax_F = my.get_fig(y_lbl, r'$F(' + x_lbl + r') = -T \ln(\rho(%s) \cdot d%s(%s))$' % (x_lbl, x_lbl, x_lbl), title=r'$F(' + x_lbl + ')$; ' + ThL_lbl)
 			ax_F.errorbar(OP_hist_centers[BF_inds], F_BF, yerr=d_F_BF, fmt='.', label='$F_{BF}$')
 			ax_F.errorbar(OP_hist_centers, F, yerr=d_F, fmt='.', label='$F_{total}$')
 			for i in range(N_OP_interfaces):
 				ax_F.plot([OP_interfaces_scaled[i]] * 2, [min(F), max(F)], '--', label=('interfaces' if(i == 0) else None), color=my.get_my_color(0))
 			ax_F.legend()
 			
-			fig_PB_log, ax_PB_log = my.get_fig(y_lbl, r'$P_B(' + x_lbl + ') = P(i|0)$', title=r'$P_B(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h), yscl='log')
-			fig_PB, ax_PB = my.get_fig(y_lbl, r'$P_B(' + x_lbl + ') = P(i|0)$', title=r'$P_B(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			fig_PB_sgm, ax_PB_sgm = my.get_fig(y_lbl, r'$-\ln(1/P_B - 1)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+			fig_PB_log, ax_PB_log = my.get_fig(y_lbl, r'$P_B(' + x_lbl + ') = P(i|0)$', title=r'$P_B(' + x_lbl + ')$; ' + ThL_lbl, yscl='log')
+			fig_PB, ax_PB = my.get_fig(y_lbl, r'$P_B(' + x_lbl + ') = P(i|0)$', title=r'$P_B(' + x_lbl + ')$; ' + ThL_lbl)
+			fig_PB_sgm, ax_PB_sgm = my.get_fig(y_lbl, r'$-\ln(1/P_B - 1)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
 			
 			mark_PB_plot(ax_PB, ax_PB_log, ax_PB_sgm, OP_interfaces_scaled, P_B[:-1], P_B_sigmoid, interface_mode)
 			plot_PB_AB(ax_PB, ax_PB_log, ax_PB_sgm, h, 'P_B', x_lbl, OP_interfaces_scaled[:-1], P_B[:-1][linfit_inds], d_PB=d_P_B[:-1][linfit_inds], \
@@ -709,8 +713,8 @@ def proc_order_parameter_FFS(L, Temp, h, flux0, d_flux0, probs, \
 			ax_PB.legend()
 			ax_PB_sgm.legend()
 			
-			fig_fl, ax_fl = my.get_fig(y_lbl, r'$1 - \ln[P_B(' + x_lbl + ')] / \ln[P_B(0)] = f(\lambda_i)$', title=r'$f(\lambda_i)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-			fig_fl_i, ax_fl_i = my.get_fig(r'$index(' + x_lbl + '_i)$', r'$1 - \ln[P_B(' + x_lbl + '_i)] / \ln[P_B(0)] = f(\lambda_i)$', title=r'$f(\lambda_i)$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+			fig_fl, ax_fl = my.get_fig(y_lbl, r'$1 - \ln[P_B(' + x_lbl + ')] / \ln[P_B(0)] = f(\lambda_i)$', title=r'$f(\lambda_i)$; ' + ThL_lbl)
+			fig_fl_i, ax_fl_i = my.get_fig(r'$index(' + x_lbl + '_i)$', r'$1 - \ln[P_B(' + x_lbl + '_i)] / \ln[P_B(0)] = f(\lambda_i)$', title=r'$f(\lambda_i)$; ' + ThL_lbl)
 			
 			m_fine = np.linspace(min(OP_interfaces_scaled), max(OP_interfaces_scaled), int((max(OP_interfaces_scaled) - min(OP_interfaces_scaled)) / min(OP_interfaces_scaled[1:] - OP_interfaces_scaled[:-1]) * 10))
 			ax_fl.errorbar(OP_interfaces_scaled, OP_optimize_f_interp_vals, yerr=d_OP_optimize_f_interp_vals, fmt='.', label=r'$f(\lambda)_i$')
@@ -911,8 +915,9 @@ def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dOP_step, OP_hist_edges
 		k_bc_AB = None
 		k_bc_BA = None
 	
+	ThL_lbl = 'T/J = ' + str(Temp) + '; h/J = ' + str(h) + '; L = ' + str(L)
 	if(to_plot_time_evol):
-		fig_OP, ax_OP = my.get_fig('step', y_lbl, title='$' + x_lbl + '$(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		fig_OP, ax_OP = my.get_fig('step', y_lbl, title='$' + x_lbl + '$(step); ' + ThL_lbl)
 		ax_OP.plot(steps[::stride], m[::stride], label='data')
 		ax_OP.plot([stab_step] * 2, [min(m), max(m)], '--', label='equilibr')
 		ax_OP.plot([stab_step, Nt], [OP_mean] * 2, '--', label=('$<' + x_lbl + '> = ' + my.errorbar_str(OP_mean, d_OP_mean) + '$'))
@@ -921,7 +926,7 @@ def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dOP_step, OP_hist_edges
 			ax_OP.plot([0, Nt], [OP_B] * 2, '--', label=None, color=my.get_my_color(1))
 		ax_OP.legend()
 		
-		fig_hA, ax_hA = my.get_fig('step', '$h_A$', title='$h_{A, ' + x_lbl + '}$(step); T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		fig_hA, ax_hA = my.get_fig('step', '$h_A$', title='$h_{A, ' + x_lbl + '}$(step); ' + ThL_lbl)
 		ax_hA.plot(steps[::stride], hA[::stride], label='$h_A$')
 		ax_hA.plot(steps[jump_inds+1], hA_jump[jump_inds], '.', label='$h_A$ jumps')
 		ax_hA.legend()
@@ -932,17 +937,17 @@ def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dOP_step, OP_hist_edges
 		ax_OP = None
 	
 	if(to_plot_F):
-		fig_OP_hist, ax_OP_hist = my.get_fig(y_lbl, r'$\rho(' + x_lbl + ')$', title=r'$\rho(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		fig_OP_hist, ax_OP_hist = my.get_fig(y_lbl, r'$\rho(' + x_lbl + ')$', title=r'$\rho(' + x_lbl + ')$; ' + ThL_lbl)
 		ax_OP_hist.bar(OP_hist_centers, rho, yerr=d_rho, width=OP_hist_lens, label=r'$\rho(' + x_lbl + ')$', align='center')
 		if(to_estimate_k):
 			ax_OP_hist.plot([OP_A] * 2, [0, max(rho)], '--', label='state A,B', color=my.get_my_color(1))
 			ax_OP_hist.plot([OP_B] * 2, [0, max(rho)], '--', label=None, color=my.get_my_color(1))
 		ax_OP_hist.legend()
 		
-		fig_OP_jumps_hist, ax_OP_jumps_hist = my.get_fig('d' + x_lbl, 'probability', title=x_lbl + ' jumps distribution; T/J = ' + str(Temp) + '; h/J = ' + str(h), yscl='log')
+		fig_OP_jumps_hist, ax_OP_jumps_hist = my.get_fig('d' + x_lbl, 'probability', title=x_lbl + ' jumps distribution; ' + ThL_lbl, yscl='log')
 		ax_OP_jumps_hist.plot(possible_jumps, OP_jumps_hist, '.')
 		
-		fig_F, ax_F = my.get_fig(y_lbl, r'$F/J$', title=r'$F(' + x_lbl + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		fig_F, ax_F = my.get_fig(y_lbl, r'$F/J$', title=r'$F(' + x_lbl + ')$; ' + ThL_lbl)
 		ax_F.errorbar(OP_hist_centers, F, yerr=d_F, fmt='.', label='$F(' + x_lbl + ')$')
 		if(to_estimate_k):
 			ax_F.plot([OP_A] * 2, [min(F), max(F)], '--', label='state A, B', color=my.get_my_color(1))
@@ -998,6 +1003,13 @@ def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins
 										interface_mode=OP_C_id[interface_mode], default_spin_state=def_spin_state, \
 										verbose=verbose)
 	
+	if(k_AB_BFcount > 0):
+		d_k_AB_BFcount = k_AB_BFcount / np.sqrt(k_AB_BFcount * Nt)
+		print('k_AB_BFcount = (' + my.errorbar_str(k_AB_BFcount, d_k_AB_BFcount) + ') 1/step')
+	else:
+		d_k_AB_BFcount = 0
+		print('k_AB_BFcount = 0')
+
 	if(to_get_timeevol):
 		if(timeevol_stride < 0):
 			timeevol_stride = np.int_(- Nt / timeevol_stride)
@@ -1054,18 +1066,24 @@ def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins
 					# k2 = feature_labels_ordered[i2]
 					# plot_correlation(data[k1][::timeevol_stride] / OP_scale[k1], data[k2][::timeevol_stride] / OP_scale[k2], \
 									# feature_label[k1], feature_label[k2])
-		
-		return F, d_F, hist_centers, hist_lens, rho_interp1d, d_rho_interp1d, k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, OP_avg, d_OP_avg, E_avg#, C
 	else:
-		if(k_AB_BFcount > 0):
-			d_k_AB_BFcount = k_AB_BFcount / np.sqrt(k_AB_BFcount * Nt)
-			print('k_AB_BFcount = (' + my.errorbar_str(k_AB_BFcount, d_k_AB_BFcount) + ') 1/step')
-		else:
-			d_k_AB_BFcount = 0
-			print('k_AB_BFcount = 0')
+		F = None
+		d_F = None
+		hist_centers = None
+		hist_lens = None
+		rho_interp1d = None
+		d_rho_interp1d = None
+		k_bc_AB = None
+		k_bc_BA = None
+		k_AB = None
+		d_k_AB = None
+		k_BA = None
+		d_k_BA = None
+		OP_avg = None
+		d_OP_avg = None
+		E_avg = None
 		
-		
-		return k_AB_BFcount, d_k_AB_BFcount
+	return F, d_F, hist_centers, hist_lens, rho_interp1d, d_rho_interp1d, k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, OP_avg, d_OP_avg, E_avg, k_AB_BFcount, d_k_AB_BFcount#, C
 	
 	
 
@@ -1111,9 +1129,8 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 	
 	ln_k_AB_data = np.empty(N_runs)
 	ln_k_BA_data = np.empty(N_runs) 
-	if(to_get_timeevol):
-		rho_fncs = [[]] * N_runs
-		d_rho_fncs = [[]] * N_runs
+	rho_fncs = [[]] * N_runs
+	d_rho_fncs = [[]] * N_runs
 	if(mode == 'BF'):
 		ln_k_bc_AB_data = np.empty(N_runs)
 		ln_k_bc_BA_data = np.empty(N_runs) 
@@ -1143,7 +1160,7 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 		izing.init_rand(i + old_seed)
 		if(mode == 'BF'):
 			F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
-				rho_fncs[i], d_rho_fncs[i], k_bc_AB_BF, k_bc_BA_BF, k_AB_BF, _, k_BA_BF, _, _, _, _ = \
+				rho_fncs[i], d_rho_fncs[i], k_bc_AB_BF, k_bc_BA_BF, k_AB_BF, _, k_BA_BF, _, _, _, _, k_AB_BFcount, _ = \
 					proc_T(L, Temp, h, Nt_per_BF_run, interface_mode, def_spin_state, \
 							OP_A=OP_A, OP_B=OP_B, N_spins_up_init=N_spins_up_init, \
 							verbose=verbose, to_plot_time_evol=to_plot_time_evol, \
@@ -1156,13 +1173,18 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 			ln_k_AB_data[i] = np.log(k_AB_BF * 1)
 			ln_k_BA_data[i] = np.log(k_BA_BF * 1)
 		elif(mode  == 'BF_AB'):
-			k_AB_BFcount, _ = \
+					# proc_T(L, Temp, h[0], Nt, interface_mode, def_spin_state, \
+									# OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
+								# to_plot_time_evol=to_plot_timeevol, to_plot_F=True, to_plot_ETS=to_plot_ETS, \
+								# to_plot_correlations=True and to_plot_timeevol, to_get_timeevol=to_get_timeevol, \
+								# OP_min=OP_min_BF, OP_max=OP_max[0], to_estimate_k=False, timeevol_stride=timeevol_stride)
+			F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
+				rho_fncs[i], d_rho_fncs[i], _, _, _, _, _, _, _, _, _, k_AB_BFcount, _ = \
 					proc_T(L, Temp, h, Nt_per_BF_run, interface_mode, def_spin_state, \
 							OP_A=OP_A, OP_B=OP_B, N_spins_up_init=N_spins_up_init, \
 							verbose=verbose, to_plot_time_evol=to_plot_time_evol, \
-							to_plot_F=False, to_plot_correlations=False, to_plot_ETS=False, \
-							timeevol_stride=timeevol_stride, to_estimate_k=False, 
-							to_get_timeevol=True)
+							timeevol_stride=timeevol_stride, to_estimate_k=False,
+							to_get_timeevol=to_get_timeevol, OP_max=OP_B)
 			
 			ln_k_AB_data[i] = np.log(k_AB_BFcount * 1)
 		elif(mode == 'FFS_AB'):
@@ -1288,9 +1310,10 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 		assert(not (('BF' in mode) and to_plot_committer)), 'ERROR: BF mode used but commiter requested'
 	
 	if(to_plot_committer):
-		fig_PB_log, ax_PB_log = my.get_fig(title[interface_mode], r'$P_B(' + feature_label[interface_mode] + ') = P(i|0)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h), yscl='log')
-		fig_PB, ax_PB = my.get_fig(title[interface_mode], r'$P_B(' + feature_label[interface_mode] + ') = P(i|0)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
-		fig_PB_sigmoid, ax_PB_sigmoid = my.get_fig(title[interface_mode], r'$-\ln(1/P_B - 1)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h))
+		ThL_lbl = 'T/J = ' + str(Temp) + '; h/J = ' + str(h) + '; L = ' + str(L)
+		fig_PB_log, ax_PB_log = my.get_fig(title[interface_mode], r'$P_B(' + feature_label[interface_mode] + ') = P(i|0)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; ' + ThL_lbl, yscl='log')
+		fig_PB, ax_PB = my.get_fig(title[interface_mode], r'$P_B(' + feature_label[interface_mode] + ') = P(i|0)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
+		fig_PB_sigmoid, ax_PB_sigmoid = my.get_fig(title[interface_mode], r'$-\ln(1/P_B - 1)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
 		
 		mark_PB_plot(ax_PB, ax_PB_log, ax_PB_sigmoid, OP, PB_AB, PB_sigmoid, interface_mode)
 		# for i in range(N_runs):
@@ -1380,8 +1403,9 @@ def get_h_dependence(h_arr, L, Temp, N_runs, interface_mode, def_spin_state, N_i
 		k_AB_mean[i_h], k_AB_min[i_h], k_AB_max[i_h], d_k_AB[i_h] = get_log_errors(ln_k_AB[i_h], d_ln_k_AB[i_h], lbl='k_AB_' + str(i_h))
 	
 	if(to_plot):
-		fig_k, ax_k = my.get_fig('$h/J$', '$k_{AB} / L^2$ [trans/(sweep $\cdot l^2$)]', '$k_{AB}(h)$; T/J = ' + str(Temp) + '; L = ' + str(L), yscl='log')
-		fig_Nc, ax_Nc = my.get_fig('$h/J$', '$N_c$', '$N_c(h)$; T/J = ' + str(Temp) + '; L = ' + str(L), xscl='log', yscl='log')
+		TL_lbl = 'T/J = ' + str(Temp) + '; h/J = ' + str(h) + '; L = ' + str(L)
+		fig_k, ax_k = my.get_fig('$h/J$', '$k_{AB} / L^2$ [trans/(sweep $\cdot l^2$)]', '$k_{AB}(h)$; ' + TL_lbl, yscl='log')
+		fig_Nc, ax_Nc = my.get_fig('$h/J$', '$N_c$', '$N_c(h)$; ' + TL_lbl, xscl='log', yscl='log')
 
 		k_AB_errbars = np.concatenate(((k_AB_mean - k_AB_min)[np.newaxis, :], (k_AB_max - k_AB_mean)[np.newaxis, :]), axis=0)
 		ax_k.errorbar(h_arr, k_AB_mean, yerr=k_AB_errbars, fmt='.', label='data')
@@ -1398,8 +1422,8 @@ def get_h_dependence(h_arr, L, Temp, N_runs, interface_mode, def_spin_state, N_i
 			ax_k.plot(h_kAB_ref, k_AB_ref, '-o', label='reference')
 			ax_Nc.plot(h_Nc_ref, Nc_AB_ref, '-o', label='reference')
 			
-			fig_k_err, ax_k_err = my.get_fig('$h/J$', '$[max(k_{my, ref}) / min(k_{my, ref}) - 1]$', '$k_{error}(h)$; T/J = ' + str(Temp) + '; L = ' + str(L), yscl='log')
-			fig_Nc_err, ax_Nc_err = my.get_fig('$h/J$', '$[max(Nc_{my, ref}) / min(Nc_{my, ref}) - 1]$', '$Nc_{error}(h)$; T/J = ' + str(Temp) + '; L = ' + str(L), xscl='log', yscl='log')
+			fig_k_err, ax_k_err = my.get_fig('$h/J$', '$[max(k_{my, ref}) / min(k_{my, ref}) - 1]$', '$k_{error}(h)$; ' + TL_lbl, yscl='log')
+			fig_Nc_err, ax_Nc_err = my.get_fig('$h/J$', '$[max(Nc_{my, ref}) / min(Nc_{my, ref}) - 1]$', '$Nc_{error}(h)$; ' + TL_lbl, xscl='log', yscl='log')
 			def get_k_err_vals(k, d_ln_k, k_ref):
 				r = np.exp(np.abs(np.log(k / k_ref)))
 				# d(k/k0 - 1) / (k/k0) = dk/k
@@ -1421,16 +1445,18 @@ def get_h_dependence(h_arr, L, Temp, N_runs, interface_mode, def_spin_state, N_i
 		
 
 def main():
+	# python run.py -mode FFS_AB_L -N_states_FFS 100 -N_init_states_FFS 500 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 5 -h 0.13 -interface_set_mode spaced -L 100 78 56 42 32 24 18 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
 	# TODO: remove outdated inputs
 	[L, h, Temp, mode, Nt, N_states_FFS, N_init_states_FFS, to_recomp, to_get_timeevol, verbose, my_seed, N_OP_interfaces, N_runs, init_gen_mode, OP_0, OP_max, interface_mode, OP_min_BF, OP_max_BF, Nt_sample_A, Nt_sample_B, def_spin_state, N_spins_up_init, to_plot_ETS, interface_set_mode, timeevol_stride, to_plot_timeevol], _ = \
-		my.parse_args(sys.argv,            ['-L',  '-h', '-Temp', '-mode',        '-Nt', '-N_states_FFS', '-N_init_states_FFS',     '-to_recomp', '-to_get_timeevol', '-verbose', '-my_seed', '-N_OP_interfaces', '-N_runs', '-init_gen_mode', '-OP_0', '-OP_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B', '-def_spin_state', '-N_spins_up_init',   '-to_plot_ETS', '-interface_set_mode', '-timeevol_stride', '-to_plot_timeevol'], \
-					  possible_arg_numbers=[[1],  ['+'],     [1],     [1],       [0, 1],          [0, 1],               [0, 1],           [0, 1],             [0, 1],     [0, 1],     [0, 1],                [1],    [0, 1],           [0, 1],   ['+'],     ['+'],               [1],       [0, 1],       [0, 1],         [0, 1],         [0, 1],            [0, 1],             [0, 1],           [0, 1],                [0, 1],             [0, 1],              [0, 1]], \
-					  default_values=      [None,  None,    None,    None, ['-1000000'],       ['-5000'],             ['5000'], [my.no_flags[0]],              ['1'],      ['1'],     ['23'],               None,     ['3'],           ['-3'],    None,      None,              None,       [None],       [None],   ['-1000000'],   ['-1000000'],            ['-1'],             [None], [my.no_flags[0]],           ['optimal'],          ['-3000'],     [my.no_flags[0]]])
+		my.parse_args(sys.argv,            [ '-L',   '-h', '-Temp', '-mode',        '-Nt', '-N_states_FFS', '-N_init_states_FFS',     '-to_recomp', '-to_get_timeevol', '-verbose', '-my_seed', '-N_OP_interfaces', '-N_runs', '-init_gen_mode', '-OP_0', '-OP_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B', '-def_spin_state', '-N_spins_up_init',   '-to_plot_ETS', '-interface_set_mode', '-timeevol_stride', '-to_plot_timeevol'], \
+					  possible_arg_numbers=[['+'],  ['+'],     [1],     [1],       [0, 1],          [0, 1],               [0, 1],           [0, 1],             [0, 1],     [0, 1],     [0, 1],                [1],    [0, 1],           [0, 1],   ['+'],     ['+'],               [1],       [0, 1],       [0, 1],         [0, 1],         [0, 1],            [0, 1],             [0, 1],           [0, 1],                [0, 1],             [0, 1],              [0, 1]], \
+					  default_values=      [ None,   None,    None,    None, ['-1000000'],       ['-5000'],             ['5000'], [my.no_flags[0]],              ['1'],      ['1'],     ['23'],               None,     ['3'],           ['-3'],    None,      None,              None,       [None],       [None],   ['-1000000'],   ['-1000000'],            ['-1'],             [None], [my.no_flags[0]],           ['optimal'],          ['-3000'],     [my.no_flags[0]]])
 	
 	# efficiency info:
 	# [M0=20, NM=20] : Nt / N_states_FFS ~ 1e4
 	
-	L = int(L)
+	Ls = np.array([int(l) for l in L], dtype=int)
+	L = Ls[0]
 	L2 = L**2
 	h = np.array([float(x) for x in h])   # arbitrary small number that gives nice pictures
 	N_h = len(h)
@@ -1601,7 +1627,7 @@ def main():
 				to_plot_k_distr=True, N_k_bins=N_k_bins, mode='FFS', \
 				init_gen_mode=init_gen_mode)
 	elif(mode == 'FFS_AB_many'):
-		F_FFS, d_F_FFS, M_hist_centers_FFS, M_hist_lens_FFS, ln_k_AB_FFS, d_ln_k_AB_FFS, \
+		F_FFS, d_F_FFS, M_hist_centers_FFS, OP_hist_lens_FFS, ln_k_AB_FFS, d_ln_k_AB_FFS, \
 			flux0_AB_FFS, d_flux0_AB_FFS, prob_AB_FFS, d_prob_AB_FFS, OP0_AB, d_OP0_AB = \
 			run_many(L, Temp, h[0], N_runs, interface_mode, def_spin_state, \
 				N_init_states_AB=N_init_states_AB, \
@@ -1615,12 +1641,77 @@ def main():
 		get_log_errors(np.log(flux0_AB_FFS), d_flux0_AB_FFS / flux0_AB_FFS, lbl='flux0_AB', print_scale=print_scale_flux)
 		k_AB_FFS_mean, k_AB_FFS_min, k_AB_FFS_max, d_k_AB_FFS = get_log_errors(ln_k_AB_FFS, d_ln_k_AB_FFS, lbl='k_AB_FFS', print_scale=print_scale_k)
 		
-	elif(mode == 'FFS_AB_h'):
+	elif('h' in mode):
 		get_h_dependence(h, L, Temp, N_runs, interface_mode, def_spin_state, N_init_states_AB, OP_interfaces_AB, init_gen_mode=init_gen_mode, to_plot=True)
+	
+	elif('L' in mode):
+		N_L = len(Ls)
+		ln_k_AB = np.empty(N_L)
+		d_ln_k_AB = np.empty(N_L)
+		k_AB_mean = np.empty(N_L)
+		k_AB_min = np.empty(N_L)
+		k_AB_max = np.empty(N_L)
+		d_k_AB = np.empty(N_L)
+		F_FFS = []
+		d_F_FFS = []
+		OP_hist_centers_FFS = []
+		OP_hist_lens_FFS = []
+		if('FFS' in mode):
+			flux0_AB_FFS = np.empty(N_L)
+			d_flux0_AB_FFS = np.empty(N_L)
+			prob_AB_FFS = np.empty((N_OP_interfaces - 1, N_L))
+			d_prob_AB_FFS = np.empty((N_OP_interfaces - 1, N_L))
+			OP0_AB = np.empty(N_L)
+			d_OP0_AB = np.empty(N_L)
+			
+		for i_l in range(N_L):
+			if('BF' in mode):
+				F_FFS_new, d_F_FFS_new, OP_hist_centers_new, OP_hist_lens_new, \
+					ln_k_AB[i_l], d_ln_k_AB[i_l] = \
+						run_many(Ls[i_l], Temp, h[0], N_runs, interface_mode, def_spin_state, Nt_per_BF_run=Nt, \
+								OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
+								to_get_timeevol=to_get_timeevol, mode='BF_AB')
+			elif('FFS' in mode):
+				F_FFS_new, d_F_FFS_new, OP_hist_centers_FFS_new, OP_hist_lens_FFS_new, \
+					ln_k_AB[i_l], d_ln_k_AB[i_l], flux0_AB_FFS[i_l], d_flux0_AB_FFS[i_l], \
+					prob_AB_FFS[:, i_l], d_prob_AB_FFS[:, i_l], OP0_AB[i_l], d_OP0_AB[i_l] = \
+						run_many(Ls[i_l], Temp, h[0], N_runs, interface_mode, def_spin_state, \
+							N_init_states_AB=N_init_states_AB, \
+							OP_interfaces_AB=OP_interfaces_AB[0], \
+							mode='FFS_AB', init_gen_mode=init_gen_mode, \
+							OP_sample_BF_A_to=OP_sample_BF_A_to[0], \
+							OP_match_BF_A_to=OP_match_BF_A_to[0], \
+							to_get_timeevol=to_get_timeevol, to_plot_committer=False)
+				F_FFS.append(F_FFS_new)
+				d_F_FFS.append(d_F_FFS_new)
+				OP_hist_centers_FFS.append(OP_hist_centers_FFS_new)
+				OP_hist_lens_FFS.append(OP_hist_lens_FFS_new)
+			
+			k_AB_mean[i_l], k_AB_min[i_l], k_AB_max[i_l], d_k_AB[i_l] = \
+				get_log_errors(ln_k_AB[i_l], d_ln_k_AB[i_l], lbl='k_AB_L' + str(Ls[i_l]), print_scale=print_scale_k)
+		
+		if('FFS' in mode):
+			P_AB = k_AB_mean / flux0_AB_FFS
+			d_P_AB = P_AB * np.sqrt(d_ln_k_AB**2 + (d_flux0_AB_FFS / flux0_AB_FFS)**2)
+		
+		Th_lbl = 'T/J = ' + str(Temp) + '; h/J = ' + str(h[0])
+		
+		fig_kAB_L, ax_kAB_L = my.get_fig('L', r'$k_{AB} / L^2$ [trans / (sweep $\cdot l^2$)]', title=r'$k_{AB}(L)$; ' + Th_lbl, xscl='log', yscl='log')
+		ax_kAB_L.errorbar(Ls, k_AB_mean, yerr=d_k_AB, fmt='.')
+		
+		if('FFS' in mode):
+			fig_flux0_L, ax_flux0_L = my.get_fig('L', r'$\Phi_{A} / L^2$ [trans / (sweep $\cdot l^2$)]', title=r'$\Phi_{A}(L)$; ' + Th_lbl, xscl='log')
+			fig_P_L, ax_P_L = my.get_fig('L', r'$P_{AB}$', title=r'$P_{AB}(L)$; ' + Th_lbl, xscl='log')
+			fig_Nc_L, ax_Nc_L = my.get_fig('L', '$N_c$', title='$N_c(L)$; ' + Th_lbl, xscl='log')
+			
+			ax_Nc_L.errorbar(Ls, OP0_AB, yerr=d_OP0_AB, fmt='.')
+			ax_flux0_L.errorbar(Ls, flux0_AB_FFS, yerr=d_flux0_AB_FFS, fmt='.')
+			ax_P_L.errorbar(Ls, P_AB, yerr=d_P_AB, fmt='.')
+			
 	
 	elif('compare' in mode):
 		if('AB' in mode):
-			F_FFS, d_F_FFS, M_hist_centers_FFS, M_hist_lens_FFS, ln_k_AB_FFS, d_ln_k_AB_FFS, \
+			F_FFS, d_F_FFS, OP_hist_centers_FFS, OP_hist_lens_FFS, ln_k_AB_FFS, d_ln_k_AB_FFS, \
 				flux0_AB_FFS, d_flux0_AB_FFS, prob_AB_FFS, d_prob_AB_FFS, OP0_AB, d_OP0_AB = \
 					run_many(L, Temp, h[0], N_runs, interface_mode, def_spin_state, \
 						N_init_states_AB=N_init_states_AB, \
@@ -1631,7 +1722,7 @@ def main():
 						OP_match_BF_A_to=OP_match_BF_A_to[0], \
 						to_get_timeevol=to_get_timeevol)
 		else:
-			F_FFS, d_F_FFS, M_hist_centers_FFS, M_hist_lens_FFS, \
+			F_FFS, d_F_FFS, OP_hist_centers_FFS, OP_hist_lens_FFS, \
 				ln_k_AB_FFS, d_ln_k_AB_FFS, ln_k_BA_FFS, d_ln_k_BA_FFS, \
 				flux0_AB_FFS, d_flux0_AB_FFS, flux0_BA_FFS, d_flux0_BA_FFS, \
 				prob_AB_FFS, d_prob_AB_FFS, prob_BA_FFS, d_prob_BA_FFS, \
@@ -1656,8 +1747,8 @@ def main():
 		#F_BF = F_BF - min(F_BF)
 		F_BF = F_BF - F_BF[0]
 		
-		#assert(np.all(abs(M_hist_centers_BF - M_hist_centers_FFS) < (M_hist_centers_BF[0] - M_hist_centers_BF[1]) * 1e-3)), 'ERROR: returned M_centers do not match'
-		#assert(np.all(abs(M_hist_lens_BF - M_hist_lens_FFS) < M_hist_lens_BF[0] * 1e-3)), 'ERROR: returned M_centers do not match'
+		#assert(np.all(abs(M_hist_centers_BF - OP_hist_centers_FFS) < (M_hist_centers_BF[0] - M_hist_centers_BF[1]) * 1e-3)), 'ERROR: returned M_centers do not match'
+		#assert(np.all(abs(M_hist_lens_BF - OP_hist_lens_FFS) < M_hist_lens_BF[0] * 1e-3)), 'ERROR: returned M_centers do not match'
 
 		k_bc_AB_BF_mean, k_bc_AB_BF_min, k_bc_AB_BF_max, d_k_bc_AB_BF = get_log_errors(ln_k_bc_AB_BF, d_ln_k_bc_AB_BF, lbl='k_bc_AB_BF', print_scale=print_scale_k)
 		k_AB_BF_mean, k_AB_BF_min, k_AB_BF_max, d_k_AB_BF = get_log_errors(ln_k_AB_BF, d_ln_k_AB_BF, lbl='k_AB_BF', print_scale=print_scale_k)
@@ -1670,10 +1761,11 @@ def main():
 			get_log_errors(np.log(flux0_BA_FFS), d_flux0_BA_FFS / flux0_BA_FFS, lbl='flux0_BA', print_scale=print_scale_flux)
 			k_BA_FFS_mean, k_BA_FFS_min, k_BA_FFS_max, d_k_BA_FFS = get_log_errors(ln_k_BA_FFS, d_ln_k_BA_FFS, lbl='k_BA_FFS', print_scale=print_scale_k)
 		
-		fig_F, ax_F = my.get_fig(title[interface_mode], r'$F / J$', title=r'$F(' + feature_label[interface_mode] + ')$; T/J = ' + str(Temp) + '; h/J = ' + str(h[0]))
+		ThL_lbl = 'T/J = ' + str(Temp) + '; h/J = ' + str(h[0]) + '; L = ' + str(L)
+		fig_F, ax_F = my.get_fig(title[interface_mode], r'$F / J$', title=r'$F(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
 		ax_F.errorbar(M_hist_centers_BF, F_BF, yerr=d_F_BF, label='BF')
 		if(to_get_timeevol):
-			ax_F.errorbar(M_hist_centers_FFS, F_FFS, yerr=d_F_FFS, label='FFS')
+			ax_F.errorbar(OP_hist_centers_FFS, F_FFS, yerr=d_F_FFS, label='FFS')
 			all_plotted_F = np.concatenate((F_BF, F_FFS))
 			F_lims = [min(all_plotted_F), max(all_plotted_F)]
 		else:
