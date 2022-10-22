@@ -32,11 +32,12 @@ PYBIND11_MODULE(izing, m)
 //						 std::optional<int> _OP_to_save_min, std::optional<int> _OP_to_save_max,
 //						 std::optional<int> _interface_mode, std::optional<int> _verbose)
 	m.def("run_bruteforce", &run_bruteforce,
-		  "run Brute-force simulation for the 2D Ising model for Nt_max steps, starting from M=-L^2",
+		  "run Brute-force simulation for the 2D Ising model for Nt_max steps, starting from ~equilibrated state",
 		  py::arg("grid_size"),
 		  py::arg("Temp"),
 		  py::arg("h"),
 		  py::arg("Nt_max"),
+		  py::arg("N_saved_states_max"),
 		  py::arg("N_spins_up_init")=py::none(),
 		  py::arg("to_remember_timeevol")=py::none(),
 		  py::arg("OP_A")=py::none(),
@@ -71,5 +72,11 @@ PYBIND11_MODULE(izing, m)
 // py::int_ set_verbose(int new_verbose)
 	m.def("get_seed", &get_seed,
 		  "Returns the current seed used for the last GSL random initiation"
+	);
+
+// void print_state(py::array_t<int> state, char prefix)
+	m.def("print_state", &print_state,
+		  "Returns the current seed used for the last GSL random initiation",
+		  py::arg("state")
 	);
 }

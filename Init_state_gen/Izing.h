@@ -50,26 +50,30 @@ namespace Izing
 
 	int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, long *Nt,
 				  long *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
-				  int **biggest_cluster_sizes, int verbose, int init_gen_mode, int interface_mode, int default_spin_state);
-	int run_bruteforce_C(int L, double Temp, double h, int N_states, int *states,
-						 long *OP_arr_len, long *Nt, double **E, int **M, int **biggest_cluster_sizes, int **h_A,
+				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode, int default_spin_state);
+	int run_bruteforce_C(int L, double Temp, double h, long *time_total, int N_states, int *states,
+						 long *OP_arr_len, long *Nt, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 						 int interface_mode, int default_spin_state, int OP_A, int OP_B,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
-						 int N_spins_up_init, int verbose, long Nt_max, int *N_tries);
-	double process_step(int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, long *Nt, long *OP_arr_len,
+						 int N_spins_up_init, int verbose, long Nt_max, int *N_tries, int to_save_final_state,
+						 int to_regenerate_init_state, long N_saved_states_max);
+	double process_step(int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int **time, long *Nt, long *OP_arr_len,
 						int N_init_states, int N_next_states, int L, double Temp, double h, int OP_0, int OP_next,
 						int interfaces_mode, int default_spin_state, int verbose);
-	int run_state(int *s, int L, double Temp, double h, int OP_0, int OP_next,
-				  double **E, int **M, int **biggest_cluster_sizes, int **h_A,
+	int run_state(int *s, int L, double Temp, double h, long *time_total, int OP_0, int OP_next,
+				  double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 				  int *cluster_element_inds, int *cluster_sizes, int *is_checked, long *Nt, long *OP_arr_len,
 				  int interfaces_mode, int default_spin_state, int verbose, long Nt_max=-1, int* states_to_save=nullptr,
 				  int *N_states_saved=nullptr, int N_states_to_save=-1,  int OP_min_save_state=0, int OP_max_save_state=0,
-				  int save_state_mode=save_state_mode_Inside, int OP_A=0, int OP_B=0);
-	int get_init_states_C(int L, double Temp, double h, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
+				  int save_state_mode=save_state_mode_Inside, int OP_A=0, int OP_B=0, long N_saved_states_max=-1);
+	int get_init_states_C(int L, double Temp, double h, long *time_total, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
 						  int interface_mode, int default_spin_state, int OP_A, int OP_B,
-						  double **E, int **M, int **biggest_cluster_size, int **h_A,
+						  double **E, int **M, int **biggest_cluster_size, int **h_A, int **time,
 						  long *Nt, long *OP_arr_len, int verbose);
+	int get_equilibrated_state(int L, double Temp, double h, int *init_state, int interface_mode, int default_spin_state,
+							   int OP_A, int OP_B, int verbose);
+
 
 	int init_rand_C(int my_seed);
 	double comp_E(const int* s, int N, double h);
@@ -92,7 +96,7 @@ namespace Izing
 py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states,
 				  pybind11::array_t<int> OP_interfaces, int to_remember_timeevol, int init_gen_mode, int interface_mode,
 				  int default_spin_state, std::optional<int> _verbose);
-py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max,
+py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved_states_max,
 						 std::optional<int> _N_spins_up_init, std::optional<int> _to_remember_timeevol,
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
@@ -100,6 +104,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max,
 						 std::optional<int> _verbose);
 int compute_hA(py::array_t<int> *h_A, int *OP, long Nt, int OP_A, int OP_B);
 py::tuple cluster_state(py::array_t<int> state, int default_state, std::optional<int> _verbose);
+void print_state(py::array_t<int> state);
 py::int_ init_rand(int my_seed);
 py::int_ set_verbose(int new_verbose);
 py::int_ get_seed();

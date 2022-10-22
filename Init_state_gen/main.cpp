@@ -57,14 +57,14 @@ int main(int argc, char** argv) {
 
     int i, j;
 	int state_size_in_bytes = L2 * sizeof(int);
-	int OP_arr_len = 128;
+	long OP_arr_len = 128;
 
 	Izing::set_OP_default(L2);
 
 // [OP_min---OP_0](---OP_1](---...---OP_n-2](---OP_n-1](---OP_max]
 //        A       1       2 ...n-1       n-1        B
 //        0       1       2 ...n-1       n-1       n
-	int *Nt = (int*) malloc(sizeof(int) * (N_OP_interfaces));
+	long *Nt = (long*) malloc(sizeof(long) * (N_OP_interfaces));
 //	int *OP_arr_len = (int*) malloc(sizeof(int) * (N_OP_interfaces + 1));
 	int *OP_interfaces = (int*) malloc((sizeof(int) * (N_OP_interfaces)));
 	int *N_init_states = (int*) malloc(sizeof(int) * (N_OP_interfaces));
@@ -107,10 +107,12 @@ int main(int argc, char** argv) {
 
 	double *E;
     int *M;
+	int *time;
 	int *biggest_cluster_sizes;
     if(to_remember_timeevol){
 		E = (double*) malloc(sizeof(double) * OP_arr_len);
 		M = (int*) malloc(sizeof(int) * OP_arr_len);
+		time = (int*) malloc(sizeof(int) * OP_arr_len);
 		biggest_cluster_sizes = (int*) malloc(sizeof(int) * OP_arr_len);
     }
 
@@ -122,12 +124,15 @@ int main(int argc, char** argv) {
 	double d_flux0;
 
 	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states, N_init_states,
-			  Nt, to_remember_timeevol ? &OP_arr_len : nullptr, OP_interfaces, N_OP_interfaces,
-			  probs, d_probs, &E, &M, &biggest_cluster_sizes, verbose, init_gen_mode,
-			  interface_mode, def_spin_state);
-    if(to_remember_timeevol){
+					 Nt, to_remember_timeevol ? &OP_arr_len : nullptr, OP_interfaces, N_OP_interfaces,
+					 probs, d_probs,  &E,&M,&biggest_cluster_sizes, &time,
+					 verbose, init_gen_mode, interface_mode,
+					 def_spin_state);
+
+	if(to_remember_timeevol){
 		free(E);   // the pointer to the array
 		free(M);
+		free(time);
 		free(biggest_cluster_sizes);
     }
 
