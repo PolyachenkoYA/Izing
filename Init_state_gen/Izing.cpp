@@ -189,6 +189,15 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 							N_spins_up_init, verbose, Nt_max, &N_launches, 0,
 							0, N_saved_states_max);
 
+//	Izing::run_bruteforce_C(L, Temp, h, &time_total, INT_MAX, states,
+//							to_remember_timeevol ? &OP_arr_len : nullptr,
+//							&Nt, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
+//							interface_mode, default_spin_state, OP_A, OP_B,
+//							OP_min, OP_max, &N_states_saved,
+//							OP_min, OP_A, save_state_mode_Inside,
+//							N_spins_up_init, verbose, Nt_max, &N_launches, 0,
+//							1, N_saved_states_max);
+
 	int N_last_elements_to_print = std::min(Nt, (long)10);
 
 	py::array_t<double> E;
@@ -890,6 +899,7 @@ namespace Izing
 //			if(verbose >= 4) printf("done Nt=%d\n", *Nt-1);
 
 			// ------------------- save the state if it's good (we don't want failed states) -----------------
+//			printf("N_states_to_save = %d, max=%d\n", N_states_to_save, N_saved_states_max);
 			if(N_states_to_save > 0){
 				bool to_save_state = (*N_states_saved < N_saved_states_max);
 				switch (save_state_mode) {
@@ -906,6 +916,7 @@ namespace Izing
 						}
 				}
 				if(to_save_state){
+//					printf("saved state\n");
 					memcpy(&(states_to_save[*N_states_saved * L2]), s, state_size_in_bytes);
 					++(*N_states_saved);
 				}
@@ -1103,8 +1114,8 @@ namespace Izing
 	int get_equilibrated_state(int L, double Temp, double h, int *init_state, int interface_mode, int default_spin_state,
 							   int OP_A, int OP_B, int verbose)
 	{
-		int time_total;
-		int Nt_to_reach_OP_A = 0;
+		long time_total;
+		long Nt_to_reach_OP_A = 0;
 		int N_states_done = 0;
 		int N_tries;
 		long Nt = 0;
@@ -1116,7 +1127,7 @@ namespace Izing
 						 OP_min_default[interface_mode], OP_A,
 						 &N_states_done, OP_A,
 						 OP_A, save_state_mode_Influx, -1,
-						 verbose, -1, &N_tries, 0, 1, -1);
+						 verbose, -1, &N_tries, 0, 1, 1);
 		if(verbose > 0){
 			printf("reached OP >= OP_A = %d in Nt = %ld MC steps\n", OP_A, Nt_to_reach_OP_A);
 		}

@@ -988,7 +988,7 @@ def plot_correlation(x, y, x_lbl, y_lbl):
 	return ax, R
 
 def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins_up_init=None, to_get_timeevol=True, \
-			to_plot_time_evol=False, to_plot_F=False, to_plot_ETS=False, to_plot_correlations=False, N_states_saved_max=-1, \
+			to_plot_time_evol=False, to_plot_F=False, to_plot_ETS=False, to_plot_correlations=False, N_saved_states_max=-1, \
 			to_estimate_k=False, timeevol_stride=-3000, OP_min=None, OP_max=None, OP_A=None, OP_B=None):
 	L2 = L**2
 	
@@ -1010,7 +1010,7 @@ def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins
 		OP_init = N_spins_up_init
 	
 	(E, M, CS, hA, times, k_AB_launches, time_total) = izing.run_bruteforce(L, Temp, h, Nt, N_spins_up_init=N_spins_up_init, OP_A=OP_A, OP_B=OP_B, \
-										OP_min=OP_min, OP_max=OP_max, to_remember_timeevol=to_get_timeevol, N_states_saved_max=N_states_saved_max, \
+										OP_min=OP_min, OP_max=OP_max, to_remember_timeevol=to_get_timeevol, N_saved_states_max=N_saved_states_max, \
 										interface_mode=OP_C_id[interface_mode], default_spin_state=def_spin_state, \
 										verbose=verbose)
 	
@@ -1019,7 +1019,7 @@ def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins
 		d_k_AB_BFcount = k_AB_BFcount / np.sqrt(k_AB_launches)
 		print('k_AB_BFcount = (' + my.errorbar_str(k_AB_BFcount, d_k_AB_BFcount) + ') 1/step')
 	else:
-		d_k_AB_BFcount = 0
+		d_k_AB_BFcount = 1
 		print('k_AB_BFcount = 0')
 
 	if(to_get_timeevol):
@@ -1095,11 +1095,11 @@ def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins
 		d_OP_avg = None
 		E_avg = None
 		
-	return F, d_F, hist_centers, hist_lens, rho_interp1d, d_rho_interp1d, k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, OP_avg, d_OP_avg, E_avg, k_AB_BFcount, d_k_AB_BFcount#, C
+	return F, d_F, hist_centers, hist_lens, rho_interp1d, d_rho_interp1d, k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, OP_avg, d_OP_avg, E_avg, k_AB_BFcount, d_k_AB_BFcount, k_AB_launches#, C
 	
 	
 def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
-			OP_A=None, OP_B=None, N_spins_up_init=None, N_states_saved_max=-1, \
+			OP_A=None, OP_B=None, N_spins_up_init=None, N_saved_states_max=-1, \
 			OP_interfaces_AB=None, OP_interfaces_BA=None, \
 			OP_sample_BF_A_to=None, OP_sample_BF_B_to=None, \
 			OP_match_BF_A_to=None, OP_match_BF_B_to=None, \
@@ -1140,6 +1140,7 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 	
 	ln_k_AB_data = np.empty(N_runs)
 	ln_k_BA_data = np.empty(N_runs) 
+	k_AB_BFcount_N_data = np.empty(N_runs)
 	rho_fncs = [[]] * N_runs
 	d_rho_fncs = [[]] * N_runs
 	if(mode == 'BF'):
@@ -1171,13 +1172,13 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 		izing.init_rand(i + old_seed)
 		if(mode == 'BF'):
 			F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
-				rho_fncs[i], d_rho_fncs[i], k_bc_AB_BF, k_bc_BA_BF, k_AB_BF, _, k_BA_BF, _, _, _, _, k_AB_BFcount, _ = \
+				rho_fncs[i], d_rho_fncs[i], k_bc_AB_BF, k_bc_BA_BF, k_AB_BF, _, k_BA_BF, _, _, _, _, k_AB_BFcount, _, _ = \
 					proc_T(L, Temp, h, Nt_per_BF_run, interface_mode, def_spin_state, \
 							OP_A=OP_A, OP_B=OP_B, N_spins_up_init=N_spins_up_init, \
 							verbose=verbose, to_plot_time_evol=to_plot_time_evol, \
 							to_plot_F=False, to_plot_correlations=False, to_plot_ETS=False, \
 							timeevol_stride=timeevol_stride, to_estimate_k=True, 
-							to_get_timeevol=True, N_states_saved_max=N_states_saved_max)
+							to_get_timeevol=True, N_saved_states_max=N_saved_states_max)
 			
 			ln_k_bc_AB_data[i] = np.log(k_bc_AB_BF * 1)   # proc_T returns 'k', not 'log(k)'; *1 for units [1/step]
 			ln_k_bc_BA_data[i] = np.log(k_bc_BA_BF * 1)
@@ -1190,13 +1191,13 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 								# to_plot_correlations=True and to_plot_timeevol, to_get_timeevol=to_get_timeevol, \
 								# OP_min=OP_min_BF, OP_max=OP_max[0], to_estimate_k=False, timeevol_stride=timeevol_stride)
 			F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
-				rho_fncs[i], d_rho_fncs[i], _, _, _, _, _, _, _, _, _, k_AB_BFcount, _ = \
+				rho_fncs[i], d_rho_fncs[i], _, _, _, _, _, _, _, _, _, k_AB_BFcount, _, k_AB_BFcount_N_data[i] = \
 					proc_T(L, Temp, h, Nt_per_BF_run, interface_mode, def_spin_state, \
 							OP_A=OP_A, OP_B=OP_B, N_spins_up_init=N_spins_up_init, \
 							verbose=verbose, to_plot_time_evol=to_plot_time_evol, \
 							timeevol_stride=timeevol_stride, to_estimate_k=False,
 							to_get_timeevol=to_get_timeevol, OP_max=OP_B, \
-							N_states_saved_max=N_states_saved_max)
+							N_saved_states_max=N_saved_states_max)
 			
 			ln_k_AB_data[i] = np.log(k_AB_BFcount * 1)
 		elif(mode == 'FFS_AB'):
@@ -1262,6 +1263,9 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 	
 	if('AB' not in mode):
 		ln_k_BA, d_ln_k_BA = get_average(ln_k_BA_data)
+		
+	if(mode == 'BF_AB'):
+		k_AB_BFcount_N, d_k_AB_BFcount_N = get_average(k_AB_BFcount_N_data)
 
 	if(mode == 'BF'):
 		ln_k_bc_AB, d_ln_k_bc_AB = get_average(ln_k_bc_AB_data)
@@ -1367,7 +1371,7 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 	elif(mode == 'BF'):
 		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, ln_k_BA, d_ln_k_BA, ln_k_bc_AB, d_ln_k_bc_AB, ln_k_bc_BA, d_ln_k_bc_BA
 	elif(mode == 'BF_AB'):
-		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB
+		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, k_AB_BFcount_N, d_k_AB_BFcount_N
 
 # def get_init_states(Ns, N_min, N0=1):
 	# # first value is '1' because it's the size of the states' set from which the initial states for simulations in A will be picked. 
@@ -1457,13 +1461,15 @@ def get_h_dependence(h_arr, L, Temp, N_runs, interface_mode, def_spin_state, N_i
 		
 
 def main():
+	# python run.py -mode BF_AB_L -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 35000000 -N_runs 5 -h 0.15 -interface_set_mode spaced -L 100 71 56 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
+	
 	# python run.py -mode FFS_AB -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.15 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
 	# python run.py -mode FFS_AB_L -N_states_FFS 100 -N_init_states_FFS 200 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 3 -h 0.15 -interface_set_mode spaced -L 100 78 56 42 32 24 18 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
 	# python run.py -mode FFS_AB_L -N_states_FFS 100 -N_init_states_FFS 500 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 5 -h 0.13 -interface_set_mode spaced -L 100 78 56 42 32 24 18 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
 	# python run.py -mode FFS_AB_L -N_states_FFS 500 -N_init_states_FFS 1000 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 15 -h 0.15 -interface_set_mode spaced -L 24 31 39 50 56 63 71 79 89 100 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
 	# TODO: remove outdated inputs
-	[L, h, Temp, mode, Nt, N_states_FFS, N_init_states_FFS, to_recomp, to_get_timeevol, verbose, my_seed, N_OP_interfaces, N_runs, init_gen_mode, OP_0, OP_max, interface_mode, OP_min_BF, OP_max_BF, Nt_sample_A, Nt_sample_B, def_spin_state, N_spins_up_init, to_plot_ETS, interface_set_mode, timeevol_stride, to_plot_timeevol, N_states_saved_max], _ = \
-		my.parse_args(sys.argv,            [ '-L',   '-h', '-Temp', '-mode',        '-Nt', '-N_states_FFS', '-N_init_states_FFS',     '-to_recomp', '-to_get_timeevol', '-verbose', '-my_seed', '-N_OP_interfaces', '-N_runs', '-init_gen_mode', '-OP_0', '-OP_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B', '-def_spin_state', '-N_spins_up_init',   '-to_plot_ETS', '-interface_set_mode', '-timeevol_stride', '-to_plot_timeevol', '-N_states_saved_max'], \
+	[L, h, Temp, mode, Nt, N_states_FFS, N_init_states_FFS, to_recomp, to_get_timeevol, verbose, my_seed, N_OP_interfaces, N_runs, init_gen_mode, OP_0, OP_max, interface_mode, OP_min_BF, OP_max_BF, Nt_sample_A, Nt_sample_B, def_spin_state, N_spins_up_init, to_plot_ETS, interface_set_mode, timeevol_stride, to_plot_timeevol, N_saved_states_max], _ = \
+		my.parse_args(sys.argv,            [ '-L',   '-h', '-Temp', '-mode',        '-Nt', '-N_states_FFS', '-N_init_states_FFS',     '-to_recomp', '-to_get_timeevol', '-verbose', '-my_seed', '-N_OP_interfaces', '-N_runs', '-init_gen_mode', '-OP_0', '-OP_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B', '-def_spin_state', '-N_spins_up_init',   '-to_plot_ETS', '-interface_set_mode', '-timeevol_stride', '-to_plot_timeevol', '-N_saved_states_max'], \
 					  possible_arg_numbers=[['+'],  ['+'],     [1],     [1],       [0, 1],          [0, 1],               [0, 1],           [0, 1],             [0, 1],     [0, 1],     [0, 1],                [1],    [0, 1],           [0, 1],   ['+'],     ['+'],               [1],       [0, 1],       [0, 1],         [0, 1],         [0, 1],            [0, 1],             [0, 1],           [0, 1],                [0, 1],             [0, 1],              [0, 1],                [0, 1]], \
 					  default_values=      [ None,   None,    None,    None, ['-1000000'],       ['-5000'],             ['5000'], [my.no_flags[0]],              ['1'],      ['1'],     ['23'],               None,     ['3'],           ['-3'],    None,      None,              None,       [None],       [None],   ['-1000000'],   ['-1000000'],            ['-1'],             [None], [my.no_flags[0]],           ['optimal'],          ['-3000'],    [my.no_flags[0]],              ['1000']])
 	
@@ -1500,7 +1506,7 @@ def main():
 	interface_set_mode = interface_set_mode[0]
 	timeevol_stride = int(timeevol_stride[0])
 	to_plot_timeevol = (to_plot_timeevol[0] in my.yes_flags)
-	N_states_saved_max = int(N_states_saved_max[0])
+	N_saved_states_max = int(N_saved_states_max[0])
 	
 	OP_0_handy = np.copy(OP_0)
 	OP_max_handy = np.copy(OP_max)
@@ -1667,7 +1673,7 @@ def main():
 				to_plot_time_evol=to_plot_timeevol, to_plot_F=True, to_plot_ETS=to_plot_ETS, \
 				to_plot_correlations=True and to_plot_timeevol, to_get_timeevol=True, \
 				OP_min=OP_min_BF, OP_max=OP_max_BF, to_estimate_k=True, \
-				timeevol_stride=timeevol_stride, N_states_saved_max=N_states_saved_max)
+				timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max)
 		
 	if(mode == 'BF_AB'):
 		proc_T(Ls[0], Temp, h[0], Nt, interface_mode, def_spin_state, \
@@ -1675,19 +1681,19 @@ def main():
 				to_plot_time_evol=to_plot_timeevol, to_plot_F=True, to_plot_ETS=to_plot_ETS, \
 				to_plot_correlations=True and to_plot_timeevol, to_get_timeevol=to_get_timeevol, \
 				OP_min=OP_min_BF, OP_max=OP_max[0], to_estimate_k=False, \
-				timeevol_stride=timeevol_stride, N_states_saved_max=N_states_saved_max)
+				timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max)
 	
 	elif(mode == 'BF_many'):
 		run_many(Ls[0], Temp, h[0], N_runs, interface_mode, def_spin_state, Nt_per_BF_run=Nt, \
 				OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
 				to_plot_k_distr=True, N_k_bins=N_k_bins, \
-				mode='BF', N_states_saved_max=N_states_saved_max)
+				mode='BF', N_saved_states_max=N_saved_states_max)
 	
 	elif(mode == 'BF_AB_many'):
 		run_many(Ls[0], Temp, h[0], N_runs, interface_mode, def_spin_state, Nt_per_BF_run=Nt, \
 				OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
 				to_plot_k_distr=True, N_k_bins=N_k_bins, \
-				mode='BF_AB', N_states_saved_max=N_states_saved_max)
+				mode='BF_AB', N_saved_states_max=N_saved_states_max)
 	
 	elif(mode == 'FFS_AB'):
 		proc_FFS_AB(Ls[0], Temp, h[0], N_init_states_AB, OP_interfaces_AB[0], interface_mode, def_spin_state, \
@@ -1735,10 +1741,16 @@ def main():
 	elif('L' in mode):
 		ln_k_AB = np.empty(N_L)
 		d_ln_k_AB = np.empty(N_L)
+		k_AB_BFcount_N = np.empty(N_L)
+		d_k_AB_BFcount_N = np.empty(N_L)
 		k_AB_mean = np.empty(N_L)
 		k_AB_min = np.empty(N_L)
 		k_AB_max = np.empty(N_L)
 		d_k_AB = np.empty(N_L)
+		k_AB_BFcount_N_mean = np.empty(N_L)
+		k_AB_BFcount_N_min = np.empty(N_L)
+		k_AB_BFcount_N_max = np.empty(N_L)
+		d_k_AB_BFcount_N = np.empty(N_L)
 		F_FFS = []
 		d_F_FFS = []
 		OP_hist_centers_FFS = []
@@ -1756,10 +1768,10 @@ def main():
 			
 			if('BF' in mode):
 				F_FFS_new, d_F_FFS_new, OP_hist_centers_new, OP_hist_lens_new, \
-					ln_k_AB[i_l], d_ln_k_AB[i_l] = \
+					ln_k_AB[i_l], d_ln_k_AB[i_l], k_AB_BFcount_N[i_l], d_k_AB_BFcount_N[i_l] = \
 						run_many(Ls[i_l], Temp, h[0], N_runs, interface_mode, def_spin_state, Nt_per_BF_run=Nt, \
 								OP_A=OP_0[i_l], OP_B=OP_max[i_l], N_spins_up_init=N_spins_up_init, \
-								to_get_timeevol=to_get_timeevol, mode='BF_AB', N_states_saved_max=N_states_saved_max)
+								to_get_timeevol=to_get_timeevol, mode='BF_AB', N_saved_states_max=N_saved_states_max)
 			elif('FFS' in mode):
 				F_FFS_new, d_F_FFS_new, OP_hist_centers_FFS_new, OP_hist_lens_FFS_new, \
 					ln_k_AB[i_l], d_ln_k_AB[i_l], flux0_AB_FFS[i_l], d_flux0_AB_FFS[i_l], \
@@ -1779,6 +1791,9 @@ def main():
 			
 			k_AB_mean[i_l], k_AB_min[i_l], k_AB_max[i_l], d_k_AB[i_l] = \
 				get_log_errors(ln_k_AB[i_l], d_ln_k_AB[i_l], lbl='k_AB_L' + str(Ls[i_l]), print_scale=print_scale_k)
+			
+			#k_AB_BFcount_N_mean[i_l], k_AB_BFcount_N_min[i_l], k_AB_BFcount_N_max[i_l], d_k_AB_BFcount_N[i_l] = \
+			#	get_log_errors(np.log(k_AB_BFcount_N[i_l]), d_k_AB_BFcount_N[i_l] / k_AB_BFcount_N[i_l], lbl='N_AB_L' + str(Ls[i_l]))
 		
 		if('FFS' in mode):
 			P_AB = k_AB_mean / flux0_AB_FFS
@@ -1788,6 +1803,9 @@ def main():
 		
 		fig_kAB_L, ax_kAB_L = my.get_fig('L', r'$k_{AB} / L^2$ [trans / (sweep $\cdot l^2$)]', title=r'$k_{AB}(L)$; ' + Th_lbl, xscl='log')
 		ax_kAB_L.errorbar(Ls, k_AB_mean, yerr=d_k_AB, fmt='.')
+		
+		fig_kABcount_L, ax_kABcount_L = my.get_fig('L', r'$N_{AB}$ [event]', title=r'$N_{AB}(L)$; ' + Th_lbl, xscl='log')
+		ax_kABcount_L.errorbar(Ls, k_AB_BFcount_N, yerr=d_k_AB_BFcount_N, fmt='.')
 		
 		if('FFS' in mode):
 			fig_flux0_L, ax_flux0_L = my.get_fig('L', r'$\Phi_{A} / L^2$ [trans / (sweep $\cdot l^2$)]', title=r'$\Phi_{A}(L)$; ' + Th_lbl, xscl='log')
@@ -1839,7 +1857,7 @@ def main():
 						OP_A=OP_0[0], OP_B=OP_max[0], \
 						Nt_per_BF_run=Nt, mode='BF', \
 						to_plot_k_distr=False, N_k_bins=N_k_bins, 
-						N_states_saved_max=N_states_saved_max)
+						N_saved_states_max=N_saved_states_max)
 		#F_BF = F_BF - min(F_BF)
 		F_BF = F_BF - F_BF[0]
 		
