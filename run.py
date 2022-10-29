@@ -1365,9 +1365,9 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 	izing.init_rand(old_seed)
 	
 	if(mode == 'FFS'):
-		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, ln_k_BA, d_ln_k_BA, flux0_AB, d_flux0_AB, flux0_BA, d_flux0_BA, probs_AB, d_probs_AB, probs_BA, d_probs_BA, OP0_AB, d_OP0_AB, OP0_BA, d_OP0_BA
+		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, ln_k_BA, d_ln_k_BA, flux0_AB, d_flux0_AB, flux0_BA, d_flux0_BA, probs_AB, d_probs_AB, probs_BA, d_probs_BA, PB_AB, d_PB_AB, PA_BA, d_PA_BA, OP0_AB, d_OP0_AB, OP0_BA, d_OP0_BA
 	elif(mode == 'FFS_AB'):
-		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, probs_AB, d_probs_AB, OP0_AB, d_OP0_AB
+		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, probs_AB, d_probs_AB, PB_AB, d_PB_AB, OP0_AB, d_OP0_AB
 	elif(mode == 'BF'):
 		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, ln_k_BA, d_ln_k_BA, ln_k_bc_AB, d_ln_k_bc_AB, ln_k_bc_BA, d_ln_k_bc_BA
 	elif(mode == 'BF_AB'):
@@ -1393,6 +1393,8 @@ def get_h_dependence(h_arr, L, Temp, N_runs, interface_mode, def_spin_state, N_i
 	#d_prob_AB = np.empty((N_OP_interfaces - 1, N_h))
 	prob_AB = []
 	d_prob_AB = []
+	PB_AB = []
+	d_PB_AB = []
 	k_AB_mean = np.empty(N_h)
 	k_AB_min = np.empty(N_h)
 	k_AB_max = np.empty(N_h)
@@ -1402,7 +1404,7 @@ def get_h_dependence(h_arr, L, Temp, N_runs, interface_mode, def_spin_state, N_i
 	for i_h in range(N_h):
 		N_OP_interfaces[i_h] = len(OP_interfaces[i_h])
 		_, _, _, _, ln_k_AB[i_h], d_ln_k_AB[i_h], flux0_A[i_h], \
-			d_flux0_A[i_h], prob_AB_new, d_prob_AB_new, \
+			d_flux0_A[i_h], prob_AB_new, d_prob_AB_new, PB_AB_new, d_PB_AB_new, \
 			OP0_AB[i_h], d_OP0_AB[i_h] = \
 				run_many(L, Temp, h_arr[i_h], N_runs, interface_mode, def_spin_state, \
 					N_init_states_AB=N_init_states, \
@@ -1411,6 +1413,8 @@ def get_h_dependence(h_arr, L, Temp, N_runs, interface_mode, def_spin_state, N_i
 					to_get_timeevol=False, to_plot_committer=False)
 		prob_AB.append(prob_AB_new)
 		d_prob_AB.append(d_prob_AB_new)
+		PB_AB.append(PB_AB_new)
+		d_PB_AB.append(d_PB_AB_new)
 		#print(ln_k_AB, d_ln_k_AB, flux0_A, d_flux0_A)
 		#print(prob_AB.shape)
 		#print(d_prob_AB.shape)
@@ -1464,9 +1468,13 @@ def main():
 	# python run.py -mode BF_AB_L -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 35000000 -N_runs 5 -h 0.15 -interface_set_mode spaced -L 100 71 56 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
 	
 	# python run.py -mode FFS_AB -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.15 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
+	# python run.py -mode FFS_AB_L -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.15 -interface_set_mode spaced -L 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
 	# python run.py -mode FFS_AB_L -N_states_FFS 100 -N_init_states_FFS 200 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 3 -h 0.15 -interface_set_mode spaced -L 100 78 56 42 32 24 18 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
 	# python run.py -mode FFS_AB_L -N_states_FFS 100 -N_init_states_FFS 500 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 5 -h 0.13 -interface_set_mode spaced -L 100 78 56 42 32 24 18 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
 	# python run.py -mode FFS_AB_L -N_states_FFS 500 -N_init_states_FFS 1000 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 15 -h 0.15 -interface_set_mode spaced -L 24 31 39 50 56 63 71 79 89 100 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
+	#
+	# python run.py -mode FFS_AB_L -N_states_FFS 500 -N_init_states_FFS 1000 -N_OP_interfaces 15 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.15 -interface_set_mode spaced -L 100 64 48 32 -to_get_timeevol 0 -OP_max 210 -Temp 1.5
+	#
 	# TODO: remove outdated inputs
 	[L, h, Temp, mode, Nt, N_states_FFS, N_init_states_FFS, to_recomp, to_get_timeevol, verbose, my_seed, N_OP_interfaces, N_runs, init_gen_mode, OP_0, OP_max, interface_mode, OP_min_BF, OP_max_BF, Nt_sample_A, Nt_sample_B, def_spin_state, N_spins_up_init, to_plot_ETS, interface_set_mode, timeevol_stride, to_plot_timeevol, N_saved_states_max], _ = \
 		my.parse_args(sys.argv,            [ '-L',   '-h', '-Temp', '-mode',        '-Nt', '-N_states_FFS', '-N_init_states_FFS',     '-to_recomp', '-to_get_timeevol', '-verbose', '-my_seed', '-N_OP_interfaces', '-N_runs', '-init_gen_mode', '-OP_0', '-OP_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B', '-def_spin_state', '-N_spins_up_init',   '-to_plot_ETS', '-interface_set_mode', '-timeevol_stride', '-to_plot_timeevol', '-N_saved_states_max'], \
@@ -1721,15 +1729,16 @@ def main():
 				init_gen_mode=init_gen_mode)
 	elif(mode == 'FFS_AB_many'):
 		F_FFS, d_F_FFS, M_hist_centers_FFS, OP_hist_lens_FFS, ln_k_AB_FFS, d_ln_k_AB_FFS, \
-			flux0_AB_FFS, d_flux0_AB_FFS, prob_AB_FFS, d_prob_AB_FFS, OP0_AB, d_OP0_AB = \
-			run_many(Ls[0], Temp, h[0], N_runs, interface_mode, def_spin_state, \
-				N_init_states_AB=N_init_states_AB, \
-				OP_interfaces_AB=OP_interfaces_AB[0], \
-				to_plot_k_distr=False, N_k_bins=N_k_bins, \
-				mode='FFS_AB', init_gen_mode=init_gen_mode, \
-				OP_sample_BF_A_to=OP_sample_BF_A_to[0], \
-				OP_match_BF_A_to=OP_match_BF_A_to[0], \
-				to_get_timeevol=to_get_timeevol)
+			flux0_AB_FFS, d_flux0_AB_FFS, prob_AB_FFS, d_prob_AB_FFS, PB_AB_FFS, d_PB_AB_FFS, \
+			OP0_AB, d_OP0_AB = \
+				run_many(Ls[0], Temp, h[0], N_runs, interface_mode, def_spin_state, \
+					N_init_states_AB=N_init_states_AB, \
+					OP_interfaces_AB=OP_interfaces_AB[0], \
+					to_plot_k_distr=False, N_k_bins=N_k_bins, \
+					mode='FFS_AB', init_gen_mode=init_gen_mode, \
+					OP_sample_BF_A_to=OP_sample_BF_A_to[0], \
+					OP_match_BF_A_to=OP_match_BF_A_to[0], \
+					to_get_timeevol=to_get_timeevol)
 		
 		get_log_errors(np.log(flux0_AB_FFS), d_flux0_AB_FFS / flux0_AB_FFS, lbl='flux0_AB', print_scale=print_scale_flux)
 		k_AB_FFS_mean, k_AB_FFS_min, k_AB_FFS_max, d_k_AB_FFS = get_log_errors(ln_k_AB_FFS, d_ln_k_AB_FFS, lbl='k_AB_FFS', print_scale=print_scale_k)
@@ -1741,8 +1750,6 @@ def main():
 	elif('L' in mode):
 		ln_k_AB = np.empty(N_L)
 		d_ln_k_AB = np.empty(N_L)
-		k_AB_BFcount_N = np.empty(N_L)
-		d_k_AB_BFcount_N = np.empty(N_L)
 		k_AB_mean = np.empty(N_L)
 		k_AB_min = np.empty(N_L)
 		k_AB_max = np.empty(N_L)
@@ -1755,11 +1762,16 @@ def main():
 		d_F_FFS = []
 		OP_hist_centers_FFS = []
 		OP_hist_lens_FFS = []
+		if('BF' in mode):
+			k_AB_BFcount_N = np.empty(N_L)
+			d_k_AB_BFcount_N = np.empty(N_L)
 		if('FFS' in mode):
 			flux0_AB_FFS = np.empty(N_L)
 			d_flux0_AB_FFS = np.empty(N_L)
 			prob_AB_FFS = np.empty((N_OP_interfaces - 1, N_L))
 			d_prob_AB_FFS = np.empty((N_OP_interfaces - 1, N_L))
+			PB_AB_FFS = np.empty((N_OP_interfaces, N_L))
+			d_PB_AB_FFS = np.empty((N_OP_interfaces, N_L))
 			OP0_AB = np.empty(N_L)
 			d_OP0_AB = np.empty(N_L)
 			
@@ -1774,8 +1786,11 @@ def main():
 								to_get_timeevol=to_get_timeevol, mode='BF_AB', N_saved_states_max=N_saved_states_max)
 			elif('FFS' in mode):
 				F_FFS_new, d_F_FFS_new, OP_hist_centers_FFS_new, OP_hist_lens_FFS_new, \
-					ln_k_AB[i_l], d_ln_k_AB[i_l], flux0_AB_FFS[i_l], d_flux0_AB_FFS[i_l], \
-					prob_AB_FFS[:, i_l], d_prob_AB_FFS[:, i_l], OP0_AB[i_l], d_OP0_AB[i_l] = \
+					ln_k_AB[i_l], d_ln_k_AB[i_l], \
+					flux0_AB_FFS[i_l], d_flux0_AB_FFS[i_l], \
+					prob_AB_FFS[:, i_l], d_prob_AB_FFS[:, i_l], \
+					PB_AB_FFS[:, i_l], d_PB_AB_FFS[:, i_l], \
+					OP0_AB[i_l], d_OP0_AB[i_l] = \
 						run_many(Ls[i_l], Temp, h[0], N_runs, interface_mode, def_spin_state, \
 							N_init_states_AB=N_init_states_AB, \
 							OP_interfaces_AB=OP_interfaces_AB[i_l], \
@@ -1798,14 +1813,25 @@ def main():
 		if('FFS' in mode):
 			P_AB = k_AB_mean / flux0_AB_FFS
 			d_P_AB = P_AB * np.sqrt(d_ln_k_AB**2 + (d_flux0_AB_FFS / flux0_AB_FFS)**2)
+			PB_lin = -np.log(1/PB_AB_FFS[:-1, :] - 1)   # remove P_B == 1 at [-1]
+			d_PB_lin = d_PB_AB_FFS[:-1, :] / (PB_AB_FFS[:-1, :] * (1 - PB_AB_FFS[:-1, :]))
+			
+			if(N_L > 1):
+				i_L_max = np.argmax(Ls)
+				Dlt_PB_lin = np.empty((PB_lin.shape[0], PB_lin.shape[1]))
+				d_Dlt_PB_lin = np.empty((PB_lin.shape[0], PB_lin.shape[1]))
+				for i_l in range(N_L):
+					Dlt_PB_lin[:, i_l] = PB_lin[:, i_l] - PB_lin[:, i_L_max]
+					d_Dlt_PB_lin[:, i_l] = np.sqrt(d_PB_lin[:, i_l]**2 + d_PB_lin[:, i_L_max]**2)
 		
 		Th_lbl = 'T/J = ' + str(Temp) + '; h/J = ' + str(h[0])
 		
 		fig_kAB_L, ax_kAB_L = my.get_fig('L', r'$k_{AB} / L^2$ [trans / (sweep $\cdot l^2$)]', title=r'$k_{AB}(L)$; ' + Th_lbl, xscl='log')
 		ax_kAB_L.errorbar(Ls, k_AB_mean, yerr=d_k_AB, fmt='.')
 		
-		fig_kABcount_L, ax_kABcount_L = my.get_fig('L', r'$N_{AB}$ [event]', title=r'$N_{AB}(L)$; ' + Th_lbl, xscl='log')
-		ax_kABcount_L.errorbar(Ls, k_AB_BFcount_N, yerr=d_k_AB_BFcount_N, fmt='.')
+		if('BF' in mode):
+			fig_kABcount_L, ax_kABcount_L = my.get_fig('L', r'$N_{AB}$ [event]', title=r'$N_{AB}(L)$; ' + Th_lbl, xscl='log')
+			ax_kABcount_L.errorbar(Ls, k_AB_BFcount_N, yerr=d_k_AB_BFcount_N, fmt='.')
 		
 		if('FFS' in mode):
 			fig_flux0_L, ax_flux0_L = my.get_fig('L', r'$\Phi_{A} / L^2$ [trans / (sweep $\cdot l^2$)]', title=r'$\Phi_{A}(L)$; ' + Th_lbl, xscl='log')
@@ -1813,6 +1839,23 @@ def main():
 			
 			ax_flux0_L.errorbar(Ls, flux0_AB_FFS, yerr=d_flux0_AB_FFS, fmt='.')
 			ax_P_L.errorbar(Ls, P_AB, yerr=d_P_AB, fmt='.')
+			
+			if(N_L > 1):
+				fig_PB_L, ax_PB_L = my.get_fig('$CS$', r'$-\ln(1/P_{B} - 1)$', title=r'$P_{B}(L, CS)$; ' + Th_lbl)
+				fig_dPB_L, ax_dPB_L = my.get_fig('$CS$', r'$\Delta \ln(1/P_{B} - 1)$', title=r'$P_{B}(L, CS)$; ' + Th_lbl)
+				
+				for i_l in range(N_L):
+					ax_PB_L.errorbar(OP_interfaces_AB[i_l][:-1], PB_lin[:, i_l], yerr=d_PB_lin[:, i_l], \
+									label='L = ' + str(Ls[i_l]))
+					if(i_l == i_L_max):
+						ax_dPB_L.plot([min(OP_interfaces_AB[0][:-1]), max(OP_interfaces_AB[0][:-1])], [0] * 2, '--', label=r'$L = ' + str(Ls[i_L_max]) + '$')
+					else:
+						ax_dPB_L.errorbar(OP_interfaces_AB[i_l][:-1], Dlt_PB_lin[:, i_l], yerr=d_Dlt_PB_lin[:, i_l], \
+										label='L = ' + str(Ls[i_l]))
+				ax_PB_L.plot([min(OP_interfaces_AB[0][:-1]), max(OP_interfaces_AB[0][:-1])], [0] * 2, '--', label=r'$P_B = 1/2$')
+				
+				ax_PB_L.legend()
+				ax_dPB_L.legend()
 
 			if(interface_mode == 'CS'):
 				fig_Nc_L, ax_Nc_L = my.get_fig('L', '$N_c$', title='$N_c(L)$; ' + Th_lbl, xscl='log')

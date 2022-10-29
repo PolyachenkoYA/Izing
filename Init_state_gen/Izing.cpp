@@ -537,7 +537,7 @@ namespace Izing
 			probs[i - 1] = process_step(&(states[L2 * N_states_analyzed]),
 									&(states[L2 * (N_states_analyzed + N_init_states[i - 1])]),
 									E, M, biggest_cluster_sizes, time, &Nt_total, OP_arr_len, N_init_states[i - 1], N_init_states[i],
-									L, Temp, h, OP_interfaces[0], OP_interfaces[i],
+									L, Temp, h, OP_interfaces[0] - (i == 1 ? 1 : 0), OP_interfaces[i],
 									interface_mode, default_spin_state, verbose);
 			//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
 			d_probs[i - 1] = probs[i - 1] / sqrt(N_init_states[i - 1] * (1 - probs[i - 1]));
@@ -822,6 +822,8 @@ namespace Izing
 				case mode_ID_CS:
 					OP_current = biggest_cluster_sizes_current;
 					break;
+				default:
+					OP_current = 0;
 			}
 
 			// ------------------ check for Fail ----------------
@@ -901,7 +903,7 @@ namespace Izing
 			// ------------------- save the state if it's good (we don't want failed states) -----------------
 //			printf("N_states_to_save = %d, max=%d\n", N_states_to_save, N_saved_states_max);
 			if(N_states_to_save > 0){
-				bool to_save_state = (*N_states_saved < N_saved_states_max);
+				bool to_save_state = (*N_states_saved < N_saved_states_max) || (N_saved_states_max < 0);
 				switch (save_state_mode) {
 					case save_state_mode_Inside:
 						to_save_state = to_save_state && (OP_current > OP_min_save_state) && (OP_current <= OP_max_save_state);
@@ -1076,7 +1078,7 @@ namespace Izing
 
 			if(N_states > 0){
 				if(verbose)	{
-					printf("brute-force done %lf              \r", (double)(*N_states_done) / N_states);
+					printf("brute-force done %lf              \n", (double)(*N_states_done) / N_states);
 					fflush(stdout);
 				}
 				if(*N_states_done >= N_states) {
@@ -1127,7 +1129,7 @@ namespace Izing
 						 OP_min_default[interface_mode], OP_A,
 						 &N_states_done, OP_A,
 						 OP_A, save_state_mode_Influx, -1,
-						 verbose, -1, &N_tries, 0, 1, 1);
+						 verbose, -1, &N_tries, 0, 1, -1);
 		if(verbose > 0){
 			printf("reached OP >= OP_A = %d in Nt = %ld MC steps\n", OP_A, Nt_to_reach_OP_A);
 		}
@@ -1245,7 +1247,7 @@ namespace Izing
 //			}while(N_tries > 0);
 //			// N_tries = 0 in the beginning of BF. If we went over the N_c, I want to restart because we might not have obtained enough statistic back around the optimum.
 
-			get_equilibrated_state(L, Temp, h, init_states, interface_mode, default_spin_state, OP_A, OP_B, verbose);
+			get_equilibrated_state(L, Temp, h, init_states, interface_mode, default_spin_state, OP_thr_save_state, OP_B, verbose);
 
 			*Nt = 0;   // forget anything we might have had
 			*time_total = 0;
