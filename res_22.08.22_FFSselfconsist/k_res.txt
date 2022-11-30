@@ -1,8 +1,0 @@
-flux0_AB   =   (5.047 \pm 0.02)1.0e-02  1/step,    dx/x ~ 0.0034
-flux0_BA   =   (5.07 \pm 0.016)1.0e-02  1/step,    dx/x ~ 0.0032
-k_AB_FFS   =   (1.587 \pm 0.007)1.0e-05  1/step,    dx/x ~ 0.0046
-k_BA_FFS   =   (1.596 \pm 0.007)1.0e-05  1/step,    dx/x ~ 0.0044
-k_AB_BF   =   (1.61 \pm 0.01)1.0e-05  1/step,    dx/x ~ 0.0061
-k_BA_BF   =   (1.583 \pm 0.009)1.0e-05  1/step,    dx/x ~ 0.0059
-k_bc_AB_BF   =   (64.01 \pm 0.4)1.0e-05  1/step,    dx/x ~ 0.0056
-k_bc_BA_BF   =   (63.12 \pm 0.4)1.0e-05  1/step,    dx/x ~ 0.0056

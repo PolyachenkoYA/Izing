@@ -537,8 +537,8 @@ namespace Izing
 			probs[i - 1] = process_step(&(states[L2 * N_states_analyzed]),
 									&(states[L2 * (N_states_analyzed + N_init_states[i - 1])]),
 									E, M, biggest_cluster_sizes, time, &Nt_total, OP_arr_len, N_init_states[i - 1], N_init_states[i],
-									L, Temp, h, OP_interfaces[0] - (i == 1 ? 1 : 0), OP_interfaces[i],
-									interface_mode, default_spin_state, verbose);
+									L, Temp, h, OP_interfaces[0], OP_interfaces[i],
+									interface_mode, default_spin_state, verbose); // OP_interfaces[0] - (i == 1 ? 1 : 0)
 			//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
 			d_probs[i - 1] = probs[i - 1] / sqrt(N_init_states[i - 1] * (1 - probs[i - 1]));
 
@@ -760,6 +760,8 @@ namespace Izing
 			case mode_ID_CS:
 				OP_current = biggest_cluster_sizes_current;
 				break;
+			default:
+				assert(false);
 		}
 
 		if(verbose >= 2){
@@ -823,13 +825,13 @@ namespace Izing
 					OP_current = biggest_cluster_sizes_current;
 					break;
 				default:
-					OP_current = 0;
+					assert(false);
 			}
 
 			// ------------------ check for Fail ----------------
-			// we always run (...], and failed runs include ...] from the previous region, so we are not interested in failed states, so we need to exit before the state is modified so it's not recorded
-			if(OP_current <= OP_0){
-				if(verbose >= 3) printf("\nFail run, OP_mode = %d, OP_current = %d\n", interfaces_mode, OP_current);
+			// we need to exit before the state is modified, so it's not recorded
+			if(OP_current < OP_0){
+				if(verbose >= 3) printf("\nFail run, OP_mode = %d, OP_current = %d, OP_0 = %d\n", interfaces_mode, OP_current, OP_0);
 				return 0;   // failed = gone to the initial state A
 			}
 
@@ -887,7 +889,7 @@ namespace Izing
 					if(*Nt == 1){   // *Nt is assumed to be >= 1
 						(*h_A)[0] = (OP_current - OP_A > OP_B - OP_current ? 0 : 1);
 					} else {   // *Nt > 1
-						(*h_A)[*Nt - 1] = (*h_A)[*Nt - 2] == 1 ? (OP_current <= OP_B ? 1 : 0) : (OP_current > OP_A ? 0 : 1);
+						(*h_A)[*Nt - 1] = (*h_A)[*Nt - 2] == 1 ? (OP_current < OP_B ? 1 : 0) : (OP_current >= OP_A ? 0 : 1);
 					}
 				}
 
@@ -906,7 +908,7 @@ namespace Izing
 				bool to_save_state = (*N_states_saved < N_saved_states_max) || (N_saved_states_max < 0);
 				switch (save_state_mode) {
 					case save_state_mode_Inside:
-						to_save_state = to_save_state && (OP_current > OP_min_save_state) && (OP_current <= OP_max_save_state);
+						to_save_state = to_save_state && (OP_current >= OP_min_save_state) && (OP_current < OP_max_save_state);
 						break;
 					case save_state_mode_Influx:
 						to_save_state = to_save_state && (OP_current >= OP_max_save_state) && (OP_prev < OP_min_save_state);
@@ -946,7 +948,7 @@ namespace Izing
 				}
 			}
 			if(OP_current >= OP_next){
-				if(verbose >= 3) printf("Reached OP_next, OP_current - OP_next = %d\n", OP_current - OP_next);
+				if(verbose >= 3) printf("Reached OP_next, OP_current = %d, OP_next = %d\n", OP_current, OP_next);
 				return 1;
 //				return OP_current == OP_next ? 1 : -1;
 				// 1 == succeeded = reached the interface 'M == M_next'
@@ -1040,7 +1042,7 @@ namespace Izing
 			printf("running brute-force:\nL=%d  T=%lf  h=%lf  OP_mode=%d  OP\\in(%d;%d]  N_states_to_gen=%d  Nt_max=%ld  verbose=%d\n", L, Temp, h, interface_mode, OP_min_stop_state, OP_max_stop_state, N_states, Nt_max, verbose);
 			switch (save_state_mode) {
 				case save_state_mode_Inside:
-					printf("N_spins_up_init:%d, OP_min_stop_state:%d, (OP_min_save_state; OP_max_save_state] = (%d; %d], OP_max_stop_state:%d\n", N_spins_up_init, OP_min_stop_state, OP_min_save_state, OP_max_save_state, OP_max_stop_state);
+					printf("N_spins_up_init:%d, OP_min_stop_state:%d, [OP_min_save_state; OP_max_save_state) = [%d; %d), OP_max_stop_state:%d\n", N_spins_up_init, OP_min_stop_state, OP_min_save_state, OP_max_save_state, OP_max_stop_state);
 					break;
 				case save_state_mode_Influx:
 					printf("N_spins_up_init:%d, OP_min_stop_state:%d, OP_A = %d, OP_max_stop_state:%d\n", N_spins_up_init, OP_min_stop_state, OP_min_save_state, OP_max_stop_state);
@@ -1212,40 +1214,6 @@ namespace Izing
 		} else if(mode == -3){
 			int N_states_done;
 			int N_tries = 0;
-//			long Nt_to_reach_OP_A = 0;
-//			long Nt_local = 0;
-
-//			// run "all spins down" until it reaches OP_A_thr
-//			run_bruteforce_C(L, Temp, h, time_total, 1, init_states,
-//							 nullptr, &Nt_to_reach_OP_A, nullptr, nullptr, nullptr, nullptr, nullptr,
-//							 interface_mode, default_spin_state, -1, -1,
-//							 OP_min_default[interface_mode], OP_thr_save_state,
-//							 &N_states_done, OP_thr_save_state,
-//							 OP_thr_save_state, save_state_mode_Influx, -1,
-//							 verbose, -1, &N_tries, 0, 1, -1);
-//			if(verbose > 0){
-//				printf("reached OP >= OP_A = %d in Nt = %ld MC steps\n", OP_thr_save_state, Nt_to_reach_OP_A);
-//			}
-//			// replace the "all down" init state with the "at OP_A_thr" state
-////			memcpy(init_states, &(init_states[L2]), sizeof(int) * L2);
-//
-//			do{
-//				if(verbose > 0){
-//					printf("Attempting to simulate Nt = %ld MC steps towards the local optimum\n", Nt_to_reach_OP_A);
-//					if(N_tries > 0){
-//						printf("Previous attempt results in %d reaches of state B (OP_B = %d), so restating from the initial ~OP_A\n", N_tries, OP_B);
-//					}
-//				}
-//				// run it for the same amount of time it took to get to OP_A_thr the first time
-//				run_bruteforce_C(L, Temp, h, time_total, -1, init_states,
-//								 nullptr, Nt, nullptr, nullptr, nullptr, nullptr, nullptr,
-//								 interface_mode, default_spin_state, -1, -1,
-//								 OP_min_default[interface_mode], OP_B,
-//								 &N_states_done, -1,
-//								 -1, -1, -1,
-//								 verbose, Nt_to_reach_OP_A, &N_tries, 1, 0, -1);
-//			}while(N_tries > 0);
-//			// N_tries = 0 in the beginning of BF. If we went over the N_c, I want to restart because we might not have obtained enough statistic back around the optimum.
 
 			get_equilibrated_state(L, Temp, h, init_states, interface_mode, default_spin_state, OP_thr_save_state, OP_B, verbose);
 

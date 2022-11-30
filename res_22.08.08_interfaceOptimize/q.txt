@@ -1,1 +1,0 @@
-1) the problem of hidden optimal paths affect F-profiles, OK. But why it doesn't affect kAB computations? If FSS found only the hard way, then kAB will be way smaller than in reality, right?
