@@ -4,60 +4,80 @@
 
 
 int main(int argc, char** argv) {
-	if(argc != 15){
-		printf("usage:\n%s   L   T   h   N_init_states_all   N_init_states_A   OP_0   OP_max   N_M_interfaces   init_gen_mode   to_remember_timeevol   interface_mode   def_spin_state   verbose   seed\n", argv[0]);
-		return 1;
-	}
+//	if(argc != 15){
+//		printf("usage:\n%s   L   T   h   N_init_states_all   N_init_states_A   OP_0   OP_max   N_M_interfaces   init_gen_mode   to_remember_timeevol   interface_mode   def_spin_state   verbose   seed\n", argv[0]);
+//		return 1;
+//	}
+//
+//	int L = atoi(argv[1]);
+//	double Temp = atof(argv[2]);
+//	double h =  atof(argv[3]);
+//	int N_init_states_default = atoi(argv[4]);
+//	int N_init_states_A = atoi(argv[5]);
+//	int OP_0 = atoi(argv[6]);
+//	int OP_max = atoi(argv[7]);
+//	int N_OP_interfaces = atoi(argv[8]);
+//	int init_gen_mode = atoi(argv[9]);
+//	int to_remember_timeevol = atoi(argv[10]);
+//	int interface_mode = atoi(argv[11]);
+//	int def_spin_state = atoi(argv[12]);
+//	int verbose = atoi(argv[13]);
+//	int my_seed = atoi(argv[14]);
 
-	int L = atoi(argv[1]);
-	double Temp = atof(argv[2]);
-	double h =  atof(argv[3]);
-	int N_init_states_default = atoi(argv[4]);
-	int N_init_states_A = atoi(argv[5]);
-	int OP_0 = atoi(argv[6]);
-	int OP_max = atoi(argv[7]);
-	int N_OP_interfaces = atoi(argv[8]);
-	int init_gen_mode = atoi(argv[9]);
-	int to_remember_timeevol = atoi(argv[10]);
-	int interface_mode = atoi(argv[11]);
-	int def_spin_state = atoi(argv[12]);
-	int verbose = atoi(argv[13]);
-	int my_seed = atoi(argv[14]);
+	int verbose = 2;
+	int my_seed = 2;
 
-	def_spin_state = -1;
-	verbose = 1;
-	my_seed = 2;
-
-	L = 11;
-	Temp = 2.1;
-	h = -0.01;
-	N_init_states_default = 1000;
-	N_init_states_A = 100000;
-	N_OP_interfaces = 30;
-	init_gen_mode = -3;
-	to_remember_timeevol = 1;
-	interface_mode = mode_ID_M;
+	int L = 32;
+	int N_init_states_default = 1000;
+	int N_init_states_A = 100000;
+	int N_OP_interfaces = 3;
+	int init_gen_mode = -3;
+	int to_remember_timeevol = 0;
+	int interface_mode = mode_ID_CS;
+	int OP_0;
+	int OP_max;
 
 	// for valgrind
 	N_init_states_default = 50;
-	N_init_states_A = 100;
+	N_init_states_A = 10;
 
 	int L2 = L*L;
 
 	switch (interface_mode) {
 		case mode_ID_M:
-			OP_0 = -L2 + 4;
+			OP_0 = 10;
 			OP_max = -OP_0;
 			break;
 		case mode_ID_CS:
-			OP_0 = 3;
-			OP_max = L2 - 10;
+			OP_0 = 24;
+			OP_max = 500;
 			break;
 	}
+
+//	OP_0 = 2;
+//	OP_max = L2 - 2;
 
 	int i, j;
 	int state_size_in_bytes = L2 * sizeof(int);
 	long OP_arr_len = 128;
+
+	double *e = (double*) malloc(sizeof(double) * N_species * N_species);
+	double *mu = (double*) malloc(sizeof(double) * N_species);
+
+	double J_T = 1 / 1.5;
+	double h_T = 0.1 / 1.5;
+	e[0] = e[1] = e[2] = e[1*3 + 0] = e[2*3 + 0] = 0;
+	mu[0] = 0;
+
+	e[1*3 + 1] = 4 * J_T;
+//	e[2*3 + 2] = 4 * J_T;
+	e[2*3 + 2] = 0;
+
+	e[1*3 + 2] = e[2*3 + 1] = sqrt(e[1*3 + 1] * e[2*3 + 2]);
+
+	mu[1] = h_T - 4 * J_T;
+//	mu[2] = h_T - 4 * J_T;
+	mu[2] = -1e10;
 
 	lattice_gas::set_OP_default(L2);
 
@@ -96,7 +116,8 @@ int main(int argc, char** argv) {
 				break;
 			case mode_ID_CS:
 //				OP_interfaces[i] = (i == N_OP_interfaces + 1 ? L2 : (i == 0 ? -1 : (OP_0 + lround((OP_max - OP_0) * (double)(i - 1) / (N_OP_interfaces - 1)))));   // TODO: check if I can put 'L2+1' here
-				OP_interfaces[i] = OP_0 + lround((OP_max - OP_0) * (double)(i - 1) / (N_OP_interfaces - 1));   // TODO: check if I can put 'L2+1' here
+				OP_interfaces[i] = OP_0 + lround((OP_max - OP_0) * (double)(i) / (N_OP_interfaces - 1));   // TODO: check if I can put 'L2+1' here
+				assert(OP_interfaces[i] > lattice_gas::OP_min_default[interface_mode]);
 				if(i > 0){
 					assert(OP_interfaces[i] > OP_interfaces[i-1]);
 				}
@@ -123,11 +144,10 @@ int main(int argc, char** argv) {
 	double flux0;
 	double d_flux0;
 
-	lattice_gas::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states, N_init_states,
+	lattice_gas::run_FFS_C(&flux0, &d_flux0, L, e, mu, states, N_init_states,
 						   Nt, to_remember_timeevol ? &OP_arr_len : nullptr, OP_interfaces, N_OP_interfaces,
 						   probs, d_probs, &E, &M, &biggest_cluster_sizes, &time,
-						   verbose, init_gen_mode, interface_mode,
-						   def_spin_state);
+						   verbose, init_gen_mode, interface_mode);
 
 	if(to_remember_timeevol){
 		free(E);   // the pointer to the array
@@ -142,6 +162,8 @@ int main(int argc, char** argv) {
 	free(Nt);
 	free(OP_interfaces);
 	free(N_init_states);
+	free(e);
+	free(mu);
 
 	printf("DONE\n");
 
