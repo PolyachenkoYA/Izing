@@ -15,7 +15,7 @@
 
 namespace py = pybind11;
 
-#include "Izing.h"
+#include "lattice_gas.h"
 
 void test_my(int k, py::array_t<long> *_Nt, py::array_t<double> *_probs, py::array_t<double> *_d_probs, int l)
 // A function for DEBUG purposes
@@ -31,18 +31,18 @@ void test_my(int k, py::array_t<long> *_Nt, py::array_t<double> *_probs, py::arr
 
 py::int_ init_rand(int my_seed)
 {
-	Izing::init_rand_C(my_seed);
+	lattice_gas::init_rand_C(my_seed);
 	return 0;
 }
 
 py::int_ get_seed()
 {
-	return Izing::seed;
+	return lattice_gas::seed;
 }
 
 py::int_ set_verbose(int new_verbose)
 {
-	Izing::verbose_dafault = new_verbose;
+	lattice_gas::verbose_dafault = new_verbose;
 	return 0;
 }
 
@@ -69,7 +69,7 @@ void print_state(py::array_t<int> state)
 	int L = lround(sqrt(L2));
 	assert(L * L == L2);   // check for the full square
 
-	Izing::print_S(state_ptr, L, 0);
+	lattice_gas::print_S(state_ptr, L, 0);
 }
 
 py::tuple cluster_state(py::array_t<int> state, int default_state, std::optional<int> _verbose)
@@ -82,9 +82,9 @@ py::tuple cluster_state(py::array_t<int> state, int default_state, std::optional
 	int L = lround(sqrt(L2));
 	assert(L * L == L2);   // check for the full square
 
-	int verbose = (_verbose.has_value() ? _verbose.value() : Izing::verbose_dafault);
+	int verbose = (_verbose.has_value() ? _verbose.value() : lattice_gas::verbose_dafault);
 	if(verbose > 5){
-		Izing::print_S(state_ptr, L, 'i');
+		lattice_gas::print_S(state_ptr, L, 'i');
 	}
 
 	py::array_t<int> cluster_element_inds = py::array_t<int>(L2);
@@ -101,14 +101,14 @@ py::tuple cluster_state(py::array_t<int> state, int default_state, std::optional
 
 	int N_clusters = L2;
 
-	Izing::clear_clusters(cluster_element_inds_ptr, cluster_sizes_ptr, &N_clusters);
-	Izing::uncheck_state(is_checked_ptr, L2);
-	Izing::cluster_state_C(state_ptr, L, cluster_element_inds_ptr, cluster_sizes_ptr, &N_clusters, is_checked_ptr, default_state);
+	lattice_gas::clear_clusters(cluster_element_inds_ptr, cluster_sizes_ptr, &N_clusters);
+	lattice_gas::uncheck_state(is_checked_ptr, L2);
+	lattice_gas::cluster_state_C(state_ptr, L, cluster_element_inds_ptr, cluster_sizes_ptr, &N_clusters, is_checked_ptr, default_state);
 
 	return py::make_tuple(cluster_element_inds, cluster_sizes);
 }
 
-py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved_states_max,
+py::tuple run_bruteforce(int L, double **e, double *mu, long Nt_max, long N_saved_states_max,
 						 std::optional<int> _N_spins_up_init, std::optional<int> _to_remember_timeevol,
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
@@ -117,7 +117,11 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 /**
  *
  * @param L - the side-size of the lattice
- * @param Temp - temperature of the system; units=J, so it's actually T/J
+ * @param e - matrix NxN, particles interaction energies
+ * @param mu - vector Nx1, particles chemical potentials
+ * 		H = - \sum_{<ij>} s_i s_j e[s_i][s_j] - \sum_i s_i mu[s_i]
+ * 		mu_i = -inf   ==>   n_i = 0
+ * 		T = 1
  * @param h - magnetic-field-induced multiplier; unit=J, so it's h/J
  * @param Nt_max - for many succesful MC steps I want
  * @param N_spins_up_init - the number of up-spins in the initial frame. I always used 0 for my simulations
@@ -136,18 +140,17 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 	int i, j;
 	int L2 = L*L;
 
-	Izing::set_OP_default(L2);
+	lattice_gas::set_OP_default(L2);
 
 // -------------- check input ----------------
 	assert(L > 0);
-	assert(Temp > 0);
-	int verbose = (_verbose.has_value() ? _verbose.value() : Izing::verbose_dafault);
+	int verbose = (_verbose.has_value() ? _verbose.value() : lattice_gas::verbose_dafault);
 	int to_remember_timeevol = (_to_remember_timeevol.has_value() ? _to_remember_timeevol.value() : 1);
 	int interface_mode = (_interface_mode.has_value() ? _interface_mode.value() : 1);   // 'M' mode
 	assert((interface_mode >= 0) && (interface_mode < N_interface_modes));
-	int default_spin_state = (_default_spin_state.has_value() ? _default_spin_state.value() : Izing::verbose_dafault);
-	int OP_min = (_OP_min.has_value() ? _OP_min.value() : Izing::OP_min_default[interface_mode]);
-	int OP_max = (_OP_max.has_value() ? _OP_max.value() : Izing::OP_max_default[interface_mode]);
+	int default_spin_state = (_default_spin_state.has_value() ? _default_spin_state.value() : lattice_gas::verbose_dafault);
+	int OP_min = (_OP_min.has_value() ? _OP_min.value() : lattice_gas::OP_min_default[interface_mode]);
+	int OP_max = (_OP_max.has_value() ? _OP_max.value() : lattice_gas::OP_max_default[interface_mode]);
 	assert(OP_max > OP_min);
 	int OP_A = (_OP_A.has_value() ? _OP_A.value() : OP_min);
 	int OP_B = (_OP_B.has_value() ? _OP_B.value() : OP_max);
@@ -177,26 +180,17 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 		_time = (int*) malloc(sizeof(int) * OP_arr_len);
 	}
 
-	Izing::get_equilibrated_state(L, Temp, h, states, interface_mode, default_spin_state, OP_A, OP_B, verbose);
+	lattice_gas::get_equilibrated_state(L, e, mu, states, interface_mode, default_spin_state, OP_A, OP_B, verbose);
 	N_states_saved = 1;
 
-	Izing::run_bruteforce_C(L, Temp, h, &time_total, INT_MAX, states,
+	lattice_gas::run_bruteforce_C(L, e, mu, &time_total, INT_MAX, states,
 							to_remember_timeevol ? &OP_arr_len : nullptr,
-							&Nt, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
-							interface_mode, default_spin_state, OP_A, OP_B,
-							OP_min, OP_max, &N_states_saved,
-							OP_min, OP_A, save_state_mode_Inside,
-							N_spins_up_init, verbose, Nt_max, &N_launches, 0,
-							0, N_saved_states_max);
-
-//	Izing::run_bruteforce_C(L, Temp, h, &time_total, INT_MAX, states,
-//							to_remember_timeevol ? &OP_arr_len : nullptr,
-//							&Nt, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
-//							interface_mode, default_spin_state, OP_A, OP_B,
-//							OP_min, OP_max, &N_states_saved,
-//							OP_min, OP_A, save_state_mode_Inside,
-//							N_spins_up_init, verbose, Nt_max, &N_launches, 0,
-//							1, N_saved_states_max);
+								  &Nt, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
+								  interface_mode, default_spin_state, OP_A, OP_B,
+								  OP_min, OP_max, &N_states_saved,
+								  OP_min, OP_A, save_state_mode_Inside,
+								  N_spins_up_init, verbose, Nt_max, &N_launches, 0,
+								  0, N_saved_states_max);
 
 	int N_last_elements_to_print = std::min(Nt, (long)10);
 
@@ -208,9 +202,9 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 	if(to_remember_timeevol){
 		if(verbose >= 2){
 			printf("Brute-force core done, Nt = %ld\n", Nt);
-			Izing::print_E(&(_E[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
-			Izing::print_M(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
-//		Izing::print_biggest_cluster_sizes(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+			lattice_gas::print_E(&(_E[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+			lattice_gas::print_M(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+//		lattice_gas::print_biggest_cluster_sizes(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 		}
 
 		E = py::array_t<double>(Nt);
@@ -245,8 +239,8 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 
 		if(verbose >= 2){
 			printf("internal memory for EM freed\n");
-			Izing::print_E(&(E_ptr[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'P');
-			Izing::print_M(&(M_ptr[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'P');
+			lattice_gas::print_E(&(E_ptr[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'P');
+			lattice_gas::print_M(&(M_ptr[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'P');
 			printf("exiting py::run_bruteforce\n");
 		}
 
@@ -258,14 +252,17 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 }
 
 // int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, long *Nt, int *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M, int to_remember_timeevol, int verbose)
-py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
+py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
 				  int to_remember_timeevol, int init_gen_mode, int interface_mode, int default_spin_state,
 				  std::optional<int> _verbose)
 /**
  *
  * @param L - the side-size of the lattice
- * @param Temp - temperature of the system; units=J, so it's actually T/J
- * @param h - magnetic-field-induced multiplier; unit=J, so it's h/J
+ * @param e - matrix NxN, particles interaction energies
+ * @param mu - vector Nx1, particles chemical potentials
+ * 		H = - \sum_{<ij>} s_i s_j e[s_i][s_j] - \sum_i s_i mu[s_i]
+ * 		mu_i = -inf   ==>   n_i = 0
+ * 		T = 1
  * @param N_init_states - array of ints [N_OP_interfaces+2], how many states do I want on each interface
  * @param OP_interfaces - array of ints [N_OP_interfaces+2], contains values of M for interfaces. The map is [-L2; M_0](; M_1](...](; M_n-1](; L2]
  * @param to_remember_timeevol - T/F, determines whether the E and M evolution if stored
@@ -294,16 +291,29 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 	int i, j;
 	int L2 = L*L;
 	int state_size_in_bytes = L2 * sizeof(int);
-	Izing::set_OP_default(L2);
+	lattice_gas::set_OP_default(L2);
+
+	py::buffer_info e_info = e.request();
+	py::buffer_info mu_info = mu.request();
+	double *e_ptr = static_cast<double *>(e_info.ptr);
+	double *mu_ptr = static_cast<double *>(mu_info.ptr);
+	assert(e_info.ndim == 2);
+	assert(mu_info.ndim == 1);
+	assert(e_info.shape[0] == N_species);
+	assert(e_info.shape[1] == N_species);
+	assert(mu_info.shape[0] == N_species);
 
 // -------------- check input ----------------
-	int verbose = (_verbose.has_value() ? _verbose.value() : Izing::verbose_dafault);
+	int verbose = (_verbose.has_value() ? _verbose.value() : lattice_gas::verbose_dafault);
 
-	printf("C module:\nL=%d, Temp=%lf, h=%lf, to_remember_timeevol=%d, init_gen_mode=%d, interface_mode=%d, def_spin_state=%d, verbose=%d\n",
-		   L, Temp, h, to_remember_timeevol, init_gen_mode, interface_mode, default_spin_state, verbose);
+	if(verbose) {
+		printf("C module:\nL=%d, to_remember_timeevol=%d, init_gen_mode=%d, interface_mode=%d, def_spin_state=%d, verbose=%d\n",
+			   L, to_remember_timeevol, init_gen_mode, interface_mode, default_spin_state, verbose);
+		lattice_gas::print_e_matrix(e_ptr);
+		lattice_gas::print_mu_vector(mu_ptr);
+	}
 
 	assert(L > 0);
-	assert(Temp > 0);
 	assert((interface_mode >= 0) && (interface_mode < N_interface_modes));
 	py::buffer_info OP_interfaces_info = OP_interfaces.request();
 	py::buffer_info N_init_states_info = N_init_states.request();
@@ -318,7 +328,7 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 		case mode_ID_M:   // M
 			for(i = 1; i < N_OP_interfaces; ++i) {
 				assert(OP_interfaces_ptr[i] > OP_interfaces_ptr[i-1]);
-				assert((OP_interfaces_ptr[i] - OP_interfaces_ptr[1]) % Izing::OP_step[interface_mode] == 0);
+				assert((OP_interfaces_ptr[i] - OP_interfaces_ptr[1]) % lattice_gas::OP_step[interface_mode] == 0);
 			}
 			break;
 		case mode_ID_CS:   // CS
@@ -364,21 +374,21 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
     }
 
 	if(verbose){
-		printf("using: L=%d  T=%lf  h=%lf  to_get_OPs=%d  init_gen_mode=%d  verbose=%d\nOPs: ", L, Temp, h, to_remember_timeevol, init_gen_mode, verbose);
+		printf("OP interfaces:\n");
 		for(i = 0; i < N_OP_interfaces; ++i){
 			printf("%d ", OP_interfaces_ptr[i]);
 		}
 		printf("\n");
 	}
 
-	Izing::run_FFS_C(&flux0, &d_flux0, L, Temp, h, states_ptr, N_init_states_ptr,
-					 Nt_ptr, to_remember_timeevol ? &OP_arr_len : nullptr, OP_interfaces_ptr, N_OP_interfaces,
-					 probs_ptr, d_probs_ptr,  to_remember_timeevol? &_E : nullptr,
+	lattice_gas::run_FFS_C(&flux0, &d_flux0, L, e_ptr, mu_ptr, states_ptr, N_init_states_ptr,
+						   Nt_ptr, to_remember_timeevol ? &OP_arr_len : nullptr, OP_interfaces_ptr, N_OP_interfaces,
+						   probs_ptr, d_probs_ptr,  to_remember_timeevol? &_E : nullptr,
 					 to_remember_timeevol ? &_M : nullptr,
 					 to_remember_timeevol ? &_biggest_cluster_sizes : nullptr,
 					 to_remember_timeevol ? &_time : nullptr,
-					 verbose, init_gen_mode, interface_mode,
-					 default_spin_state);
+						   verbose, init_gen_mode, interface_mode,
+						   default_spin_state);
 
 	if(verbose >= 2){
 		printf("FFS core done\nNt: ");
@@ -398,8 +408,8 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
     if(to_remember_timeevol){
 		int N_last_elements_to_print = 10;
 		if(verbose >= 2){
-			Izing::print_E(&(_E[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
-			Izing::print_M(&(_M[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+			lattice_gas::print_E(&(_E[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+			lattice_gas::print_M(&(_M[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 			printf("copying time evolution, Nt_total = %ld\n", Nt_total);
 		}
 
@@ -430,8 +440,8 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
 		if(verbose >= 2){
 			printf("data copied\n", Nt_total);
 			printf("internal memory for EM freed\n");
-			Izing::print_E(E_ptr, Nt_total < N_last_elements_to_print ? Nt_total : N_last_elements_to_print, 'P');
-			Izing::print_M(M_ptr, Nt_total < N_last_elements_to_print ? Nt_total : N_last_elements_to_print, 'P');
+			lattice_gas::print_E(E_ptr, Nt_total < N_last_elements_to_print ? Nt_total : N_last_elements_to_print, 'P');
+			lattice_gas::print_M(M_ptr, Nt_total < N_last_elements_to_print ? Nt_total : N_last_elements_to_print, 'P');
 		}
     }
 
@@ -441,39 +451,36 @@ py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_st
     return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M, biggest_cluster_sizes, time);
 }
 
-namespace Izing
+namespace lattice_gas
 {
     gsl_rng *rng;
     int seed;
     int verbose_dafault;
 	int OP_min_default[N_interface_modes];
 	int OP_max_default[N_interface_modes];
-	int OP_peak_default[N_interface_modes];
 	int OP_step[N_interface_modes];
 
 	void set_OP_default(int L2)
 	{
-		OP_min_default[mode_ID_M] = -L2-1;
+		OP_min_default[mode_ID_M] = -1;
 		OP_max_default[mode_ID_M] = L2+1;
-		OP_peak_default[mode_ID_M] = L2 % 2;
-		OP_step[mode_ID_M] = 2;
+		OP_step[mode_ID_M] = 1;
 
 		OP_min_default[mode_ID_CS] = -1;
 		OP_max_default[mode_ID_CS] = L2+1;
-		OP_peak_default[mode_ID_CS] = L2 / 2;
 		OP_step[mode_ID_CS] = 1;
 	}
 
-	int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, long *Nt,
+	int run_FFS_C(double *flux0, double *d_flux0, int L, double *e, double *mu, int *states, int *N_init_states, long *Nt,
 				  long *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
 				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode, int default_spin_state)
 	/**
 	 *
 	 * @param flux0 - the flux from l_A
 	 * @param d_flux0 - estimate for the flux random error
-	 * @param L - the side-size of the lattice
-	 * @param Temp - temperature of the system; units=J, so it's actually T/J
-	 * @param h - magnetic-field-induced multiplier; unit=J, so it's h/J
+	 * @param L - see run_FFS
+	 * @param e - see run_FFS
+	 * @param mu - see run_FFS
 	 * @param states - all the states in a 1D array. Mapping is the following:
  * 		states[0               ][0...L2-1] U states[1               ][0...L2-1] U ... U states[N_init_states[0]                 -1][0...L2-1]   U  ...\
  * 		states[N_init_states[0]][0...L2-1] U states[N_init_states[0]][0...L2-1] U ... U states[N_init_states[1]+N_init_states[0]-1][0...L2-1]   U  ...\
@@ -501,22 +508,15 @@ namespace Izing
 		int L2 = L*L;
 
 // get the initial states; they should be sampled from the distribution in [-L^2; M_0), but they are all set to have M == -L^2 because then they all will fall into the local optimum and almost forget the initial state, so it's almost equivalent to sampling from the proper distribution if 'F(M_0) - F_min >~ T'
-//		long h_A_len = OP_arr_len ? *OP_arr_len : 128;
 		long Nt_total = 0;
 		long time_0;
-//		Nt[0] = 0;
-//		int *h_A = (int*) malloc(sizeof(int) * h_A_len);
-		get_init_states_C(L, Temp, h, &time_0, N_init_states[0], states, init_gen_mode,
+		get_init_states_C(L, e, mu, &time_0, N_init_states[0], states, init_gen_mode,
 						  OP_interfaces[0], interface_mode, default_spin_state,
 						  OP_interfaces[0], OP_interfaces[N_OP_interfaces - 1],
 						  E, M, biggest_cluster_sizes, nullptr, time, &Nt_total, OP_arr_len,
 						  verbose);
 
 		Nt[0] = Nt_total;
-//		if(OP_arr_len) *OP_arr_len = h_A_len;
-//		int h_sum = Izing::sum_array(h_A, Nt[0]);
-//		free(h_A);
-//		*flux0 = (double)N_init_states[0] / h_sum;   // [1/step]
 
 		*flux0 = (double)N_init_states[0] / time_0;   // [1/step]
 		*d_flux0 = *flux0 / sqrt(N_init_states[0]);   // [1/step]; this works only if 'N_init_states[0] >> 1 <==>  (d_f/f << 1)'
@@ -537,7 +537,7 @@ namespace Izing
 			probs[i - 1] = process_step(&(states[L2 * N_states_analyzed]),
 									&(states[L2 * (N_states_analyzed + N_init_states[i - 1])]),
 									E, M, biggest_cluster_sizes, time, &Nt_total, OP_arr_len, N_init_states[i - 1], N_init_states[i],
-									L, Temp, h, OP_interfaces[0], OP_interfaces[i],
+									L, e, mu, OP_interfaces[0], OP_interfaces[i],
 									interface_mode, default_spin_state, verbose); // OP_interfaces[0] - (i == 1 ? 1 : 0)
 			//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
 			d_probs[i - 1] = probs[i - 1] / sqrt(N_init_states[i - 1] * (1 - probs[i - 1]));
@@ -558,10 +558,10 @@ namespace Izing
 		}
 
 		double ln_k_AB = log(*flux0 * 1);   // flux has units = 1/time; Here, time is in steps, so it's not a problem. But generally speaking it's not clear what time to use here.
-		double d_ln_k_AB = Izing::sqr(*d_flux0 / *flux0);
+		double d_ln_k_AB = lattice_gas::sqr(*d_flux0 / *flux0);
 		for(i = 0; i < N_OP_interfaces - 1; ++i){   // we don't need the last prob since it's a P from M=M_last to M=L2
 			ln_k_AB += log(probs[i]);
-			d_ln_k_AB += Izing::sqr(d_probs[i] / probs[i]);   // this assumes dp/p << 1,
+			d_ln_k_AB += lattice_gas::sqr(d_probs[i] / probs[i]);   // this assumes dp/p << 1,
 		}
 		d_ln_k_AB = sqrt(d_ln_k_AB);
 
@@ -583,7 +583,7 @@ namespace Izing
 
 	double process_step(int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int **time,
 						long *Nt, long *OP_arr_len, int N_init_states, int N_next_states,
-						int L, double Temp, double h, int OP_0, int OP_next,
+						int L, double *e, double *mu, int OP_0, int OP_next,
 						int interfaces_mode, int default_spin_state, int verbose)
 	/**
 	 *
@@ -638,13 +638,7 @@ namespace Izing
 			Nt_old = *Nt;
 //			OP_arr_len_old = *OP_arr_len;
 
-//			run_status = run_state(state_under_process, L, Temp, h, &time_of_step_total, OP_0, OP_next,
-//								   E, M, biggest_cluster_sizes, nullptr, time,
-//								   cluster_element_inds, cluster_sizes, is_checked,
-//								   Nt, OP_arr_len, interfaces_mode, default_spin_state, verbose, -1, nullptr,
-//								   nullptr, -1, 0, 0,
-//								   save_state_mode_Inside, 0, 0, -1);
-			run_status = run_state(state_under_process, L, Temp, h, &time_of_step_total, OP_0, OP_next,
+			run_status = run_state(state_under_process, L, e, mu, &time_of_step_total, OP_0, OP_next,
 								   E, M, biggest_cluster_sizes, nullptr, time,
 								   cluster_element_inds, cluster_sizes, is_checked,
 								   Nt, OP_arr_len, interfaces_mode, default_spin_state, verbose);
@@ -693,7 +687,7 @@ namespace Izing
 		return (double)N_succ / N_runs;   // the probability P(i+1 | i) to go from i to i+1
 	}
 
-	int run_state(int *s, int L, double Temp, double h, long *time_total,
+	int run_state(int *s, int L, double *e, double *mu, long *time_total,
 				  int OP_0, int OP_next, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 				  int *cluster_element_inds, int *cluster_sizes, int *is_checked, long *Nt, long *OP_arr_len,
 				  int interfaces_mode, int default_spin_state, int verbose, long Nt_max, int* states_to_save,
@@ -736,7 +730,7 @@ namespace Izing
 		int OP_current;
 		int OP_prev;
 		int M_current = comp_M(s, L); // remember the 1st M;
-		double E_current = comp_E(s, L, h); // remember the 1st energy;
+		double E_current = comp_E(s, L, e, mu); // remember the 1st energy;
 		int N_clusters_current = L2;   // so that all uninitialized cluster_sizes are set to 0
 		int biggest_cluster_sizes_current = 0;
 		bool verbose_BF = (verbose < 0);
@@ -783,7 +777,7 @@ namespace Izing
 
 		while(1){
 			// ----------- choose which to flip -----------
-			time_the_flip_took = get_flip_point(s, L, h, Temp, &ix, &iy, &dE);
+			time_the_flip_took = get_flip_point(s, e, mu, Temp, &ix, &iy, &dE);
 
 			// --------------- compute time-dependent features ----------
 			s[ix*L + iy] *= -1;
@@ -1160,8 +1154,8 @@ namespace Izing
 		return 0;
 	}
 
-	int get_init_states_C(int L, double Temp, double h, long *time_total, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
-						  int interface_mode, int default_spin_state, int OP_A, int OP_B,
+	int get_init_states_C(int L, double *e, double *mu, long *time_total, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
+						  int interface_mode, int OP_A, int OP_B,
 						  double **E, int **M, int **biggest_cluster_size, int **h_A, int **time,
 						  long *Nt, long *OP_arr_len, int verbose)
 	/**
@@ -1199,15 +1193,15 @@ namespace Izing
 			// generate N_init_states states in A
 			// Here they are identical, but I think it's better to generate them accordingly to equilibrium distribution in A
 			for(i = 0; i < N_init_states; ++i){
-				generate_state(&(init_states[i * L2]), L, mode, interface_mode, default_spin_state, verbose);
+				generate_state(&(init_states[i * L2]), L, mode, interface_mode, verbose);
 			}
 		} else if(mode == -2){
 			int N_states_done;
 			int N_tries;
 //			long Nt = 0;
-			run_bruteforce_C(L, Temp, h, time_total, N_init_states, init_states,
+			run_bruteforce_C(L, e, mu, time_total, N_init_states, init_states,
 							 nullptr, Nt, nullptr, nullptr, nullptr, nullptr, nullptr,
-							 interface_mode, default_spin_state, 0, 0,
+							 interface_mode, 0, 0,
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, OP_min_default[interface_mode],
 							 OP_thr_save_state, save_state_mode_Inside, -1,
@@ -1216,14 +1210,14 @@ namespace Izing
 			int N_states_done;
 			int N_tries = 0;
 
-			get_equilibrated_state(L, Temp, h, init_states, interface_mode, default_spin_state, OP_thr_save_state, OP_B, verbose);
+			get_equilibrated_state(L, e, mu, init_states, interface_mode, OP_thr_save_state, OP_B, verbose);
 
 			*Nt = 0;   // forget anything we might have had
 			*time_total = 0;
 			N_states_done = 0;
-			run_bruteforce_C(L, Temp, h, time_total, N_init_states, init_states,
+			run_bruteforce_C(L, e, mu, time_total, N_init_states, init_states,
 							 OP_arr_len, Nt, E, M, biggest_cluster_size, h_A, time,
-							 interface_mode, default_spin_state, OP_A, OP_B,
+							 interface_mode, OP_A, OP_B,
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, OP_thr_save_state,
 							 OP_thr_save_state, save_state_mode_Influx, -1,
@@ -1238,17 +1232,7 @@ namespace Izing
 		return 0;
 	}
 
-	void cluster_state_C(const int *s, int L, int *cluster_element_inds, int *cluster_sizes, int *N_clusters, int *is_checked, int default_state)
-	/**
-	 *
-	 * @param s - the state to cluster
-	 * @param L
-	 * @param cluster_element_inds
-	 * @param cluster_sizes
-	 * @param N_clusters - int*, the address of the number-of-clusters to return
-	 * @param default_state - int, {+-1}; cluster '-default_state' spins in the background of 'default_state' spins
-	 * @return
-	 */
+	void cluster_state_C(const int *s, int L, int *cluster_element_inds, int *cluster_sizes, int *cluster_types, int *N_clusters, int *is_checked)
 	{
 		int i;
 		int L2 = L * L;
@@ -1258,13 +1242,13 @@ namespace Izing
 		int N_clustered_elements = 0;
 		while(i < L2){
 			if(!is_checked[i]){
-				if(s[i] == default_state) {
+				if(s[i] == background_specie_id) {
 					is_checked[i] = -1;
-//					is_checked[i] = L2 + 1;
 				} else {
+					cluster_types[*N_clusters] = s[i];
 					add_to_cluster(s, L, is_checked, &(cluster_element_inds[N_clustered_elements]),
 								   &(cluster_sizes[*N_clusters]), i, (*N_clusters) + 1,
-								   default_state);
+								   s[i]);
 					N_clustered_elements += cluster_sizes[*N_clusters];
 					++(*N_clusters);
 				}
@@ -1274,22 +1258,22 @@ namespace Izing
 
 	}
 
-	int add_to_cluster(const int* s, int L, int* is_checked, int* cluster, int* cluster_size, int pos, int cluster_label, int default_state)
+	int add_to_cluster(const int* s, int L, int* is_checked, int* cluster, int* cluster_size, int pos, int cluster_label, int cluster_specie)
 	{
 		if(!is_checked[pos]){
-			if(s[pos] == default_state) {
+			if(s[pos] == background_specie_id) {
 				is_checked[pos] = -1;
-			} else {
+			} else if(s[pos] == cluster_specie) {
 				int L2 = L * L;
 				is_checked[pos] = cluster_label;
 				cluster[*cluster_size] = pos;
 				++(*cluster_size);
 
-				add_to_cluster(s, L, is_checked, cluster, cluster_size, md(pos - L, L2), cluster_label, default_state);
-				add_to_cluster(s, L, is_checked, cluster, cluster_size, pos % L == 0 ? pos + L - 1 : pos - 1, cluster_label, default_state);
-				add_to_cluster(s, L, is_checked, cluster, cluster_size, (pos + 1) % L == 0 ? pos - L + 1 : pos + 1, cluster_label, default_state);
-				add_to_cluster(s, L, is_checked, cluster, cluster_size, md(pos + L, L2), cluster_label, default_state);
-			}
+				add_to_cluster(s, L, is_checked, cluster, cluster_size, md(pos - L, L2), cluster_label, cluster_specie);
+				add_to_cluster(s, L, is_checked, cluster, cluster_size, pos % L == 0 ? pos + L - 1 : pos - 1, cluster_label, cluster_specie);
+				add_to_cluster(s, L, is_checked, cluster, cluster_size, (pos + 1) % L == 0 ? pos - L + 1 : pos + 1, cluster_label, cluster_specie);
+				add_to_cluster(s, L, is_checked, cluster, cluster_size, md(pos + L, L2), cluster_label, cluster_specie);
+			}    // do nothing if s[pos] is other non-empty specie than cluster_specie
 		}
 
 		return 0;
@@ -1339,48 +1323,57 @@ namespace Izing
 		*cluster_size = 0;
 	}
 
-	int comp_M(const int *s, int L)
+	int comp_M(const int *state, int L2)
 	/**
-	 * Computes the Magnetization of the state 's' of the linear size 'L'
-	 * @param s - the state to analyze
+	 * Computes the amount of specie[1]
+	 * @param state - the state to analyze
 	 * @param L - the linear size of the lattice
-	 * @return - the value of Magnetization of the state 's'
+	 * @return - the total amoint of s[1]
 	 */
 	{
-		int i, j;
+		int i;
 		int _M = 0;
-		int L2 = L*L;
-		for(i = 0; i < L2; ++i) _M += s[i];
+		for(i = 0; i < L2; ++i) if(state[i] == main_specie_id) ++_M;
 		return _M;
 	}
 
-	double comp_E(const int* s, int L, double h)
+	double comp_E(const int* state, int L, double *e, double *mu)
 	/**
 	 * Computes the Energy of the state 's' of the linear size 'L', immersed in the 'h' magnetic field;
-	 * E = E/J = - \sum_{i, <j>}(s_i * s_j) - h * sum_{i}(s_i)
-	 * @param s - the state to analyze
+	 * H = E/T = -\sum_{<ij>} s_i s_j e[s_i][s_j] - \sum_i mu[s_i]
+	 * @param state - the state to analyze
 	 * @param L - the linear size of the lattice
-	 * @return - the value of Energy of the state 's'
+	 * @param e - interaction matrix
+	 * @param mu - chemical potentials
+	 * @return - the value of Energy of the state 'state'
 	 */
 	{
 		int i, j;
+		int L2 = L*L;
+
 		double _E = 0;
+		int s0;
 		for(i = 0; i < L-1; ++i){
 			for(j = 0; j < L-1; ++j){
-				_E += s[i*L + j] * (s[(i+1)*L + j] + s[i*L + (j+1)]);
+				s0 = state[i*L + j] * N_species;
+				_E += e[s0 + state[(i+1)*L + j]] + e[s0 + state[i*L + (j+1)]];
 			}
-			_E += s[i*L + (L-1)] * (s[(i+1)*L + (L-1)] + s[i*L + 0]);
+			s0 = state[i*L + (L-1)] * N_species;
+			_E += e[s0 + state[(i+1)*L + (L-1)]] + e[s0 + state[i*L + 0]];
 		}
 		for(j = 0; j < L-1; ++j){
-			_E += s[(L-1)*L + j] * (s[0*L + j] + s[(L-1)*L + (j+1)]);
+			s0 = state[(L-1)*L + j] * N_species;
+			_E += e[s0 + state[0*L + j]] + e[s0 + state[(L-1)*L + (j+1)]];
 		}
-		_E += s[(L-1)*L + (L-1)] * (s[0*L + (L-1)] + s[(L-1)*L + 0]);
+		s0 = state[(L-1)*L + (L-1)] * N_species;
+		_E += e[s0 + state[0*L + (L-1)]] + e[s0 + state[(L-1)*L + 0]];
 
-		int _M = comp_M(s, L);
-		_E *= -1;   // J > 0 -> {++ > +-} -> we need to *(-1) because we search for a minimum
-		// energy is measured in [E]=J, so J==1, or we store E/J value
+		double _M = 0;
+		for(i = 0; i < L2; ++i){
+			_M += mu[state[i]];
+		}
 
-		return - h * _M + _E;
+		return - _M - _E;    // e, mu > 0 -> we need to *(-1) because we search for a minimum
 	}
 
 	int generate_state(int *s, int L, int mode, int interface_mode, int default_spin_state, int verbose)
@@ -1439,36 +1432,31 @@ namespace Izing
 		return 0;
 	}
 
-	double get_dE(int *s, int L, double h, int ix, int iy)
+	double get_dE(int *state, int L, double *e, double *mu, int ix, int iy, int *s_new)
 	/**
 	 * Computes the energy difference '(E_future_after_the_flip - E_current)'.
-	 * 1. "Now" the s[ix, iy] = s, it will be "= -s", so \sum_{neib} difference d_sum = {(-s) - s = -2s} * {all the neighbours}.
-	 * 		But E = -\sum_{neib}, so d_E = -d_sum = 2s * {all the neighbours}
-	 * 2. d_\sum(s_i) = (-s) - s = -2s; E = -h * \sum(s_i) => d_E = -h * d_sum(s_i) = 2s * h
-	 * 3. So, it total, d_E = 2s(h + s+neib)
-	 * @param s - the current state (before the flip)
-	 * @param L - linear size of the state
-	 * @param h - magnetic field
+	 * H = -\sum_{<ij>} s_i s_j e[s_i][s_j] - \sum_i mu[s_i]
+	 * @param state - the current state (before the flip)
 	 * @param ix - the X index os the spin considered for a flip
 	 * @param iy - the Y index os the spin considered for a flip
+	 * @param s_new - the cyclic step from s_current to s_new in the space of species' ids
 	 * @return - the values of a potential Energy change
 	 */
-// the difference between the current energy and energy with s[ix][iy] flipped
+// H =
 	{
-		return 2 * s[ix*L + iy] * (s[md(ix + 1, L)*L + iy]
-								   + s[ix*L + md(iy + 1, L)]
-								   + s[md(ix - 1, L)*L + iy]
-								   + s[ix*L + md(iy - 1, L)] + h);
-		// units [E] = J, so spins are just 's', not s*J
+		int s = state[ix*L + iy];
+		*s_new = (s + 1 + *s_new) % N_species;
+		int s1 = state[md(ix + 1, L)*L + iy];
+		int s2 = state[ix*L + md(iy + 1, L)];
+		int s3 = state[md(ix - 1, L)*L + iy];
+		int s4 = state[ix*L + md(iy - 1, L)];
+		return (mu[s] + e[s * N_species + s1] + e[s * N_species + s2] + e[s * N_species + s3] + e[s * N_species + s4])
+			  -(mu[*s_new] + e[*s_new * N_species + s1] + e[*s_new * N_species + s2] + e[*s_new * N_species + s3] + e[*s_new * N_species + s4]);
 	}
 
-	int get_flip_point(int *s, int L, double h, double Temp, int *ix, int *iy, double *dE)
+	int get_flip_point(int *state, int L, double *e, double *mu, int *ix, int *iy, int *s_new, double *dE)
 	/**
 	 * Get the positions [*ix, *iy] of a spin to flip in a MC process
-	 * @param s - the state
-	 * @param L - the size
-	 * @param h - the magnetic field
-	 * @param Temp - the Temperature
 	 * @param ix - int*, the X index of the spin to be flipped (already decided)
 	 * @param iy - int*, the Y index of the spin to be flipped (already decided)
 	 * @param dE - the Energy difference necessary for the flip (E_flipped - E_current)
@@ -1479,10 +1467,11 @@ namespace Izing
 		do{
 			*ix = gsl_rng_uniform_int(rng, L);
 			*iy = gsl_rng_uniform_int(rng, L);
+			*s_new = gsl_rng_uniform_int(rng, N_species - 1);
 
-			*dE = get_dE(s, L, h, *ix, *iy);
+			*dE = get_dE(state, L, e, mu, *ix, *iy, *s_new);
 			++N_flip_tries;
-		}while(!(*dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- *dE / Temp) ? 1 : 0)));
+		}while(!(*dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- *dE) ? 1 : 0)));
 
 		return N_flip_tries;
 	}
@@ -1561,8 +1550,23 @@ namespace Izing
 		return 1;
 	}
 
-	int     md(int i, int L){ return i >= 0 ? (i < L ? i : i - L) : (L + i); }   // i mod L for i \in [-1; L]
-//	int my_mod(int x, int M){ return x >= 0 ? (x < M ? x : x - M) : (x + M); }
+	void print_e_matrix(double *e)
+	{
+		int ix, iy;
+		for(ix = 0; ix < N_species; ++ix) {
+			for(iy = 0; iy < N_species; ++iy){
+				printf("%5.lf ", e[ix * N_species + iy]);
+			}
+			printf("\n");
+		}
+	}
+
+	void print_mu_vector(double *mu)
+	{
+		for(int i = 0; i < N_species; ++i)
+			printf("%5.lf ", mu[i]);
+		printf("\n");
+	}
 
 }
 

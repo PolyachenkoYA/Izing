@@ -1,0 +1,10 @@
+/home/ypolyach/clion-2020.3.2/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/home/ypolyach/clion-2020.3.2/bin/ninja/linux/ninja -G Ninja -S /home/ypolyach/!Princeton/Izing/lattice_gas -B /home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-debug
+-- Found PythonLibs: /usr/lib/x86_64-linux-gnu/libpython3.8.so (found version "3.8.10") 
+-- Found PythonInterp: /usr/bin/python3.8 (found version "3.8.10") 
+-- Found PythonLibs: /usr/lib/x86_64-linux-gnu/libpython3.8.so
+-- Performing Test HAS_FLTO
+-- Performing Test HAS_FLTO - Success
+-- LTO enabled
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-debug
