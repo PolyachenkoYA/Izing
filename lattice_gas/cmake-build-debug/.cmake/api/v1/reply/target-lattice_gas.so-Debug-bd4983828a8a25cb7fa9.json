@@ -14,8 +14,6 @@
 			"pybind11_add_module",
 			"link_directories",
 			"target_link_libraries",
-			"_pybind11_add_lto_flags",
-			"target_compile_options",
 			"include_directories",
 			"target_include_directories"
 		],
@@ -48,43 +46,25 @@
 				"parent" : 0
 			},
 			{
-				"command" : 4,
-				"file" : 0,
-				"line" : 198,
-				"parent" : 1
-			},
-			{
-				"command" : 3,
-				"file" : 0,
-				"line" : 107,
-				"parent" : 4
-			},
-			{
 				"command" : 3,
 				"file" : 1,
 				"line" : 28,
 				"parent" : 0
 			},
 			{
-				"command" : 5,
-				"file" : 0,
-				"line" : 104,
-				"parent" : 4
-			},
-			{
-				"command" : 6,
+				"command" : 4,
 				"file" : 1,
 				"line" : 19,
 				"parent" : 0
 			},
 			{
-				"command" : 6,
+				"command" : 4,
 				"file" : 1,
 				"line" : 20,
 				"parent" : 0
 			},
 			{
-				"command" : 7,
+				"command" : 5,
 				"file" : 0,
 				"line" : 137,
 				"parent" : 1
@@ -97,15 +77,7 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : "-Wall -Wextra -O3 -fPIC -fvisibility=hidden"
-				},
-				{
-					"backtrace" : 7,
-					"fragment" : "-flto"
-				},
-				{
-					"backtrace" : 7,
-					"fragment" : "-fno-fat-lto-objects"
+					"fragment" : "-Wall -Wextra -g -fPIC -fvisibility=hidden -fdiagnostics-color=always"
 				},
 				{
 					"fragment" : "-std=gnu++17"
@@ -120,15 +92,15 @@
 			"includes" : 
 			[
 				{
-					"backtrace" : 8,
+					"backtrace" : 5,
 					"path" : "/home/ypolyach/anaconda3/include"
 				},
 				{
-					"backtrace" : 9,
+					"backtrace" : 6,
 					"path" : "/home/ypolyach/anaconda3/include/python3.8"
 				},
 				{
-					"backtrace" : 10,
+					"backtrace" : 7,
 					"path" : "/usr/include/python3.8"
 				}
 			],
@@ -167,52 +139,47 @@
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 5,
-				"fragment" : "-flto",
-				"role" : "libraries"
-			},
-			{
-				"backtrace" : 6,
+				"backtrace" : 4,
 				"fragment" : "-lm",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 6,
+				"backtrace" : 4,
 				"fragment" : "-lgsl",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 6,
+				"backtrace" : 4,
 				"fragment" : "-lgslcblas",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 6,
+				"backtrace" : 4,
 				"fragment" : "-lcrypt",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 6,
+				"backtrace" : 4,
 				"fragment" : "-lpthread",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 6,
+				"backtrace" : 4,
 				"fragment" : "-ldl",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 6,
+				"backtrace" : 4,
 				"fragment" : "-lutil",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 6,
+				"backtrace" : 4,
 				"fragment" : "-lrt",
 				"role" : "libraries"
 			},
 			{
-				"backtrace" : 6,
+				"backtrace" : 4,
 				"fragment" : "-lpython3.8",
 				"role" : "libraries"
 			}

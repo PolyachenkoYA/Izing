@@ -168,6 +168,18 @@ OP_interfaces_table[('CS', 2.0, 32, 0.06, 9, 24, 450, 'spaced')] = np.array([24,
 OP_interfaces_table[('CS', 2.0, 32, 0.05, 9, 24, 500, 'spaced')] = np.array([24, 32, 40, 48, 60, 75, 100, 145, 500], dtype=int)
 OP_interfaces_table[('CS', 2.0, 32, 0.04, 9, 24, 600, 'spaced')] = np.array([24, 32, 40, 48, 60, 100, 145, 200, 600], dtype=int)
 
+OP_interfaces_table['hJ0.15'] = np.array([24, 29, 34, 39, 44, 52, 62, 85, 200], dtype=int) # h/J = 0.15
+OP_interfaces_table['hJ0.13'] = np.array([24, 29, 34, 39, 44, 52, 62, 85, 500], dtype=int) # h/J = 0.13
+OP_interfaces_table['hJ0.12'] = np.array([24, 29, 34, 39, 44, 54, 70, 95, 500], dtype=int) # h/J = 0.12
+OP_interfaces_table['hJ0.1'] = np.array([24, 32, 40, 48, 56, 70, 95, 135, 350], dtype=int) # h/J = 0.1
+
+OP_interfaces_table['hJ0.13_2'] = np.array([24, 29, 34, 39, 44, 52, 62, 85, 200], dtype=int)
+OP_interfaces_table['hJ0.12_2'] = np.array([24, 32, 40, 48, 56, 64, 72, 95, 250], dtype=int)
+OP_interfaces_table['hJ0.11_2'] = np.array([24, 32, 40, 48, 58, 70, 90, 110, 300], dtype=int)
+OP_interfaces_table['hJ0.10_2'] = np.array([24, 32, 40, 48, 56, 70, 95, 135, 350], dtype=int)
+OP_interfaces_table['hJ0.09_2'] = np.array([24, 32, 40, 48, 60, 100, 145, 165, 400], dtype=int)
+OP_interfaces_table['hJ0.08_2'] = np.array([24, 32, 40, 48, 60, 100, 145, 200, 500], dtype=int)
+
 L_reference = 100
 
 Nc_reference_data = {}

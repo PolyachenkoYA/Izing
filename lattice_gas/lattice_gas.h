@@ -24,6 +24,11 @@ namespace py = pybind11;
 #define main_specie_id 1
 #define background_specie_id 0
 
+#define gen_init_state_mode_SinglePiece 0
+#define gen_init_state_mode_Random -1
+#define gen_init_state_mode_Inside -2
+#define gen_init_state_mode_Influx -3
+
 namespace lattice_gas
 {
 	extern gsl_rng *rng;
@@ -102,7 +107,7 @@ namespace lattice_gas
 py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
 				  int to_remember_timeevol, int init_gen_mode, int interface_mode,
 				  std::optional<int> _verbose);
-py::tuple run_bruteforce(int L, double **e, double *mu, long Nt_max, long N_saved_states_max,
+py::tuple run_bruteforce(int L, py::array_t<double> e, py::array_t<double> mu, long Nt_max, long N_saved_states_max,
 						 std::optional<int> _N_spins_up_init, std::optional<int> _to_remember_timeevol,
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,

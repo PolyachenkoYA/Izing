@@ -32,13 +32,13 @@ int main(int argc, char** argv) {
 	int N_init_states_A = 100000;
 	int N_OP_interfaces = 3;
 	int init_gen_mode = -3;
-	int to_remember_timeevol = 0;
+	int to_remember_timeevol = 1;
 	int interface_mode = mode_ID_CS;
 	int OP_0;
 	int OP_max;
 
 	// for valgrind
-	N_init_states_default = 50;
+	N_init_states_default = 10;
 	N_init_states_A = 10;
 
 	int L2 = L*L;

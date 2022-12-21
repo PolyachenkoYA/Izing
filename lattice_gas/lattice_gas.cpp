@@ -309,10 +309,9 @@ py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11
 	py::buffer_info mu_info = mu.request();
 	double *e_ptr = static_cast<double *>(e_info.ptr);
 	double *mu_ptr = static_cast<double *>(mu_info.ptr);
-	assert(e_info.ndim == 2);
+	assert(e_info.ndim == 1);
 	assert(mu_info.ndim == 1);
-	assert(e_info.shape[0] == N_species);
-	assert(e_info.shape[1] == N_species);
+	assert(e_info.shape[0] == N_species * N_species);
 	assert(mu_info.shape[0] == N_species);
 
 // -------------- check input ----------------
@@ -1204,13 +1203,13 @@ namespace lattice_gas
 			printf("generating states:\nN_init_states=%d, gen_mode=%d, OP_A <= %d, OP_mode=%d\n", N_init_states, mode, OP_thr_save_state, interface_mode);
 		}
 
-		if(mode >= -1){
+		if((mode >= gen_init_state_mode_SinglePiece) || (mode == gen_init_state_mode_Random)){
 			// generate N_init_states states in A
 			// Here they are identical, but I think it's better to generate them accordingly to equilibrium distribution in A
 			for(i = 0; i < N_init_states; ++i){
 				generate_state(&(init_states[i * L2]), L, mode, interface_mode, verbose);
 			}
-		} else if(mode == -2){
+		} else if(mode == gen_init_state_mode_Inside){
 			int N_states_done;
 			int N_tries;
 //			long Nt = 0;
@@ -1221,7 +1220,7 @@ namespace lattice_gas
 							 &N_states_done, OP_min_default[interface_mode],
 							 OP_thr_save_state, save_state_mode_Inside, -1,
 							 verbose, -1, &N_tries, 0, 1, -1);
-		} else if(mode == -3){
+		} else if(mode == gen_init_state_mode_Influx){
 			int N_states_done;
 			int N_tries = 0;
 
@@ -1403,10 +1402,10 @@ namespace lattice_gas
 		int i, j;
 		int L2 = L*L;
 
-		if(mode >= 0){   // generate |mode| spins UP, and the rest spins DOWN
+		if(mode >= gen_init_state_mode_SinglePiece){   // generate |mode| spins UP, and the rest spins DOWN
 			for(i = 0; i < L2; ++i) s[i] = background_specie_id;
-			if(mode > 0){
-				int N_down_spins = mode;
+			if(mode > gen_init_state_mode_SinglePiece){
+				int N_down_spins = mode - gen_init_state_mode_SinglePiece;
 				assert(N_down_spins <= L2);
 
 				switch (interface_mode) {
@@ -1440,14 +1439,14 @@ namespace lattice_gas
 			if(verbose){
 				printf("generated state: N_spins_up=%d, OP_mode=%d, OP=%d\n", mode, interface_mode, OP_init);
 			}
-		} else if(mode == -1){   // random
+		} else if(mode == gen_init_state_mode_Random){   // random
 			for(i = 0; i < L2; ++i) s[i] = gsl_rng_uniform_int(rng, N_species);
 		}
 
 		return 0;
 	}
 
-	double get_dE(int *state, int L, double *e, double *mu, int ix, int iy, int *s_new)
+	double get_dE(int *state, int L, double *e, double *mu, int ix, int iy, int s_new)
 	/**
 	 * Computes the energy difference '(E_future_after_the_flip - E_current)'.
 	 * H = -\sum_{<ij>} s_i s_j e[s_i][s_j] - \sum_i mu[s_i]
@@ -1457,19 +1456,17 @@ namespace lattice_gas
 	 * @param s_new - the cyclic step from s_current to s_new in the space of species' ids
 	 * @return - the values of a potential Energy change
 	 */
-// H =
 	{
 		int s = state[ix*L + iy];
-		*s_new = (s + 1 + *s_new) % N_species;
 		int s1 = state[md(ix + 1, L)*L + iy];
 		int s2 = state[ix*L + md(iy + 1, L)];
 		int s3 = state[md(ix - 1, L)*L + iy];
 		int s4 = state[ix*L + md(iy - 1, L)];
 
-		int s_new_ix = *s_new * N_species;
+		int s_new_ix = s_new * N_species;
 		int s_ix = s * N_species;
 		return (mu[s] + e[s_ix + s1] + e[s_ix + s2] + e[s_ix + s3] + e[s_ix + s4])
-			  -(mu[*s_new] + e[s_new_ix + s1] + e[s_new_ix + s2] + e[s_new_ix + s3] + e[s_new_ix + s4]);
+			  -(mu[s_new] + e[s_new_ix + s1] + e[s_new_ix + s2] + e[s_new_ix + s3] + e[s_new_ix + s4]);
 	}
 
 	int get_flip_point(int *state, int L, double *e, double *mu, int *ix, int *iy, int *s_new, double *dE)
@@ -1482,12 +1479,26 @@ namespace lattice_gas
 	 */
 	{
 		int N_flip_tries = 0;
+		int L2 = L * L;
+		int total_range = L2 * (N_species - 1);
 		do{
-			*ix = gsl_rng_uniform_int(rng, L);
-			*iy = gsl_rng_uniform_int(rng, L);
-			*s_new = gsl_rng_uniform_int(rng, N_species - 1);
+			*iy = gsl_rng_uniform_int(rng, total_range);
+			*ix = (*iy) % L2;
+//			*s_new = (state[*ix] + 1 + (*iy) / L2) % N_species;
+			*s_new = 1 - state[*ix];
+			*iy = *ix % L;
+			*ix = *ix / L;
 
-			*dE = get_dE(state, L, e, mu, *ix, *iy, s_new);
+//			*ix = gsl_rng_uniform_int(rng, L2);
+//			*s_new = (state[*ix] + 1 + gsl_rng_uniform_int(rng, N_species - 1)) % N_species;
+//			*iy = (*ix) % L;
+//			*ix = *ix / L;
+
+//			*ix = gsl_rng_uniform_int(rng, L);
+//			*iy = gsl_rng_uniform_int(rng, L);
+//			*s_new = (state[*ix * L + *iy] + 1 + gsl_rng_uniform_int(rng, N_species - 1)) % N_species;
+
+			*dE = get_dE(state, L, e, mu, *ix, *iy, *s_new);
 			++N_flip_tries;
 		}while(!(*dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- *dE) ? 1 : 0)));
 

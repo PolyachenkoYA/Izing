@@ -10,32 +10,35 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(izing, m)
+PYBIND11_MODULE(lattice_gas, m)
 {
-// py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
-//				  int to_remember_timeevol, int init_gen_mode, int interface_mode, std::optional<int> _verbose)
+// py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
+//				  int to_remember_timeevol, int init_gen_mode, int interface_mode,
+//				  std::optional<int> _verbose)
     m.def("run_FFS", &run_FFS,
-          "run FFS for the 2D Ising model",
+          "run FFS for the 2D lattice gas model",
           py::arg("grid_size"),
-          py::arg("Temp"),
-          py::arg("h"),
+          py::arg("e"),
+          py::arg("mu"),
           py::arg("N_init_states"),
           py::arg("OP_interfaces"),
 		  py::arg("to_remember_timeevol")=0,
-		  py::arg("init_gen_mode")=-2,
-		  py::arg("interface_mode")=1,
-		  py::arg("default_spin_state")=-1,
+		  py::arg("init_gen_mode")=gen_init_state_mode_Inside,
+		  py::arg("interface_mode")=mode_ID_CS,
 		  py::arg("verbose")=py::none()
     );
 
-// py::tuple run_bruteforce(int L, double Temp, double h, int Nt_max,
-//						 std::optional<int> _OP_to_save_min, std::optional<int> _OP_to_save_max,
-//						 std::optional<int> _interface_mode, std::optional<int> _verbose)
+// py::tuple run_bruteforce(int L, double **e, double *mu, long Nt_max, long N_saved_states_max,
+//						 std::optional<int> _N_spins_up_init, std::optional<int> _to_remember_timeevol,
+//						 std::optional<int> _OP_A, std::optional<int> _OP_B,
+//						 std::optional<int> _OP_min, std::optional<int> _OP_max,
+//						 std::optional<int> _interface_mode,
+//						 std::optional<int> _verbose)
 	m.def("run_bruteforce", &run_bruteforce,
-		  "run Brute-force simulation for the 2D Ising model for Nt_max steps, starting from ~equilibrated state",
+		  "run Brute-force simulation for the 2D lattice gas model for Nt_max steps, starting from ~equilibrated state",
 		  py::arg("grid_size"),
-		  py::arg("Temp"),
-		  py::arg("h"),
+		  py::arg("e"),
+		  py::arg("mu"),
 		  py::arg("Nt_max"),
 		  py::arg("N_saved_states_max"),
 		  py::arg("N_spins_up_init")=py::none(),
@@ -45,7 +48,6 @@ PYBIND11_MODULE(izing, m)
 		  py::arg("OP_min")=py::none(),
 		  py::arg("OP_max")=py::none(),
 		  py::arg("interface_mode")=py::none(),
-		  py::arg("default_spin_state")=py::none(),
 		  py::arg("verbose")=py::none()
 	);
 
@@ -53,7 +55,6 @@ PYBIND11_MODULE(izing, m)
 	m.def("cluster_state", &cluster_state,
 		  "Get clusters for a given state",
 		  py::arg("state"),
-		  py::arg("default_state")=-1,
 		  py::arg("verbose")=py::none()
 	);
 
