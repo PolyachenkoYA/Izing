@@ -123,8 +123,8 @@ py::tuple run_bruteforce(int L, py::array_t<double> e, py::array_t<double> mu, l
  * @param L - the side-size of the lattice
  * @param e - matrix NxN, particles interaction energies
  * @param mu - vector Nx1, particles chemical potentials
- * 		H = - \sum_{<ij>} s_i s_j e[s_i][s_j] - \sum_i s_i mu[s_i]
- * 		mu_i = -inf   ==>   n_i = 0
+ * 		H = \sum_{<ij>} s_i s_j e[s_i][s_j] + \sum_i s_i mu[s_i]
+ * 		mu_i = +inf   ==>   n_i = 0
  * 		T = 1
  * @param h - magnetic-field-induced multiplier; unit=J, so it's h/J
  * @param Nt_max - for many succesful MC steps I want
@@ -272,8 +272,8 @@ py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11
  * @param L - the side-size of the lattice
  * @param e - matrix NxN, particles interaction energies
  * @param mu - vector Nx1, particles chemical potentials
- * 		H = - \sum_{<ij>} s_i s_j e[s_i][s_j] - \sum_i s_i mu[s_i]
- * 		mu_i = -inf   ==>   n_i = 0
+ * 		H = \sum_{<ij>} s_i s_j e[s_i][s_j] + \sum_i s_i mu[s_i]
+ * 		mu_i = +inf   ==>   n_i = 0
  * 		T = 1
  * @param N_init_states - array of ints [N_OP_interfaces+2], how many states do I want on each interface
  * @param OP_interfaces - array of ints [N_OP_interfaces+2], contains values of M for interfaces. The map is [-L2; M_0](; M_1](...](; M_n-1](; L2]
@@ -1354,7 +1354,7 @@ namespace lattice_gas
 	double comp_E(const int* state, int L, double *e, double *mu)
 	/**
 	 * Computes the Energy of the state 's' of the linear size 'L', immersed in the 'h' magnetic field;
-	 * H = E/T = -\sum_{<ij>} s_i s_j e[s_i][s_j] - \sum_i mu[s_i]
+	 * H = E/T = \sum_{<ij>} s_i s_j e[s_i][s_j] + \sum_i mu[s_i]
 	 * @param state - the state to analyze
 	 * @param L - the linear size of the lattice
 	 * @param e - interaction matrix
@@ -1387,7 +1387,7 @@ namespace lattice_gas
 			_M += mu[state[i]];
 		}
 
-		return - _M - _E;    // e, mu > 0 -> we need to *(-1) because we search for a minimum
+		return _M + _E;    // e, mu > 0 -> we need to *(-1) because we search for a minimum
 	}
 
 	int generate_state(int *s, int L, int mode, int interface_mode, int verbose)
@@ -1449,7 +1449,7 @@ namespace lattice_gas
 	double get_dE(int *state, int L, double *e, double *mu, int ix, int iy, int s_new)
 	/**
 	 * Computes the energy difference '(E_future_after_the_flip - E_current)'.
-	 * H = -\sum_{<ij>} s_i s_j e[s_i][s_j] - \sum_i mu[s_i]
+	 * H = \sum_{<ij>} s_i s_j e[s_i][s_j] + \sum_i mu[s_i]
 	 * @param state - the current state (before the flip)
 	 * @param ix - the X index os the spin considered for a flip
 	 * @param iy - the Y index os the spin considered for a flip
@@ -1465,8 +1465,10 @@ namespace lattice_gas
 
 		int s_new_ix = s_new * N_species;
 		int s_ix = s * N_species;
-		return (mu[s] + e[s_ix + s1] + e[s_ix + s2] + e[s_ix + s3] + e[s_ix + s4])
-			  -(mu[s_new] + e[s_new_ix + s1] + e[s_new_ix + s2] + e[s_new_ix + s3] + e[s_new_ix + s4]);
+		return (mu[s_new] + (e[s_new_ix + s1] + e[s_new_ix + s2] + e[s_new_ix + s3] + e[s_new_ix + s4]))
+				-(mu[s] + (e[s_ix + s1] + e[s_ix + s2] + e[s_ix + s3] + e[s_ix + s4]));
+//		return (mu[s] + (e[s_ix + s1] + e[s_ix + s2] + e[s_ix + s3] + e[s_ix + s4]))
+//			  -(mu[s_new] + e[s_new_ix + s1] + e[s_new_ix + s2] + e[s_new_ix + s3] + e[s_new_ix + s4]);
 	}
 
 	int get_flip_point(int *state, int L, double *e, double *mu, int *ix, int *iy, int *s_new, double *dE)

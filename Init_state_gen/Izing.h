@@ -52,7 +52,7 @@ namespace Izing
 				  long *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
 				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode, int default_spin_state);
 	int run_bruteforce_C(int L, double Temp, double h, long *time_total, int N_states, int *states,
-						 long *OP_arr_len, long *Nt, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
+						 long *OP_arr_len, long *Nt, long *Nt_saved, long dump_time, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 						 int interface_mode, int default_spin_state, int OP_A, int OP_B,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
@@ -63,14 +63,14 @@ namespace Izing
 						int interfaces_mode, int default_spin_state, int verbose);
 	int run_state(int *s, int L, double Temp, double h, long *time_total, int OP_0, int OP_next,
 				  double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
-				  int *cluster_element_inds, int *cluster_sizes, int *is_checked, long *Nt, long *OP_arr_len,
+				  int *cluster_element_inds, int *cluster_sizes, int *is_checked, long *Nt, long *Nt_saved, long dump_time, long *OP_arr_len,
 				  int interfaces_mode, int default_spin_state, int verbose, long Nt_max=-1, int* states_to_save=nullptr,
 				  int *N_states_saved=nullptr, int N_states_to_save=-1,  int OP_min_save_state=0, int OP_max_save_state=0,
 				  int save_state_mode=save_state_mode_Inside, int OP_A=0, int OP_B=0, long N_saved_states_max=-1);
 	int get_init_states_C(int L, double Temp, double h, long *time_total, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
 						  int interface_mode, int default_spin_state, int OP_A, int OP_B,
 						  double **E, int **M, int **biggest_cluster_size, int **h_A, int **time,
-						  long *Nt, long *OP_arr_len, int verbose);
+						  long *Nt, long *Nt_saved, long dump_step, long *OP_arr_len, int verbose);
 	int get_equilibrated_state(int L, double Temp, double h, int *init_state, int interface_mode, int default_spin_state,
 							   int OP_A, int OP_B, int verbose);
 
@@ -96,7 +96,7 @@ namespace Izing
 py::tuple run_FFS(int L, double Temp, double h, pybind11::array_t<int> N_init_states,
 				  pybind11::array_t<int> OP_interfaces, int to_remember_timeevol, int init_gen_mode, int interface_mode,
 				  int default_spin_state, std::optional<int> _verbose);
-py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved_states_max,
+py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved_states_max, long dump_step,
 						 std::optional<int> _N_spins_up_init, std::optional<int> _to_remember_timeevol,
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,

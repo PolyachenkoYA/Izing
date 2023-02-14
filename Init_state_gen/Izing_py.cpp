@@ -38,6 +38,7 @@ PYBIND11_MODULE(izing, m)
 		  py::arg("h"),
 		  py::arg("Nt_max"),
 		  py::arg("N_saved_states_max"),
+		  py::arg("dump_time")=1,
 		  py::arg("N_spins_up_init")=py::none(),
 		  py::arg("to_remember_timeevol")=py::none(),
 		  py::arg("OP_A")=py::none(),

@@ -9,8 +9,9 @@ import mylib as my
 import table_data
 
 # ========================== general params ==================
-mu_shift = np.log(2)
-mu_shift = 0
+dim = 2
+z_neib = dim * 2
+
 dE_avg = 6   # J
 N_species = 3
 print_scale_k = 1e5
@@ -22,6 +23,9 @@ dOP_step = {}
 OP_std_overestimate = {}
 OP_hist_edges_default = {}
 OP_possible_jumps = {}
+
+mu_shift = -np.log(N_species - 1)
+mu_shift = 0
 
 OP_C_id = {}
 OP_C_id['M'] = 0
@@ -1305,6 +1309,9 @@ def main():
 	#
 	# python run.py -mode FFS_AB_mu -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.13 0.12 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 250 -J 0.6666666667 -OP_interfaces_set_IDs hJ0.13_2 hJ0.12_2
 	# python run.py -mode FFS_AB_mu -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.13 0.12 0.11 0.1 0.09 0.08 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 250 300 350 400 500 -J 0.6666666667 -OP_interfaces_set_IDs hJ0.13_2 hJ0.12_2 hJ0.11_2 hJ0.10_2 hJ0.09_2 hJ0.08_2
+	
+	# python run.py -mode BF_1 -interface_mode CS -OP_0 1 -OP_max 350 -Nt 1500000 -h 0.13 -L 32 -to_get_timeevol 1 -chi 2.5 1.6 1.6
+	
 	###########
 	# python run.py -mode FFS_AB_h -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.09 0.08 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 -Temp 1.9
 	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.09 0.08 0.07 0.06 0.05 0.04 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 300 350 400 450 500 600 -Temp 1.9
@@ -1313,29 +1320,52 @@ def main():
 	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.09 0.08 0.07 0.06 0.05 0.04 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 300 350 400 450 500 600 -Temp 2.0
 	#
 	# TODO: remove outdated inputs
-	[L, potential_filenames, mode, Nt, N_states_FFS, N_init_states_FFS, to_recomp, to_get_timeevol, verbose, my_seed, N_OP_interfaces, N_runs, init_gen_mode, OP_0, OP_max, interface_mode, OP_min_BF, OP_max_BF, Nt_sample_A, Nt_sample_B, N_spins_up_init, to_plot_ETS, interface_set_mode, timeevol_stride, to_plot_timeevol, N_saved_states_max, J, h, OP_interfaces_set_IDs], _ = \
-		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',  '-mode',        '-Nt', '-N_states_FFS', '-N_init_states_FFS',     '-to_recomp', '-to_get_timeevol', '-verbose', '-my_seed', '-N_OP_interfaces', '-N_runs', '-init_gen_mode', '-OP_0', '-OP_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B',  '-N_spins_up_init',   '-to_plot_ETS', '-interface_set_mode', '-timeevol_stride', '-to_plot_timeevol', '-N_saved_states_max',   '-J',   '-h', '-OP_interfaces_set_IDs'], \
-					  possible_arg_numbers=[['+'],                   None,      [1],       [0, 1],          [0, 1],               [0, 1],           [0, 1],             [0, 1],     [0, 1],     [0, 1],                [1],    [0, 1],           [0, 1],   ['+'],     ['+'],               [1],       [0, 1],       [0, 1],         [0, 1],         [0, 1],              [0, 1],           [0, 1],                [0, 1],             [0, 1],              [0, 1],                [0, 1], [0, 1],   None,                    None], \
-					  default_values=      [ None,                 [None],     None, ['-1000000'],       ['-5000'],             ['5000'], [my.no_flags[0]],              ['1'],      ['1'],     ['23'],               None,     ['3'],           ['-3'],    None,      None,              None,       [None],       [None],   ['-1000000'],   ['-1000000'],              [None], [my.no_flags[0]],           ['optimal'],          ['-3000'],    [my.no_flags[0]],              ['1000'], [None], [None],                  [None]])
+	[                                           L,    potential_filenames,      mode,           Nt,    N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seed,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu], _ = \
+		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt', '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seed',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu'], \
+					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],          [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],      [0, 1],                 [1],     [0, 1],            [0, 1],    ['+'],      ['+'],                [1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None], \
+					  default_values=      [ None,                 [None],      None, ['-1000000'],       ['-5000'],              ['5000'],  [my.no_flags[0]],               ['1'],       ['1'],      ['23'],                None,      ['3'],            ['-3'],     None,       None,               None,        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            ['optimal'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None]])
 	
 	Ls = np.array([int(l) for l in L], dtype=int)
 	N_L = len(Ls)
 	L = Ls[0]
 	L2 = L**2
 	
-	if(J[0] is None):
-		assert(potential_filenames[0] is not None), 'Nor J neither potential_filenames are provided, avorting'
+	e_inputs = ~np.array([J[0] is None, chi[0] is None, potential_filenames[0] is None])
+	e_inputs_strs = ['J', 'chi', 'file']
+	assert(np.sum(e_inputs) == 1), 'ERROR: possible e-inputs are %s, but provided are: %s. Aborting' % (str(e_inputs_strs), str(e_inputs))
+	if(potential_filenames[0] is not None):
+		pass
 		# load potentials
-	else:
-		assert(potential_filenames[0] is None), 'Both J and potential_filenames are provided, avorting'
+	elif(J[0] is not None):
+		assert(h[0] is not None), 'ERROR: J is given but no "h". Aborting'
 		e = np.zeros((N_species, N_species))
 		N_param_points = len(h)
 		mu = np.zeros((N_param_points, N_species))
 		
 		e[1, 1] = 4 * float(J[0])
-		mu[:, 1] = (2 * np.array([float(hh) for hh in h]) * float(J[0]) - 2 * e[1, 1]) + mu_shift
-		mu[:, 2] = -1e10
+		mu[:, 1] = (2 * np.array([-float(hh) for hh in h]) * float(J[0]) - z_neib * e[1, 1] / 2) + mu_shift
+		mu[:, 2] = 1e10
 		mu[:, 2] = 0
+	elif(chi[0] is not None):
+		e = np.zeros((N_species, N_species))
+		kk = 0
+		for i in range(N_species - 1):
+			for j in range(i + 1, N_species):
+				e[i, j] = chi[kk] * (1 / z_neib)
+				kk += 1
+				e[j, i] = e[i, j]
+		
+		mu_inputs = ~np.array([h[0] is None, mu[0] is None])   # , potential_filenames[0] is None
+		mu_inputs_strs = ['h', 'mu']    # , 'file'
+		assert(np.sum(mu_inputs) == 1), 'ERROR: possible mu-inputs are %s, but provided are: %s. Aborting' % (str(mu_inputs_strs), str(mu_inputs))
+		if(h[0] is not None):
+			mu = np.zeros((N_param_points, N_species))
+			mu[:, 1] = (2 * np.array([-float(hh) for hh in h]) - z_neib * e[1, 1] / 2)
+			mu[:, 2] = 10
+		elif(mu[0] is not None):
+			N_param_points = len(mu) // (N_species - 1)
+			assert(N_param_points * (N_species - 1) == len(mu)), 'ERROR: number of mu-s given is not divisible by %d. Aborting' % (N_species - 1)
+			mu = np.array([([0] + [mu[i * (N_species - 1) + j] for j in range(N_species - 1)]) for i in range(N_param_points)])   # N x N_species; mu[:, 0] = 0
 
 	#Temp = 1.0
 	
@@ -1376,8 +1406,8 @@ def main():
 	
 	#assert(interface_mode == 'CS'), 'ERROR: interface_mode==M is temporary not supported'
 	
-	print('Ls=%s, mode=%s, Nt=%d, N_states_FFS=%d, N_OP_interfaces=%d, interface_mode=%s, N_runs=%d, init_gen_mode=%d, OP_0=%s, OP_max=%s, N_spins_up_init=%s, OP_min_BF=%d, OP_max_BF=%d, to_get_timeevol=%r, verbose=%d, my_seed=%d, to_recomp=%r, N_param_points=%d\ne: %s\nmu: %s\n' % \
-		(str(Ls), mode, Nt, N_states_FFS, N_OP_interfaces, interface_mode, N_runs, init_gen_mode, str(OP_0), str(OP_max), str(N_spins_up_init), OP_min_BF, OP_max_BF, to_get_timeevol, verbose, my_seed, to_recomp, N_param_points, str(e), str(mu)))
+	print('Ls=%s, mode=%s, Nt=%d, N_runs=%d, init_gen_mode=%d, OP_0=%s, OP_max=%s, N_spins_up_init=%s, OP_min_BF=%d, OP_max_BF=%d, to_get_timeevol=%r, verbose=%d, my_seed=%d, to_recomp=%r, N_param_points=%d\ne: %s\nmu: %s\n' % \
+		(str(Ls), mode, Nt, N_runs, init_gen_mode, str(OP_0), str(OP_max), str(N_spins_up_init), OP_min_BF, OP_max_BF, to_get_timeevol, verbose, my_seed, to_recomp, N_param_points, str(e), str(mu)))
 	
 	lattice_gas.init_rand(my_seed)
 	lattice_gas.set_verbose(verbose)
@@ -1431,7 +1461,8 @@ def main():
 		N_init_states_AB = np.ones(N_OP_interfaces, dtype=np.intc) * N_states_FFS
 		N_init_states_AB[0] = N_init_states_FFS
 		
-		print('OP_AB:', OP_interfaces_AB)
+		print('N_states_FFS=%d, N_OP_interfaces=%d, interface_mode=%s\nOP_AB: %s' % \
+			(N_states_FFS, N_OP_interfaces, interface_mode, str(OP_interfaces_AB)))
 		
 	if(mode == 'BF_1'):
 		proc_T(Ls[0], e, mu[0, :], Nt, interface_mode, \

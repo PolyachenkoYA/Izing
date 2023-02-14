@@ -6,7 +6,7 @@
 			[
 				{
 					"build" : ".",
-					"jsonFile" : "directory-.-Release-f5ebdc15457944623624.json",
+					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
 					"minimumCMakeVersion" : 
 					{
 						"string" : "2.8.12"
@@ -20,7 +20,7 @@
 					]
 				}
 			],
-			"name" : "Release",
+			"name" : "Debug",
 			"projects" : 
 			[
 				{
@@ -41,14 +41,14 @@
 				{
 					"directoryIndex" : 0,
 					"id" : "Izing::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-Izing-Release-7c37377cd447c8fa884b.json",
+					"jsonFile" : "target-Izing-Debug-3403b6b900f5cc61c392.json",
 					"name" : "Izing",
 					"projectIndex" : 0
 				},
 				{
 					"directoryIndex" : 0,
 					"id" : "izing.so::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-izing.so-Release-e04cf2db3900ed07536e.json",
+					"jsonFile" : "target-izing.so-Debug-bf9d24c27bd5b797eee8.json",
 					"name" : "izing.so",
 					"projectIndex" : 0
 				}
@@ -58,7 +58,7 @@
 	"kind" : "codemodel",
 	"paths" : 
 	{
-		"build" : "/home/ypolyach/!Princeton/Izing/Init_state_gen/cmake-build-release",
+		"build" : "/home/ypolyach/!Princeton/Izing/Init_state_gen/cmake-build-debug",
 		"source" : "/home/ypolyach/!Princeton/Izing/Init_state_gen"
 	},
 	"version" : 

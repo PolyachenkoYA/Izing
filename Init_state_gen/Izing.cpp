@@ -108,7 +108,7 @@ py::tuple cluster_state(py::array_t<int> state, int default_state, std::optional
 	return py::make_tuple(cluster_element_inds, cluster_sizes);
 }
 
-py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved_states_max,
+py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved_states_max, long dump_step,
 						 std::optional<int> _N_spins_up_init, std::optional<int> _to_remember_timeevol,
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
@@ -155,7 +155,8 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 
 // ----------------- create return objects --------------
 	long Nt = 0;
-	int N_states_saved;
+	long Nt_saved = 0;
+	int N_states_saved = 0;
 	int N_launches;
 	long OP_arr_len = 128;   // the initial value that will be doubling when necessary
 //	py::array_t<int> state = py::array_t<int>(L2);   // technically there are N+2 states' sets, but we are not interested in the first and the last sets
@@ -177,26 +178,20 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 		_time = (int*) malloc(sizeof(int) * OP_arr_len);
 	}
 
-	Izing::get_equilibrated_state(L, Temp, h, states, interface_mode, default_spin_state, OP_A, OP_B, verbose);
-	N_states_saved = 1;
+	if(OP_A > 1){
+		Izing::get_equilibrated_state(L, Temp, h, states, interface_mode, default_spin_state, OP_A, OP_B, verbose);
+		N_states_saved = 1;
+	}
 
 	Izing::run_bruteforce_C(L, Temp, h, &time_total, INT_MAX, states,
 							to_remember_timeevol ? &OP_arr_len : nullptr,
-							&Nt, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
+							&Nt, &Nt_saved, dump_step, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
 							interface_mode, default_spin_state, OP_A, OP_B,
 							OP_min, OP_max, &N_states_saved,
 							OP_min, OP_A, save_state_mode_Inside,
 							N_spins_up_init, verbose, Nt_max, &N_launches, 0,
 							0, N_saved_states_max);
 
-//	Izing::run_bruteforce_C(L, Temp, h, &time_total, INT_MAX, states,
-//							to_remember_timeevol ? &OP_arr_len : nullptr,
-//							&Nt, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
-//							interface_mode, default_spin_state, OP_A, OP_B,
-//							OP_min, OP_max, &N_states_saved,
-//							OP_min, OP_A, save_state_mode_Inside,
-//							N_spins_up_init, verbose, Nt_max, &N_launches, 0,
-//							1, N_saved_states_max);
 
 	int N_last_elements_to_print = std::min(Nt, (long)10);
 
@@ -207,46 +202,46 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 	py::array_t<int> time;
 	if(to_remember_timeevol){
 		if(verbose >= 2){
-			printf("Brute-force core done, Nt = %ld\n", Nt);
-			Izing::print_E(&(_E[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
-			Izing::print_M(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
-//		Izing::print_biggest_cluster_sizes(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+			printf("Brute-force core done, Nt_saved = %ld\n", Nt_saved);
+			Izing::print_E(&(_E[Nt_saved - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+			Izing::print_M(&(_M[Nt_saved - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+//		Izing::print_biggest_cluster_sizes(&(_M[Nt_saved - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 		}
 
-		E = py::array_t<double>(Nt);
+		E = py::array_t<double>(Nt_saved);
 		py::buffer_info E_info = E.request();
 		double *E_ptr = static_cast<double *>(E_info.ptr);
-		memcpy(E_ptr, _E, sizeof(double) * Nt);
+		memcpy(E_ptr, _E, sizeof(double) * Nt_saved);
 		free(_E);
 
-		M = py::array_t<int>(Nt);
+		M = py::array_t<int>(Nt_saved);
 		py::buffer_info M_info = M.request();
 		int *M_ptr = static_cast<int *>(M_info.ptr);
-		memcpy(M_ptr, _M, sizeof(int) * Nt);
+		memcpy(M_ptr, _M, sizeof(int) * Nt_saved);
 		free(_M);
 
-		biggest_cluster_sizes = py::array_t<int>(Nt);
+		biggest_cluster_sizes = py::array_t<int>(Nt_saved);
 		py::buffer_info biggest_cluster_sizes_info = biggest_cluster_sizes.request();
 		int *biggest_cluster_sizes_ptr = static_cast<int *>(biggest_cluster_sizes_info.ptr);
-		memcpy(biggest_cluster_sizes_ptr, _biggest_cluster_sizes, sizeof(int) * Nt);
+		memcpy(biggest_cluster_sizes_ptr, _biggest_cluster_sizes, sizeof(int) * Nt_saved);
 		free(_biggest_cluster_sizes);
 
-		h_A = py::array_t<int>(Nt);
+		h_A = py::array_t<int>(Nt_saved);
 		py::buffer_info h_A_info = h_A.request();
 		int *h_A_ptr = static_cast<int *>(h_A_info.ptr);
-		memcpy(h_A_ptr, _h_A, sizeof(int) * Nt);
+		memcpy(h_A_ptr, _h_A, sizeof(int) * Nt_saved);
 		free(_h_A);
 
-		time = py::array_t<int>(Nt);
+		time = py::array_t<int>(Nt_saved);
 		py::buffer_info time_info = time.request();
 		int *time_ptr = static_cast<int *>(time_info.ptr);
-		memcpy(time_ptr, _time, sizeof(int) * Nt);
+		memcpy(time_ptr, _time, sizeof(int) * Nt_saved);
 		free(_time);
 
 		if(verbose >= 2){
 			printf("internal memory for EM freed\n");
-			Izing::print_E(&(E_ptr[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'P');
-			Izing::print_M(&(M_ptr[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'P');
+			Izing::print_E(&(E_ptr[Nt_saved - N_last_elements_to_print]), N_last_elements_to_print, 'P');
+			Izing::print_M(&(M_ptr[Nt_saved - N_last_elements_to_print]), N_last_elements_to_print, 'P');
 			printf("exiting py::run_bruteforce\n");
 		}
 
@@ -503,13 +498,14 @@ namespace Izing
 // get the initial states; they should be sampled from the distribution in [-L^2; M_0), but they are all set to have M == -L^2 because then they all will fall into the local optimum and almost forget the initial state, so it's almost equivalent to sampling from the proper distribution if 'F(M_0) - F_min >~ T'
 //		long h_A_len = OP_arr_len ? *OP_arr_len : 128;
 		long Nt_total = 0;
+		long Nt_saved_total = 0;
 		long time_0;
 //		Nt[0] = 0;
 //		int *h_A = (int*) malloc(sizeof(int) * h_A_len);
 		get_init_states_C(L, Temp, h, &time_0, N_init_states[0], states, init_gen_mode,
 						  OP_interfaces[0], interface_mode, default_spin_state,
 						  OP_interfaces[0], OP_interfaces[N_OP_interfaces - 1],
-						  E, M, biggest_cluster_sizes, nullptr, time, &Nt_total, OP_arr_len,
+						  E, M, biggest_cluster_sizes, nullptr, time, &Nt_total, &Nt_saved_total, 1, OP_arr_len,
 						  verbose);
 
 		Nt[0] = Nt_total;
@@ -629,6 +625,9 @@ namespace Izing
 		long OP_arr_len_old;
 		long Nt_old;
 		long time_of_step_total;
+
+		long Nt_saved = 0;
+
 		while(N_succ < N_next_states){
 			init_state_to_process_ID = gsl_rng_uniform_int(rng, N_init_states);
 			if(verbose >= 2){
@@ -647,7 +646,7 @@ namespace Izing
 			run_status = run_state(state_under_process, L, Temp, h, &time_of_step_total, OP_0, OP_next,
 								   E, M, biggest_cluster_sizes, nullptr, time,
 								   cluster_element_inds, cluster_sizes, is_checked,
-								   Nt, OP_arr_len, interfaces_mode, default_spin_state, verbose);
+								   Nt, &Nt_saved, 0, OP_arr_len, interfaces_mode, default_spin_state, verbose);
 
 			switch (run_status) {
 				case 0:  // reached <=OP_A  => unsuccessful run
@@ -695,7 +694,7 @@ namespace Izing
 
 	int run_state(int *s, int L, double Temp, double h, long *time_total,
 				  int OP_0, int OP_next, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
-				  int *cluster_element_inds, int *cluster_sizes, int *is_checked, long *Nt, long *OP_arr_len,
+				  int *cluster_element_inds, int *cluster_sizes, int *is_checked, long *Nt, long *Nt_saved, long dump_step, long *OP_arr_len,
 				  int interfaces_mode, int default_spin_state, int verbose, long Nt_max, int* states_to_save,
 				  int *N_states_saved, int N_states_to_save,  int OP_min_save_state, int OP_max_save_state,
 				  int save_state_mode, int OP_A, int OP_B, long N_saved_states_max)
@@ -794,10 +793,11 @@ namespace Izing
 
 			M_current += 2 * s[ix*L + iy];
 
-			clear_clusters(cluster_element_inds, cluster_sizes, &N_clusters_current);
-			uncheck_state(is_checked, L2);
-			cluster_state_C(s, L, cluster_element_inds, cluster_sizes, &N_clusters_current, is_checked, default_spin_state);
-			biggest_cluster_sizes_current = max(cluster_sizes, N_clusters_current);
+//			clear_clusters(cluster_element_inds, cluster_sizes, &N_clusters_current);
+//			uncheck_state(is_checked, L2);
+//			cluster_state_C(s, L, cluster_element_inds, cluster_sizes, &N_clusters_current, is_checked, default_spin_state);
+//			biggest_cluster_sizes_current = max(cluster_sizes, N_clusters_current);
+			biggest_cluster_sizes_current = gsl_rng_uniform_int(rng, L) + 25;
 
 			++(*Nt);
 
@@ -853,44 +853,48 @@ namespace Izing
 
 			// ------------------ save timeevol ----------------
 			if(OP_arr_len){
-				if(*Nt >= *OP_arr_len){ // double the size of the time-index
-					*OP_arr_len *= 2;
-					if(time){
-						*time = (int*) realloc (*time, sizeof(int) * *OP_arr_len);
-						assert(*time);
+				if((*Nt - 1) % dump_step == 0){
+					if(*Nt_saved >= *OP_arr_len){ // double the size of the time-index
+						*OP_arr_len *= 2;
+						if(time){
+							*time = (int*) realloc (*time, sizeof(int) * *OP_arr_len);
+							assert(*time);
+						}
+						if(E){
+							*E = (double*) realloc (*E, sizeof(double) * *OP_arr_len);
+							assert(*E);
+						}
+						if(M){
+							*M = (int*) realloc (*M, sizeof(int) * *OP_arr_len);
+							assert(*M);
+						}
+						if(biggest_cluster_sizes){
+							*biggest_cluster_sizes = (int*) realloc (*biggest_cluster_sizes, sizeof(int) * *OP_arr_len);
+							assert(*biggest_cluster_sizes);
+						}
+						if(h_A){
+							*h_A = (int*) realloc (*h_A, sizeof(int) * *OP_arr_len);
+							assert(*h_A);
+						}
+
+						if(verbose >= 2){
+							printf("\nrealloced to %ld\n", *OP_arr_len);
+						}
 					}
-					if(E){
-						*E = (double*) realloc (*E, sizeof(double) * *OP_arr_len);
-						assert(*E);
-					}
-					if(M){
-						*M = (int*) realloc (*M, sizeof(int) * *OP_arr_len);
-						assert(*M);
-					}
-					if(biggest_cluster_sizes){
-						*biggest_cluster_sizes = (int*) realloc (*biggest_cluster_sizes, sizeof(int) * *OP_arr_len);
-						assert(*biggest_cluster_sizes);
-					}
+
+					if(time) (*time)[*Nt_saved] = time_the_flip_took;
+					if(E) (*E)[*Nt_saved] = E_current;
+					if(M) (*M)[*Nt_saved] = M_current;
+					if(biggest_cluster_sizes) (*biggest_cluster_sizes)[*Nt_saved] = biggest_cluster_sizes_current;
 					if(h_A){
-						*h_A = (int*) realloc (*h_A, sizeof(int) * *OP_arr_len);
-						assert(*h_A);
+						if(*Nt_saved == 0){   // *Nt is assumed to be >= 1
+							(*h_A)[0] = (OP_current - OP_A > OP_B - OP_current ? 0 : 1);
+						} else {   // *Nt > 1
+							(*h_A)[*Nt_saved] = (*h_A)[*Nt_saved - 1] == 1 ? (OP_current < OP_B ? 1 : 0) : (OP_current >= OP_A ? 0 : 1);
+						}
 					}
 
-					if(verbose >= 2){
-						printf("\nrealloced to %ld\n", *OP_arr_len);
-					}
-				}
-
-				if(time) (*time)[*Nt - 1] = time_the_flip_took;
-				if(E) (*E)[*Nt - 1] = E_current;
-				if(M) (*M)[*Nt - 1] = M_current;
-				if(biggest_cluster_sizes) (*biggest_cluster_sizes)[*Nt - 1] = biggest_cluster_sizes_current;
-				if(h_A){
-					if(*Nt == 1){   // *Nt is assumed to be >= 1
-						(*h_A)[0] = (OP_current - OP_A > OP_B - OP_current ? 0 : 1);
-					} else {   // *Nt > 1
-						(*h_A)[*Nt - 1] = (*h_A)[*Nt - 2] == 1 ? (OP_current < OP_B ? 1 : 0) : (OP_current >= OP_A ? 0 : 1);
-					}
+					++(*Nt_saved);
 				}
 
 //				if((E_current < Emin * (1 + 1e-6)) || (E_current > Emax * (1 + 1e-6))){   // assuming Emin < 0, Emax > 0
@@ -968,7 +972,7 @@ namespace Izing
 	}
 
 	int run_bruteforce_C(int L, double Temp, double h, long *time_total, int N_states, int *states,
-						 long *OP_arr_len, long *Nt, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
+						 long *OP_arr_len, long *Nt, long *Nt_saved, long dump_step, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 						 int interface_mode, int default_spin_state, int OP_A, int OP_B,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
@@ -1039,7 +1043,7 @@ namespace Izing
 		int restart_state_ID;
 
 		if(verbose){
-			printf("running brute-force:\nL=%d  T=%lf  h=%lf  OP_mode=%d  OP\\in(%d;%d]  N_states_to_gen=%d  Nt_max=%ld  verbose=%d\n", L, Temp, h, interface_mode, OP_min_stop_state, OP_max_stop_state, N_states, Nt_max, verbose);
+			printf("running brute-force:\nL=%d  T=%lf  h=%lf  OP_mode=%d  OP\\in(%d;%d]  N_states_to_gen=%d  Nt_max=%ld  dump_step=%ld  N_saved_states_max=%ld  verbose=%d\n", L, Temp, h, interface_mode, OP_min_stop_state, OP_max_stop_state, N_states, Nt_max, dump_step, N_saved_states_max, verbose);
 			switch (save_state_mode) {
 				case save_state_mode_Inside:
 					printf("N_spins_up_init:%d, OP_min_stop_state:%d, [OP_min_save_state; OP_max_save_state) = [%d; %d), OP_max_stop_state:%d\n", N_spins_up_init, OP_min_stop_state, OP_min_save_state, OP_max_save_state, OP_max_stop_state);
@@ -1072,7 +1076,7 @@ namespace Izing
 			run_state(state_under_process, L, Temp, h, &time_the_try_took,
 					  OP_min_stop_state, OP_max_stop_state,
 					  E, M, biggest_cluster_sizes, h_A, time, cluster_element_inds, cluster_sizes,
-					  is_checked, Nt, OP_arr_len, interface_mode, default_spin_state,
+					  is_checked, Nt, Nt_saved, dump_step, OP_arr_len, interface_mode, default_spin_state,
 					  -verbose, Nt_max, states, N_states_done, N_states,
 					  OP_min_save_state, OP_max_save_state, save_state_mode, OP_A, OP_B, N_saved_states_max);
 
@@ -1127,7 +1131,7 @@ namespace Izing
 
 		// run "all spins down" until it reaches OP_A_thr
 		run_bruteforce_C(L, Temp, h, &time_total, 1, init_state,
-						 nullptr, &Nt_to_reach_OP_A, nullptr, nullptr, nullptr, nullptr, nullptr,
+						 nullptr, &Nt_to_reach_OP_A, nullptr, 0, nullptr, nullptr, nullptr, nullptr, nullptr,
 						 interface_mode, default_spin_state, -1, -1,
 						 OP_min_default[interface_mode], OP_A,
 						 &N_states_done, OP_A,
@@ -1148,7 +1152,7 @@ namespace Izing
 			}
 			// run it for the same amount of time it took to get to OP_A_thr the first time
 			run_bruteforce_C(L, Temp, h, &time_total, -1, init_state,
-							 nullptr, &Nt, nullptr, nullptr, nullptr, nullptr, nullptr,
+							 nullptr, &Nt, nullptr, 0, nullptr, nullptr, nullptr, nullptr, nullptr,
 							 interface_mode, default_spin_state, -1, -1,
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, -1,
@@ -1163,7 +1167,7 @@ namespace Izing
 	int get_init_states_C(int L, double Temp, double h, long *time_total, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
 						  int interface_mode, int default_spin_state, int OP_A, int OP_B,
 						  double **E, int **M, int **biggest_cluster_size, int **h_A, int **time,
-						  long *Nt, long *OP_arr_len, int verbose)
+						  long *Nt, long *Nt_saved, long dump_step, long *OP_arr_len, int verbose)
 	/**
 	 *
 	 * @param L - see run_FFS
@@ -1206,7 +1210,7 @@ namespace Izing
 			int N_tries;
 //			long Nt = 0;
 			run_bruteforce_C(L, Temp, h, time_total, N_init_states, init_states,
-							 nullptr, Nt, nullptr, nullptr, nullptr, nullptr, nullptr,
+							 nullptr, Nt, nullptr, 0, nullptr, nullptr, nullptr, nullptr, nullptr,
 							 interface_mode, default_spin_state, 0, 0,
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, OP_min_default[interface_mode],
@@ -1222,7 +1226,7 @@ namespace Izing
 			*time_total = 0;
 			N_states_done = 0;
 			run_bruteforce_C(L, Temp, h, time_total, N_init_states, init_states,
-							 OP_arr_len, Nt, E, M, biggest_cluster_size, h_A, time,
+							 OP_arr_len, Nt, Nt_saved, dump_step, E, M, biggest_cluster_size, h_A, time,
 							 interface_mode, default_spin_state, OP_A, OP_B,
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, OP_thr_save_state,
