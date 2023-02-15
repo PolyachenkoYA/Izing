@@ -1310,7 +1310,7 @@ def main():
 	# python run.py -mode FFS_AB_mu -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.13 0.12 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 250 -J 0.6666666667 -OP_interfaces_set_IDs hJ0.13_2 hJ0.12_2
 	# python run.py -mode FFS_AB_mu -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.13 0.12 0.11 0.1 0.09 0.08 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 250 300 350 400 500 -J 0.6666666667 -OP_interfaces_set_IDs hJ0.13_2 hJ0.12_2 hJ0.11_2 hJ0.10_2 hJ0.09_2 hJ0.08_2
 	
-	# python run.py -mode BF_1 -interface_mode CS -OP_0 1 -OP_max 350 -Nt 1500000 -h 0.13 -L 32 -to_get_timeevol 1 -chi 2.5 1.6 1.6
+	# python run.py -mode BF_1 -interface_mode CS -Nt 150000 -h 0.13 -L 32 -to_get_timeevol 1 -chi 2.5 1.6 1.6 -to_plot_timeevol 1 -N_spins_up_init 1024
 	
 	###########
 	# python run.py -mode FFS_AB_h -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.09 0.08 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 -Temp 1.9
@@ -1322,8 +1322,8 @@ def main():
 	# TODO: remove outdated inputs
 	[                                           L,    potential_filenames,      mode,           Nt,    N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seed,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu], _ = \
 		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt', '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seed',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu'], \
-					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],          [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],      [0, 1],                 [1],     [0, 1],            [0, 1],    ['+'],      ['+'],                [1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None], \
-					  default_values=      [ None,                 [None],      None, ['-1000000'],       ['-5000'],              ['5000'],  [my.no_flags[0]],               ['1'],       ['1'],      ['23'],                None,      ['3'],            ['-3'],     None,       None,               None,        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            ['optimal'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None]])
+					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],          [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],      [0, 1],              [0, 1],     [0, 1],            [0, 1],     None,       None,                [1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None], \
+					  default_values=      [ None,                 [None],      None, ['-1000000'],       ['-5000'],              ['5000'],  [my.no_flags[0]],               ['1'],       ['1'],      ['23'],              [None],      ['3'],            ['-3'],    ['1'],     [None],               None,        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            ['optimal'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None]])
 	
 	Ls = np.array([int(l) for l in L], dtype=int)
 	N_L = len(Ls)
@@ -1342,7 +1342,7 @@ def main():
 		N_param_points = len(h)
 		mu = np.zeros((N_param_points, N_species))
 		
-		e[1, 1] = 4 * float(J[0])
+		e[1, 1] = -4 * float(J[0])
 		mu[:, 1] = (2 * np.array([-float(hh) for hh in h]) * float(J[0]) - z_neib * e[1, 1] / 2) + mu_shift
 		mu[:, 2] = 1e10
 		mu[:, 2] = 0
@@ -1351,7 +1351,7 @@ def main():
 		kk = 0
 		for i in range(N_species - 1):
 			for j in range(i + 1, N_species):
-				e[i, j] = chi[kk] * (1 / z_neib)
+				e[i, j] = float(chi[kk]) * (1 / z_neib)
 				kk += 1
 				e[j, i] = e[i, j]
 		
@@ -1359,6 +1359,7 @@ def main():
 		mu_inputs_strs = ['h', 'mu']    # , 'file'
 		assert(np.sum(mu_inputs) == 1), 'ERROR: possible mu-inputs are %s, but provided are: %s. Aborting' % (str(mu_inputs_strs), str(mu_inputs))
 		if(h[0] is not None):
+			N_param_points = len(h)
 			mu = np.zeros((N_param_points, N_species))
 			mu[:, 1] = (2 * np.array([-float(hh) for hh in h]) - z_neib * e[1, 1] / 2)
 			mu[:, 2] = 10
@@ -1382,11 +1383,8 @@ def main():
 	N_init_states_FFS = int(N_init_states_FFS[0])
 	Nt = int(Nt[0])
 	N_states_FFS = int(N_states_FFS[0])
-	N_OP_interfaces = int(N_OP_interfaces)
 	N_runs = int(N_runs[0])
 	init_gen_mode = int(init_gen_mode[0])
-	OP_0 = np.array(([int(OP_0[0])] * N_param_points) if(len(OP_0) == 1) else [int(x) for x in OP_0], dtype=int)
-	OP_max = np.array(([int(OP_max[0])] * N_param_points) if(len(OP_max) == 1) else [int(x) for x in OP_max], dtype=int)
 	interface_mode = interface_mode
 	N_spins_up_init = (None if(N_spins_up_init[0] is None) else int(N_spins_up_init[0]))
 	to_plot_ETS = (to_plot_ETS[0] in my.yes_flags)
@@ -1395,14 +1393,20 @@ def main():
 	to_plot_timeevol = (to_plot_timeevol[0] in my.yes_flags)
 	N_saved_states_max = int(N_saved_states_max[0])
 	
+	OP_min_BF = OP_min_default[interface_mode] if(OP_min_BF[0] is None) else int(OP_min_BF[0])
+	OP_max_BF = OP_max_default[interface_mode] if(OP_max_BF[0] is None) else int(OP_max_BF[0])
+	
+	if(OP_0[0] is None):
+		OP_0[0] = OP_min_BF
+	if(OP_max[0] is None):
+		OP_max[0] = OP_max_BF
+	OP_0 = np.array(([int(OP_0[0])] * N_param_points) if(len(OP_0) == 1) else [int(x) for x in OP_0], dtype=int)
+	OP_max = np.array(([int(OP_max[0])] * N_param_points) if(len(OP_max) == 1) else [int(x) for x in OP_max], dtype=int)
 	OP_0_handy = np.copy(OP_0)
 	OP_max_handy = np.copy(OP_max)
 	if(interface_mode == 'M'):
 		OP_0 = OP_0 - L2
 		OP_max = OP_max - L2
-	
-	OP_min_BF = OP_min_default[interface_mode] if(OP_min_BF[0] is None) else int(OP_min_BF[0])
-	OP_max_BF = OP_max_default[interface_mode] if(OP_max_BF[0] is None) else int(OP_max_BF[0])
 	
 	#assert(interface_mode == 'CS'), 'ERROR: interface_mode==M is temporary not supported'
 	
@@ -1412,7 +1416,7 @@ def main():
 	lattice_gas.init_rand(my_seed)
 	lattice_gas.set_verbose(verbose)
 
-	dE_avg = ((np.sqrt(e[1,1]) + np.sqrt(e[2,2])) / 2)**2
+	dE_avg = ((np.sqrt(abs(e[1,1])) + np.sqrt(abs(e[2,2]))) / 2)**2
 	Nt, N_states_FFS = \
 		tuple([(int(-n * np.exp(3 - dE_avg) + 1) if(n < 0) else n) for n in [Nt, N_states_FFS]])
 
@@ -1422,6 +1426,7 @@ def main():
 		N_k_bins=int(np.round(np.sqrt(N_runs) / 2) + 1)
 	
 	if('FFS' in mode):
+		N_OP_interfaces = int(N_OP_interfaces)
 		assert(not(('AB' not in mode) and (interface_mode == 'CS'))), 'ERROR: BA transitions is not supported for CS'
 		OP_left = OP_min_default[interface_mode]
 		OP_right = OP_max_default[interface_mode] - 1
@@ -1472,7 +1477,7 @@ def main():
 				OP_min=OP_min_BF, OP_max=OP_max_BF, to_estimate_k=True, \
 				timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max)
 		
-	if(mode == 'BF_AB'):
+	elif(mode == 'BF_AB'):
 		proc_T(Ls[0], e, mu[0, :], Nt, interface_mode, \
 				OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
 				to_plot_time_evol=to_plot_timeevol, to_plot_F=True, to_plot_ETS=to_plot_ETS, \

@@ -41,6 +41,7 @@ PYBIND11_MODULE(lattice_gas, m)
 		  py::arg("mu"),
 		  py::arg("Nt_max"),
 		  py::arg("N_saved_states_max"),
+		  py::arg("save_states_stride")=1,
 		  py::arg("N_spins_up_init")=py::none(),
 		  py::arg("to_remember_timeevol")=py::none(),
 		  py::arg("OP_A")=py::none(),

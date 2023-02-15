@@ -67,7 +67,7 @@ namespace lattice_gas
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
 						 int N_spins_up_init, int verbose, long Nt_max, int *N_tries, int to_save_final_state,
-						 int to_regenerate_init_state, long N_saved_states_max);
+						 int to_regenerate_init_state, long N_saved_states_max, long save_states_stride);
 	double process_step(int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int **time,
 						long *Nt, long *OP_arr_len, int N_init_states, int N_next_states,
 						int L, double *e, double *mu, int OP_0, int OP_next,
@@ -77,7 +77,8 @@ namespace lattice_gas
 				  int *cluster_element_inds, int *cluster_sizes, int *cluster_types, int *is_checked, long *Nt, long *OP_arr_len,
 				  int interfaces_mode, int verbose, long Nt_max=-1, int* states_to_save=nullptr,
 				  int *N_states_saved=nullptr, int N_states_to_save=-1,  int OP_min_save_state=0, int OP_max_save_state=0,
-				  int save_state_mode=save_state_mode_Inside, int OP_A=0, int OP_B=0, long N_saved_states_max=-1);
+				  int save_state_mode=save_state_mode_Inside, int OP_A=0, int OP_B=0, long N_saved_states_max=-1,
+				  long save_states_stride=1);
 	int get_init_states_C(int L, double *e, double *mu, long *time_total, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
 						  int interface_mode, int OP_A, int OP_B,
 						  double **E, int **M, int **biggest_cluster_size, int **h_A, int **time,
@@ -108,6 +109,7 @@ py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11
 				  int to_remember_timeevol, int init_gen_mode, int interface_mode,
 				  std::optional<int> _verbose);
 py::tuple run_bruteforce(int L, py::array_t<double> e, py::array_t<double> mu, long Nt_max, long N_saved_states_max,
+						 long save_states_stride,
 						 std::optional<int> _N_spins_up_init, std::optional<int> _to_remember_timeevol,
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
