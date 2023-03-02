@@ -1,0 +1,206 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 13.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      8054,        198]
+NotebookOptionsPosition[      7575,        181]
+NotebookOutlinePosition[      7971,        197]
+CellTagsIndexPosition[      7928,        194]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"cData", " ", "=", " ", 
+   RowBox[{"Table", "[", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{"d", "[", 
+       RowBox[{"[", "4", "]"}], "]"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"d", ",", "data3D"}], "}"}]}], "]"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"range", " ", "=", " ", 
+   RowBox[{
+    RowBox[{"Max", "[", "cData", "]"}], " ", "-", " ", 
+    RowBox[{"Min", "[", "cData", "]"}]}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Manipulate", "[", 
+  RowBox[{
+   RowBox[{"ListDensityPlot3D", "[", 
+    RowBox[{
+     RowBox[{"Table", "[", 
+      RowBox[{
+       RowBox[{"{", 
+        RowBox[{
+         RowBox[{"d", "[", 
+          RowBox[{"[", "1", "]"}], "]"}], ",", 
+         RowBox[{"d", "[", 
+          RowBox[{"[", "2", "]"}], "]"}], ",", 
+         RowBox[{"d", "[", 
+          RowBox[{"[", "3", "]"}], "]"}], ",", 
+         RowBox[{"Boole", "[", 
+          RowBox[{
+           RowBox[{"(", 
+            RowBox[{
+             RowBox[{"d", "[", 
+              RowBox[{"[", "4", "]"}], "]"}], ">", "cMin"}], ")"}], "&&", 
+           RowBox[{"(", 
+            RowBox[{
+             RowBox[{"d", "[", 
+              RowBox[{"[", "4", "]"}], "]"}], "<", "cMax"}], ")"}]}], "]"}]}],
+         "}"}], ",", 
+       RowBox[{"{", 
+        RowBox[{"d", ",", "data3D"}], "}"}]}], "]"}], ",", 
+     RowBox[{"Axes", "\[Rule]", "True"}], ",", 
+     RowBox[{"AxesLabel", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{"\"\<mu1/T\>\"", ",", " ", "\"\<mu2/T\>\"", ",", "\"\<T\>\""}],
+        "}"}]}], ",", 
+     RowBox[{"PlotLegends", "->", "Automatic"}], ",", 
+     RowBox[{"OpacityFunction", "\[Rule]", 
+      RowBox[{"(", 
+       RowBox[{
+        RowBox[{"(", 
+         RowBox[{"#", "/", "2"}], ")"}], "&"}], ")"}]}], ",", 
+     RowBox[{"OpacityFunctionScaling", "\[Rule]", "False"}]}], "]"}], ",", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{"cMin", ",", 
+       RowBox[{"Max", "[", 
+        RowBox[{
+         RowBox[{
+          RowBox[{"Norm", "[", 
+           RowBox[{"phiTarget0", "-", "phiTarget1"}], "]"}], "-", "0.2"}], 
+         ",", "0"}], "]"}]}], "}"}], ",", "0", ",", 
+     RowBox[{"Sqrt", "[", "2", "]"}]}], "}"}], ",", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{"cMax", ",", 
+       RowBox[{"Min", "[", 
+        RowBox[{
+         RowBox[{
+          RowBox[{"Norm", "[", 
+           RowBox[{"phiTarget0", "-", "phiTarget1"}], "]"}], "+", "0.2"}], 
+         ",", " ", 
+         RowBox[{"Sqrt", "[", "2", "]"}]}], "]"}]}], "}"}], ",", "0", ",", 
+     RowBox[{"Sqrt", "[", "2", "]"}]}], "}"}]}], "]"}]}], "Input",
+ CellChangeTimes->{{3.8860023319334*^9, 3.886002400027484*^9}, 
+   3.88600243191402*^9, {3.886002550815658*^9, 3.886002586874136*^9}, {
+   3.886002695089902*^9, 3.886002760395063*^9}, {3.886002795907035*^9, 
+   3.886002817689413*^9}, {3.886002861297941*^9, 3.8860028613286448`*^9}, {
+   3.8860029094298353`*^9, 3.886002909576282*^9}, {3.8860033383215237`*^9, 
+   3.886003478910706*^9}, 3.886012869617118*^9, {3.8860129035511007`*^9, 
+   3.886012934294462*^9}, {3.8860129731261463`*^9, 3.886012973408908*^9}, 
+   3.88601300423918*^9, {3.886013047627544*^9, 3.8860130789641333`*^9}, {
+   3.8860131962333384`*^9, 3.886013237205635*^9}, {3.886013274886313*^9, 
+   3.88601333764216*^9}, {3.886013408107471*^9, 3.88601340827851*^9}, {
+   3.886013525414661*^9, 3.8860135999516478`*^9}, {3.886013651311606*^9, 
+   3.886013671948841*^9}, {3.886013716627943*^9, 3.886013723368608*^9}, {
+   3.8860137894768744`*^9, 3.88601383986967*^9}, {3.886013885010187*^9, 
+   3.8860139667072144`*^9}, {3.886014056272541*^9, 3.886014057964759*^9}, {
+   3.8860141883440323`*^9, 
+   3.886014228926065*^9}},ExpressionUUID->"b1043e8a-b16c-4971-adaf-\
+ba24fed27b16"],
+
+Cell[BoxData[
+ TagBox[
+  StyleBox[
+   DynamicModuleBox[{$CellContext`cMax$$ = 1.2, $CellContext`cMin$$ = 
+    0.7188133918186785, Typeset`show$$ = True, Typeset`bookmarkList$$ = {}, 
+    Typeset`bookmarkMode$$ = "Menu", Typeset`animator$$, Typeset`animvar$$ = 
+    1, Typeset`name$$ = "\"untitled\"", Typeset`specs$$ = {{{
+       Hold[$CellContext`cMin$$], 0.7188133918186788}, 0, 2^Rational[1, 2]}, {{
+       Hold[$CellContext`cMax$$], 1.1188133918186787`}, 0, 2^Rational[1, 2]}},
+     Typeset`size$$ = {426., {185., 191.}}, Typeset`update$$ = 0, 
+    Typeset`initDone$$, Typeset`skipInitDone$$ = True}, 
+    DynamicBox[Manipulate`ManipulateBoxes[
+     1, StandardForm, 
+      "Variables" :> {$CellContext`cMax$$ = 
+        1.1188133918186787`, $CellContext`cMin$$ = 0.7188133918186788}, 
+      "ControllerVariables" :> {}, 
+      "OtherVariables" :> {
+       Typeset`show$$, Typeset`bookmarkList$$, Typeset`bookmarkMode$$, 
+        Typeset`animator$$, Typeset`animvar$$, Typeset`name$$, 
+        Typeset`specs$$, Typeset`size$$, Typeset`update$$, Typeset`initDone$$,
+         Typeset`skipInitDone$$}, "Body" :> ListDensityPlot3D[
+        Table[{
+          Part[$CellContext`d, 1], 
+          Part[$CellContext`d, 2], 
+          Part[$CellContext`d, 3], 
+          Boole[
+           And[
+           Part[$CellContext`d, 4] > $CellContext`cMin$$, 
+            Part[$CellContext`d, 
+              4] < $CellContext`cMax$$]]}, {$CellContext`d, \
+$CellContext`data3D}], Axes -> True, AxesLabel -> {"mu1", "mu2", "T"}, 
+        PlotLegends -> Automatic, OpacityFunction -> (#/2& ), 
+        OpacityFunctionScaling -> False], 
+      "Specifications" :> {{{$CellContext`cMin$$, 0.7188133918186788}, 0, 2^
+         Rational[1, 2]}, {{$CellContext`cMax$$, 1.1188133918186787`}, 0, 2^
+         Rational[1, 2]}}, "Options" :> {}, "DefaultOptions" :> {}],
+     ImageSizeCache->{472., {263.1875, 268.8125}},
+     SingleEvaluation->True],
+    Deinitialization:>None,
+    DynamicModuleValues:>{},
+    SynchronousInitialization->True,
+    UndoTrackedVariables:>{Typeset`show$$, Typeset`bookmarkMode$$},
+    UnsavedVariables:>{Typeset`initDone$$},
+    UntrackedVariables:>{Typeset`size$$}], "Manipulate",
+   Deployed->True,
+   StripOnInput->False],
+  Manipulate`InterpretManipulate[1]]], "Output",
+ CellChangeTimes->{{3.886002371725815*^9, 3.886002403076621*^9}, 
+   3.88600243507425*^9, 3.8860027659905653`*^9, 3.8860028207036963`*^9, 
+   3.886002867050803*^9, 3.886002912576062*^9, 3.8860033631679*^9, {
+   3.88600340143048*^9, 3.886003423603442*^9}, {3.88600345741376*^9, 
+   3.886003482237166*^9}, 3.886012879449671*^9, 3.8860129122874403`*^9, 
+   3.8860129436771*^9, 3.88601297891713*^9, 3.886013008985244*^9, 
+   3.886013052237063*^9, 3.886013096249083*^9, 3.8860132116808434`*^9, 
+   3.886013241696733*^9, {3.8860132794133883`*^9, 3.886013294078541*^9}, 
+   3.886013344098098*^9, {3.8860135360644608`*^9, 3.88601357115167*^9}, 
+   3.88601360412958*^9, 3.886013676732264*^9, 3.886013730462595*^9, 
+   3.886013808393651*^9, 3.8860138457447042`*^9, {3.886013949609517*^9, 
+   3.886013983116341*^9}, {3.88601507208685*^9, 3.886015076018755*^9}},
+ CellLabel->
+  "Out[2223]=",ExpressionUUID->"b980c724-c0a4-4672-a1fa-40def1cf232b"]
+}, Open  ]]
+},
+WindowSize->{684.75, 586.5},
+WindowMargins->{{Automatic, 0}, {0, Automatic}},
+FrontEndVersion->"13.0 for Linux x86 (64-bit) (February 4, 2022)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"1c77321d-6004-47f5-9e5d-ec6085d5823d"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 3760, 94, 216, "Input",ExpressionUUID->"b1043e8a-b16c-4971-adaf-ba24fed27b16"],
+Cell[4343, 118, 3216, 60, 551, "Output",ExpressionUUID->"b980c724-c0a4-4672-a1fa-40def1cf232b"]
+}, Open  ]]
+}
+]
+*)
+

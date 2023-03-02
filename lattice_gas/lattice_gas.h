@@ -63,7 +63,7 @@ namespace lattice_gas
 				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode);
 	int run_bruteforce_C(int L, double *e, double *mu, long *time_total, int N_states, int *states,
 						 long *OP_arr_len, long *Nt, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
-						 int interface_mode, int OP_A, int OP_B,
+						 int interface_mode, int OP_A, int OP_B, int to_cluster,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
 						 int N_spins_up_init, int verbose, long Nt_max, int *N_tries, int to_save_final_state,
@@ -75,7 +75,7 @@ namespace lattice_gas
 	int run_state(int *s, int L, double *e, double *mu, long *time_total,
 				  int OP_0, int OP_next, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 				  int *cluster_element_inds, int *cluster_sizes, int *cluster_types, int *is_checked, long *Nt, long *OP_arr_len,
-				  int interfaces_mode, int verbose, long Nt_max=-1, int* states_to_save=nullptr,
+				  int interfaces_mode, int verbose, int to_cluster=1, long Nt_max=-1, int* states_to_save=nullptr,
 				  int *N_states_saved=nullptr, int N_states_to_save=-1,  int OP_min_save_state=0, int OP_max_save_state=0,
 				  int save_state_mode=save_state_mode_Inside, int OP_A=0, int OP_B=0, long save_states_stride=1);
 	int get_init_states_C(int L, double *e, double *mu, long *time_total, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
@@ -120,6 +120,7 @@ py::tuple cluster_state(py::array_t<int> state, std::optional<int> _verbose);
 void print_state(py::array_t<int> state);
 py::int_ init_rand(int my_seed);
 py::int_ set_verbose(int new_verbose);
+py::int_ get_verbose();
 py::int_ get_seed();
 
 #endif //IZING_IZING_H

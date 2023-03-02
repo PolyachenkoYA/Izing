@@ -1,4 +1,0 @@
-/home/ypolyach/clion-2020.3.2/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/home/ypolyach/clion-2020.3.2/bin/ninja/linux/ninja -G Ninja -S /home/ypolyach/!Princeton/Izing/lattice_gas -B /home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-debug
--- Configuring done
--- Generating done
--- Build files have been written to: /home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-debug

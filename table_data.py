@@ -180,6 +180,8 @@ OP_interfaces_table['hJ0.10_2'] = np.array([24, 32, 40, 48, 56, 70, 95, 135, 350
 OP_interfaces_table['hJ0.09_2'] = np.array([24, 32, 40, 48, 60, 100, 145, 165, 400], dtype=int)
 OP_interfaces_table['hJ0.08_2'] = np.array([24, 32, 40, 48, 60, 100, 145, 200, 500], dtype=int)
 
+OP_interfaces_table['mu1'] = np.array([24, 29, 34, 39, 44, 52, 62, 85, 200], dtype=int)
+
 L_reference = 100
 
 Nc_reference_data = {}

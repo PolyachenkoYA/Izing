@@ -46,6 +46,11 @@ py::int_ set_verbose(int new_verbose)
 	return 0;
 }
 
+py::int_ get_verbose()
+{
+	return lattice_gas::verbose_dafault;
+}
+
 int compute_hA(py::array_t<int> *h_A, int *OP, long Nt, int OP_A, int OP_B)
 {
 	py::buffer_info h_A_info = (*h_A).request();
@@ -210,7 +215,7 @@ py::tuple run_bruteforce(int L, py::array_t<double> e, py::array_t<double> mu, l
 	lattice_gas::run_bruteforce_C(L, e_ptr, mu_ptr, &time_total, N_saved_states_max, states_ptr,
 							to_remember_timeevol ? &OP_arr_len : nullptr,
 								  &Nt, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
-								  interface_mode, OP_A, OP_B,
+								  interface_mode, OP_A, OP_B, OP_A > 1,
 								  OP_min, OP_max, &N_states_saved,
 								  OP_min_save_state, OP_max_save_state,save_state_mode_Inside,
 								  N_spins_up_init, verbose, Nt_max, &N_launches, 0,
@@ -714,7 +719,7 @@ namespace lattice_gas
 	int run_state(int *s, int L, double *e, double *mu, long *time_total,
 				  int OP_0, int OP_next, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 				  int *cluster_element_inds, int *cluster_sizes, int *cluster_types, int *is_checked, long *Nt, long *OP_arr_len,
-				  int interfaces_mode, int verbose, long Nt_max, int* states_to_save,
+				  int interfaces_mode, int verbose, int to_cluster, long Nt_max, int* states_to_save,
 				  int *N_states_saved, int N_states_to_save,  int OP_min_save_state, int OP_max_save_state,
 				  int save_state_mode, int OP_A, int OP_B, long save_states_stride)
 	/**
@@ -811,10 +816,14 @@ namespace lattice_gas
 			s[ix*L + iy] = s_new;
 
 //			printf("moved Nt = %ld\n", *Nt);
-			clear_clusters(cluster_element_inds, cluster_sizes, &N_clusters_current);
-			uncheck_state(is_checked, L2);
-			cluster_state_C(s, L, cluster_element_inds, cluster_sizes, cluster_types, &N_clusters_current, is_checked);
-			biggest_cluster_sizes_current = max(cluster_sizes, N_clusters_current);
+			if(to_cluster){
+				clear_clusters(cluster_element_inds, cluster_sizes, &N_clusters_current);
+				uncheck_state(is_checked, L2);
+				cluster_state_C(s, L, cluster_element_inds, cluster_sizes, cluster_types, &N_clusters_current, is_checked);
+				biggest_cluster_sizes_current = max(cluster_sizes, N_clusters_current);
+			} else {
+				biggest_cluster_sizes_current = 1;
+			}
 
 			++(*Nt);
 
@@ -989,7 +998,7 @@ namespace lattice_gas
 
 	int run_bruteforce_C(int L, double *e, double *mu, long *time_total, int N_states, int *states,
 						 long *OP_arr_len, long *Nt, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
-						 int interface_mode, int OP_A, int OP_B,
+						 int interface_mode, int OP_A, int OP_B, int to_cluster,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
 						 int N_spins_up_init, int verbose, long Nt_max, int *N_tries, int to_save_final_state,
@@ -1059,8 +1068,8 @@ namespace lattice_gas
 		int restart_state_ID;
 
 		if(verbose){
-			printf("running brute-force:\nL=%d  OP_mode=%d  OP\\in[%d;%d), [OP_min_save_state; OP_max_save_state) = [%d; %d)  N_spins_up_init=%d  N_states_to_gen=%d  Nt_max=%ld  verbose=%d\n",
-				   L, interface_mode, OP_min_stop_state, OP_max_stop_state, OP_min_save_state, OP_max_save_state, N_spins_up_init, N_states, Nt_max, verbose);
+			printf("running brute-force:\nL=%d  to_cluster=%d  OP_mode=%d  OP\\in[%d;%d), [OP_min_save_state; OP_max_save_state) = [%d; %d)  N_spins_up_init=%d  N_states_to_gen=%d  Nt_max=%ld  verbose=%d\n",
+				   L, to_cluster, interface_mode, OP_min_stop_state, OP_max_stop_state, OP_min_save_state, OP_max_save_state, N_spins_up_init, N_states, Nt_max, verbose);
 			print_e_matrix(e);
 			print_mu_vector(mu);
 			switch (save_state_mode) {
@@ -1094,7 +1103,7 @@ namespace lattice_gas
 					  OP_min_stop_state, OP_max_stop_state,
 					  E, M, biggest_cluster_sizes, h_A, time, cluster_element_inds, cluster_sizes, cluster_types,
 					  is_checked, Nt, OP_arr_len, interface_mode,
-					  -verbose, Nt_max, states, N_states_done, N_states,
+					  -verbose, to_cluster, Nt_max, states, N_states_done, N_states,
 					  OP_min_save_state, OP_max_save_state, save_state_mode, OP_A, OP_B, save_states_stride);
 
 			++ (*N_tries);
@@ -1102,7 +1111,7 @@ namespace lattice_gas
 
 			if(N_states > 0){
 				if(verbose)	{
-					printf("brute-force done %lf              \n", (double)(*N_states_done) / N_states);
+					printf("brute-force done %lf %%              \n", 100 * (double)(*N_states_done) / N_states);
 					fflush(stdout);
 				}
 				if(*N_states_done >= N_states) {
@@ -1113,7 +1122,7 @@ namespace lattice_gas
 			}
 			if(Nt_max > 0){
 				if(verbose)	{
-					printf("brute-force done %lf              \r", (double)(*Nt) / Nt_max);
+					printf("brute-force done %lf %%             \r", 100 * (double)(*Nt) / Nt_max);
 					fflush(stdout);
 				}
 				if(*Nt >= Nt_max) {
@@ -1150,7 +1159,7 @@ namespace lattice_gas
 		// run "all spins down" until it reaches OP_A_thr
 		run_bruteforce_C(L, e, mu, &time_total, 1, init_state,
 						 nullptr, &Nt_to_reach_OP_A, nullptr, nullptr, nullptr, nullptr, nullptr,
-						 interface_mode, -1, -1,
+						 interface_mode, -1, -1, 1,
 						 OP_min_default[interface_mode], OP_A,
 						 &N_states_done, OP_A,
 						 OP_A, save_state_mode_Influx, -1,
@@ -1171,7 +1180,7 @@ namespace lattice_gas
 			// run it for the same amount of time it took to get to OP_A_thr the first time
 			run_bruteforce_C(L, e, mu, &time_total, -1, init_state,
 							 nullptr, &Nt, nullptr, nullptr, nullptr, nullptr, nullptr,
-							 interface_mode, -1, -1,
+							 interface_mode, -1, -1, 1,
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, -1,
 							 -1, -1, -1,
@@ -1229,7 +1238,7 @@ namespace lattice_gas
 //			long Nt = 0;
 			run_bruteforce_C(L, e, mu, time_total, N_init_states, init_states,
 							 nullptr, Nt, nullptr, nullptr, nullptr, nullptr, nullptr,
-							 interface_mode, 0, 0,
+							 interface_mode, 0, 0, 1,
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, OP_min_default[interface_mode],
 							 OP_thr_save_state, save_state_mode_Inside, -1,
@@ -1245,7 +1254,7 @@ namespace lattice_gas
 			N_states_done = 0;
 			run_bruteforce_C(L, e, mu, time_total, N_init_states, init_states,
 							 OP_arr_len, Nt, E, M, biggest_cluster_size, h_A, time,
-							 interface_mode, OP_A, OP_B,
+							 interface_mode, OP_A, OP_B, 1,
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, OP_thr_save_state,
 							 OP_thr_save_state, save_state_mode_Influx, -1,

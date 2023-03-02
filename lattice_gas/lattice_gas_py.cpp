@@ -73,6 +73,11 @@ PYBIND11_MODULE(lattice_gas, m)
           py::arg("new_verbose")
     );
 
+// py::int_ get_verbose()
+	m.def("get_verbose", &get_verbose,
+		  "Get default verbose level"
+		  );
+
 // py::int_ set_verbose(int new_verbose)
 	m.def("get_seed", &get_seed,
 		  "Returns the current seed used for the last GSL random initiation"
