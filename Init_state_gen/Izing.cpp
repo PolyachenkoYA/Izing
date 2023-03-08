@@ -108,6 +108,12 @@ py::tuple cluster_state(py::array_t<int> state, int default_state, std::optional
 	return py::make_tuple(cluster_element_inds, cluster_sizes);
 }
 
+void set_defaults(int L2)
+{
+	Izing::set_OP_default(L2);
+}
+
+
 py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved_states_max, long dump_step,
 						 std::optional<int> _N_spins_up_init, std::optional<int> _to_remember_timeevol,
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
@@ -190,7 +196,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 							OP_min, OP_max, &N_states_saved,
 							OP_min, OP_A, save_state_mode_Inside,
 							N_spins_up_init, verbose, Nt_max, &N_launches, 0,
-							0, N_saved_states_max);
+							OP_A <= 1, N_saved_states_max);
 
 
 	int N_last_elements_to_print = std::min(Nt, (long)10);
@@ -797,7 +803,9 @@ namespace Izing
 //			uncheck_state(is_checked, L2);
 //			cluster_state_C(s, L, cluster_element_inds, cluster_sizes, &N_clusters_current, is_checked, default_spin_state);
 //			biggest_cluster_sizes_current = max(cluster_sizes, N_clusters_current);
-			biggest_cluster_sizes_current = gsl_rng_uniform_int(rng, L) + 25;
+
+//			biggest_cluster_sizes_current = gsl_rng_uniform_int(rng, L) + 25;
+			biggest_cluster_sizes_current = L + L % 2;
 
 			++(*Nt);
 
@@ -805,7 +813,7 @@ namespace Izing
 //				if(*Nt % (Nt_max / 1000 + 1) == 0){
 //					fflush(stdout);
 //				}
-				if(!(*Nt % 1000000)){
+				if(!(*Nt % 10000)){
 					if(Nt_max > 0){
 						printf("BF run: %lf %%            \r", (double)(*Nt) / (Nt_max) * 100);
 					} else {

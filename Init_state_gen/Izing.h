@@ -52,7 +52,7 @@ namespace Izing
 				  long *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
 				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode, int default_spin_state);
 	int run_bruteforce_C(int L, double Temp, double h, long *time_total, int N_states, int *states,
-						 long *OP_arr_len, long *Nt, long *Nt_saved, long dump_time, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
+						 long *OP_arr_len, long *Nt, long *Nt_saved, long dump_step, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 						 int interface_mode, int default_spin_state, int OP_A, int OP_B,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
@@ -108,5 +108,6 @@ void print_state(py::array_t<int> state);
 py::int_ init_rand(int my_seed);
 py::int_ set_verbose(int new_verbose);
 py::int_ get_seed();
+void set_defaults(int L2);
 
 #endif //IZING_IZING_H

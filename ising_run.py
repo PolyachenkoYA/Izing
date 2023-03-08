@@ -9,8 +9,10 @@ import mylib as my
 #import table_data
 
 # ========================== general params ==================
+Jc = 0.4406868
+
 dE_avg = 6   # J
-dE_offset = 3
+dE_offset = 0
 #dE_avg = 1   # J
 print_scale_k = 1e5
 print_scale_flux = 1e2
@@ -64,20 +66,27 @@ def set_OP_defaults(L2):
 	OP_std_overestimate['CS'] = L2
 	OP_possible_jumps['CS'] = np.arange(-L2 // 2 - 1, L2 // 2 + 1)
 	OP_peak_guess['CS'] = L2 // 2
+	
+	izing.set_defaults(L2)
 
 # ========================== recompile ==================
 if(__name__ == "__main__"):
-	to_recompile = True
+	to_recompile = False
 	if(to_recompile):
-		path_to_so = 'Init_state_gen/cmake-build-release'
+		filebase = 'izing'
+		path_to_so = os.path.join('Init_state_gen', 'cmake-build-release')
 		N_dirs_down = path_to_so.count('/') + 1
 		path_back = '/'.join(['..'] * N_dirs_down)
 
 		os.chdir(path_to_so)
-		my.run_it('make izing.so')
+		compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True)
+		nothing_done_in_recompile = np.any(np.array([('ninja: no work to do.' in s) for s in compile_results.split('\n')]))
 		os.chdir(path_back)
-		my.run_it('mv %s/izing.so.cpython-38-x86_64-linux-gnu.so ./izing.so' % (path_to_so))
-		print('recompiled izing')
+		if(nothing_done_in_recompile):
+			print('Nothing done, keeping the old .so lib')
+		else:
+			my.run_it('cp %s/%s.so.cpython-38-x86_64-linux-gnu.so ./%s.so' % (path_to_so, filebase, filebase))
+			print('recompiled %s' % (filebase))
 
 	import izing
 	#exit()
@@ -800,42 +809,130 @@ def exp2_integrate(fit2, x1):
 	
 	return np.exp(c) / 2 * np.sqrt(np.pi / np.abs(a)) * (scipy.special.erfi(dx) if(a > 0) else scipy.special.erf(dx))
 
-def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dOP_step, OP_hist_edges, OP_peak_guess, OP_OP_fit2_width, \
+def get_equil_inds(x, x_border=None, outlier_thr=3):
+	if(x_border is None):
+		x_border = (max(x) + min(x)) / 2
+	
+	def single_side_equil_inds(x, inds, outlier_thr):
+		if(np.any(inds)):
+			outliers_inds = lambda data, thr: (abs(data - np.median(data)) > thr * np.std(data))
+			ok_inds = ~outliers_inds(x[inds], outlier_thr)
+			return np.where(inds)[0][ok_inds]
+		else:
+			return np.array([], dtype=int)
+	
+	up_inds = single_side_equil_inds(x, x > x_border, outlier_thr)
+	down_inds = single_side_equil_inds(x, x <= x_border, outlier_thr)
+	
+	return np.sort(np.concatenate((up_inds, down_inds)))
+
+def estimate_true_errorbar(data, to_plot=False, sgm0_init_Nelems=-5, linfit_init_Nelems=5, to_fit=False, base=1.2, title=None, Nmin_steps=200, sgm0_R_thr=0.9):
+	N_data = len(data)
+	N_steps = int(np.floor(np.log(N_data / Nmin_steps) / np.log(base)) + 0.1)
+	
+	w_s = np.empty(N_steps, dtype=int)
+	std_s = np.empty(N_steps)
+	for i_w in range(N_steps):
+		w_s[i_w] = int((max([base, 2]) if(i_w == 0) else max([w_s[i_w - 1] * base, w_s[i_w - 1] + 1])))
+		
+		N_data_new = int(np.ceil(N_data / w_s[i_w]) + 0.1)
+		data_new = np.empty(N_data_new)
+		for j in range(N_data_new):
+			data_new[j] = np.mean(data[j * w_s[i_w] : (j+1) * w_s[i_w]])
+		
+		std_s[i_w] = np.std(data_new) * np.sqrt(w_s[i_w])
+	
+	if(sgm0_init_Nelems < 0):
+		sgm0_init_Nelems = -sgm0_init_Nelems
+		sgm0_init_Nelems = N_steps - np.where(std_s > min(std_s[-sgm0_init_Nelems : ]))[0][0]
+	sgm0_init_Nelems = min([sgm0_init_Nelems, N_steps])
+	std_s_last = std_s[-sgm0_init_Nelems : ]
+	sgm0_init = np.mean(std_s_last)
+	uncorrelated_ws_inds = np.where(sgm0_init - std_s < 2 * np.std(std_s_last))[0]
+	sgm0_init_R = np.corrcoef(np.log(w_s[-sgm0_init_Nelems : ]), std_s_last)[0, 1]
+	#w0 = w_s[-1] if((len(uncorrelated_ws_inds) == 0) or (abs(np.corrcoef(np.log(w_s[-sgm0_init_Nelems : ]), std_s_last)) > 0.5)) else w_s[uncorrelated_ws_inds[0]]
+	w0 = 0 if((len(uncorrelated_ws_inds) == 0) or (abs(sgm0_init_R) > sgm0_R_thr)) else w_s[uncorrelated_ws_inds[0]]
+	linfit = np.polyfit(np.log(w_s[:linfit_init_Nelems]), std_s[:linfit_init_Nelems], 1)
+	l_init = sgm0_init / linfit[0]
+	x0_init = -linfit[1] / linfit[0]
+	# w0 = np.exp(x0_init + l_init)
+	
+	if(to_fit):
+		prm_0 = [sgm0_init, l_init, x0_init]
+		expfit = lambda w, prm: prm[0] * (1 - np.exp(-(np.log(w) - prm[2]) / prm[1]))
+		prm_opt = scipy.optimize.minimize(lambda x: np.sum((std_s - expfit(w_s, x))**2), prm_0).x
+	
+	if(to_plot):
+		fig, ax, _ = my.get_fig('$w$', r'$\sigma_{%s} \cdot \sqrt{w}$' % title, title=r'$\sigma_{%s}(w)$' % title, xscl='log')
+		ax.plot(w_s, std_s, label='data')
+		ws_small = np.array([w_s[0], w_s[linfit_init_Nelems-1]])
+		ax.plot(ws_small, np.polyval(linfit, np.log(ws_small)), '--', label='init linfit')
+		ws_big = np.array([w_s[-sgm0_init_Nelems], w_s[-1]])
+		ax.plot(ws_big, [sgm0_init] * 2, '--', label=r'$\sigma_{0, init}$; $R = %s$' % my.f2s(sgm0_init_R))
+		if(w0 > 0):
+			ax.plot([w0] * 2, [min(std_s), max(std_s)], '--', label='$w_{decor}$')
+		if(to_fit):
+			ax.plot(w_s, expfit(w_s, prm_opt), '--', label='$expfit_{opt}$')
+			ax.plot(w_s, expfit(w_s, prm_0), '--', label='$expfit_{init}$')
+		
+		ax.legend()
+	
+	return w0
+
+def proc_order_parameter_BF(L, Temp, h, times, m, E, stab_step, dOP_step, OP_hist_edges, OP_peak_guess, OP_OP_fit2_width, \
 						 x_lbl=None, y_lbl=None, verbose=None, to_estimate_k=False, hA=None, OP_A=None, OP_B=None, \
 						 to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, stride=1, OP_jumps_hist_edges=None, \
 						 possible_jumps=None, m_data=None):
+	equilib_inds = get_equil_inds(m_data, x_border=0)
+	
+	m_data = abs(m_data[equilib_inds])
+	times = times[equilib_inds] 
+	m = abs(m[equilib_inds])
+	E = E[equilib_inds]
+	
+	#plt.plot(np.sort(equilib_inds))
+	#plt.show()
+	
 	Nt = len(m)
 	steps = np.arange(Nt)
 	t = steps * stride
 	L2 = L**2
 	stab_ind = (t > stab_step)
+	times_stab = times[stab_ind]
 	OP_stab = m[stab_ind]
+	E_stab = E[stab_ind]
+	m_data_stab = m_data[stab_ind]
 	
 	Nt_stab = len(OP_stab)
 	assert(Nt_stab > 1), 'ERROR: the system may not have reached equlibrium, stab_step = %d, max-present-step = %d' % (stab_step, max(steps))
 	
+	tau_m_decor = estimate_true_errorbar(m_data_stab, to_plot=to_plot_time_evol, title='m') * stride * np.mean(times_stab)
+	tau_e_decor = estimate_true_errorbar(E_stab, to_plot=to_plot_time_evol, title='e') * stride * np.mean(times_stab)
+	
 	OP_jumps = OP_stab[1:] - OP_stab[:-1]
-	OP_mean = np.mean(OP_stab)
+	OP_mean = np.average(OP_stab, weights=times_stab)
 	OP_std = np.std(OP_stab)
 	#memory_time = max(1, OP_std / dOP_step)   
-	memory_time = stab_step
+	memory_time = 1 + 2 * ((tau_m_decor + tau_e_decor) / 2) / stride   # (1 + 2 tau/dt)
 	d_OP_mean = OP_std / np.sqrt(Nt_stab / memory_time)
 	# Time of statistical decorelation of the system state.
 	# 'the number of flips necessary to cover the typical system states range' * 'the upper-bound estimate on the number of steps for 1 flip to happen'
 	print('memory time =', my.f2s(memory_time))
 	
-	E_stab = E[stab_ind]
-	E_mean = np.mean(E_stab)
+	E_mean = np.average(E_stab, weights=times_stab)
 	d_E_mean = np.std(E_stab) / np.sqrt(Nt_stab / memory_time)
 	
+	C_mean = (L2 / Temp**2) * np.std(E_stab)**2
+	d_C_mean = C_mean / np.sqrt(Nt_stab / memory_time)
+	
 	if(m_data is not None):
-		assert(len(m_data) == len(E)), 'ERROR: m_data size does not match E-size'
-		m_data = abs(m_data)
-		m_data_stab = m_data[stab_ind]
 		m_data_mean = np.mean(m_data_stab)
 		d_m_data_mean = np.std(m_data_stab) / np.sqrt(Nt_stab / memory_time)
 	else:
 		m_data_mean, d_m_data_mean = None, None
+	
+	U4 = 1 - np.average(m_data_stab**4, weights=times_stab) / (3 * np.average(m_data_stab**2, weights=times_stab)**2)
+	#print('HI', np.average(OP_stab**4, weights=times_stab))
 	
 	OP_hist, _ = np.histogram(OP_stab, bins=OP_hist_edges)
 	OP_jumps_hist, _ = np.histogram(OP_jumps, bins=OP_jumps_hist_edges)
@@ -904,7 +1001,7 @@ def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dOP_step, OP_hist_edges
 		k_bc_BA = None
 	
 	#ThL_lbl = 'T/J = ' + str(Temp) + '; h/J = ' + str(h) + '; L = ' + str(L)
-	ThL_lbl = 'K = ' + str(1/Temp) + '; h/J = ' + str(h) + '; L = ' + str(L)
+	ThL_lbl = 'K = %s; h/J = %s; L = %d' % (my.f2s(1 / Temp), my.f2s(h), L)
 	if(to_plot_time_evol):
 		fig_OP, ax_OP, _ = my.get_fig('step', y_lbl, title='$' + x_lbl + '$(step); ' + ThL_lbl)
 		ax_OP.plot(t, m, label='data')
@@ -969,7 +1066,10 @@ def proc_order_parameter_BF(L, Temp, h, m, E, stab_step, dOP_step, OP_hist_edges
 		ax_OP_hist = None
 		ax_F = None
 	
-	return F, d_F, OP_hist_centers, OP_hist_lens, rho_interp1d, d_rho_interp1d, k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, OP_mean, OP_std, d_OP_mean, E_vs_m, S, ax_OP, ax_OP_hist, ax_F, m_data_mean, d_m_data_mean, E_mean, d_E_mean
+	return F, d_F, OP_hist_centers, OP_hist_lens, rho_interp1d, d_rho_interp1d, \
+			k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, OP_mean, OP_std, d_OP_mean, \
+			E_vs_m, S, ax_OP, ax_OP_hist, ax_F, m_data_mean, d_m_data_mean, \
+			E_mean, d_E_mean, C_mean, d_C_mean, U4, tau_m_decor, tau_e_decor
 
 def plot_correlation(x, y, x_lbl, y_lbl):
 	fig, ax, _ = my.get_fig(x_lbl, y_lbl)
@@ -981,7 +1081,7 @@ def plot_correlation(x, y, x_lbl, y_lbl):
 
 def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins_up_init=None, to_get_timeevol=True, \
 			to_plot_time_evol=False, to_plot_F=False, to_plot_ETS=False, to_plot_correlations=False, N_saved_states_max=-1, \
-			to_estimate_k=False, timeevol_stride=-3000, OP_min=None, OP_max=None, OP_A=None, OP_B=None):
+			to_estimate_k=False, timeevol_stride=-3000, OP_min=None, OP_max=None, OP_A=None, OP_B=None, stab_step=-30):
 	L2 = L**2
 	
 	if(OP_min is None):
@@ -1003,13 +1103,13 @@ def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins
 		
 	if(to_get_timeevol):
 		if(timeevol_stride < 0):
-			timeevol_stride = np.int_(- Nt / timeevol_stride)
+			timeevol_stride = np.int_(- Nt / timeevol_stride) + 1
 	
 	(E, M, CS, hA, times, k_AB_launches, time_total) = \
 		izing.run_bruteforce(L, Temp, h, Nt, N_spins_up_init=N_spins_up_init, OP_A=OP_A, OP_B=OP_B, \
 							OP_min=OP_min, OP_max=OP_max, to_remember_timeevol=to_get_timeevol, N_saved_states_max=N_saved_states_max, \
 							interface_mode=OP_C_id[interface_mode], default_spin_state=def_spin_state, \
-							verbose=verbose, dump_time=timeevol_stride)
+							verbose=verbose, dump_step=timeevol_stride)
 	
 	k_AB_BFcount = k_AB_launches / time_total
 	if(k_AB_BFcount > 0):
@@ -1021,7 +1121,11 @@ def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins
 
 	if(to_get_timeevol):
 		#stab_step = int(min(L2, Nt / 2)) * 5
-		stab_step = int(min(L2, Nt / 2)) * np.exp(dE_offset + dE_avg / Temp)
+		if(stab_step is None):
+			stab_step = int(min(L2, Nt / 2) * np.exp(dE_offset + dE_avg / Temp))
+		elif(stab_step < 0):
+			stab_step = int(min(L2, Nt / 2) * (-stab_step))
+		
 		# Each spin has a good chance to flip during this time
 		# This does not guarantee the global stable state, but it is sufficient to be sure-enough we are in the optimum of the local metastable-state.
 		# The approximation for a global ebulibration would be '1/k_AB', where k_AB is the rate constant. But it's hard to estimate on that stage.
@@ -1045,13 +1149,14 @@ def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins
 			k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, OP_avg, \
 			OP_std, d_OP_avg, E_avg, S_E, \
 				ax_time, ax_hist, ax_F, \
-				M_mean, d_M_mean, E_mean, d_E_mean = \
-					proc_order_parameter_BF(L, Temp, h, data[interface_mode] / OP_scale[interface_mode], E / L2, stab_step, \
+				M_mean, d_M_mean, E_mean, d_E_mean, C_mean, d_C_mean, \
+				U4, tau_m_decor, tau_e_decor = \
+					proc_order_parameter_BF(L, Temp, h, times, data[interface_mode] / OP_scale[interface_mode], E / L2, stab_step, \
 									dOP_step[interface_mode] / L2, hist_edges[interface_mode], OP_peak_guess[interface_mode], OP_fit2_width[interface_mode], \
 									x_lbl=feature_label[interface_mode], y_lbl=title[interface_mode], verbose=verbose, to_estimate_k=to_estimate_k, hA=hA, \
 									to_plot_time_evol=to_plot_time_evol, to_plot_F=to_plot_F, to_plot_ETS=to_plot_ETS, stride=timeevol_stride, \
 									OP_A=OP_A / OP_scale[interface_mode], OP_B=OP_B / OP_scale[interface_mode], OP_jumps_hist_edges=OP_jumps_hist_edges, \
-									possible_jumps=OP_possible_jumps[interface_mode], m_data = data['M'] / OP_scale['M'])
+									possible_jumps=OP_possible_jumps[interface_mode], m_data = data['M'] / L2)
 
 		BC_cluster_size = L2 / np.pi
 		#C = ((OP_std['E'] * L2)**2 / Temp**2) / L2   # heat capacity per spin
@@ -1096,7 +1201,11 @@ def proc_T(L, Temp, h, Nt, interface_mode, def_spin_state, verbose=None, N_spins
 		E_mean = None
 		d_E_mean = None
 		
-	return F, d_F, hist_centers, hist_lens, rho_interp1d, d_rho_interp1d, k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, OP_avg, d_OP_avg, E_avg, k_AB_BFcount, d_k_AB_BFcount, k_AB_launches, M_mean, d_M_mean, E_mean, d_E_mean#, C
+	return F, d_F, hist_centers, hist_lens, rho_interp1d, d_rho_interp1d, \
+			k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, OP_avg, d_OP_avg, \
+			E_avg, k_AB_BFcount, d_k_AB_BFcount, k_AB_launches, \
+			M_mean, d_M_mean, E_mean, d_E_mean, C_mean, d_C_mean, \
+			U4, tau_m_decor, tau_e_decor
 	
 	
 def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
@@ -1107,7 +1216,8 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 			Nt_per_BF_run=None, verbose=None, to_plot_time_evol=False, \
 			timeevol_stride=-3000, to_plot_k_distr=False, N_k_bins=10, \
 			mode='BF', N_init_states_AB=None, N_init_states_BA=None, \
-			init_gen_mode=-2, to_plot_committer=None, to_get_timeevol=None):
+			init_gen_mode=-2, to_plot_committer=None, to_get_timeevol=None, \
+			stab_step=-30):
 	L2 = L**2
 	old_seed = izing.get_seed()
 	if(to_get_timeevol is None):
@@ -1153,6 +1263,11 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 			d_M_mean_data = np.empty(N_runs) 
 			E_mean_data = np.empty(N_runs) 
 			d_E_mean_data = np.empty(N_runs) 
+			C_mean_data = np.empty(N_runs) 
+			d_C_mean_data = np.empty(N_runs) 
+			U4_data = np.empty(N_runs)
+			tau_m_decor_data = np.empty(N_runs)
+			tau_e_decor_data = np.empty(N_runs)
 	elif('FFS' in mode):
 		flux0_AB_data = np.empty(N_runs) 
 		OP0_AB_data = np.empty(N_runs) 
@@ -1180,13 +1295,15 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 		if(mode == 'BF'):
 			F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
 				rho_fncs[i], d_rho_fncs[i], k_bc_AB_BF, k_bc_BA_BF, \
-				k_AB_BF, _, k_BA_BF, _, _, _, _, k_AB_BFcount, _, _, _, _, _, _ = \
+				k_AB_BF, _, k_BA_BF, _, _, _, _, k_AB_BFcount, _, _, \
+				_, _, _, _, _, _, _, _, _ = \
 					proc_T(L, Temp, h, Nt_per_BF_run, interface_mode, def_spin_state, \
 							OP_A=OP_A, OP_B=OP_B, N_spins_up_init=N_spins_up_init, \
 							verbose=verbose, to_plot_time_evol=to_plot_time_evol, \
 							to_plot_F=False, to_plot_correlations=False, to_plot_ETS=False, \
 							timeevol_stride=timeevol_stride, to_estimate_k=True, 
-							to_get_timeevol=True, N_saved_states_max=N_saved_states_max)
+							to_get_timeevol=True, N_saved_states_max=N_saved_states_max, \
+							stab_step=stab_step)
 			
 			ln_k_bc_AB_data[i] = np.log(k_bc_AB_BF * 1)   # proc_T returns 'k', not 'log(k)'; *1 for units [1/step]
 			ln_k_bc_BA_data[i] = np.log(k_bc_BA_BF * 1)
@@ -1196,28 +1313,28 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 			F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
 				rho_fncs[i], d_rho_fncs[i], k_bc_AB_BF, k_bc_BA_BF, \
 				k_AB_BF, _, k_BA_BF, _, _, _, _, k_AB_BFcount, _, _, \
-				M_mean_data[i], d_M_mean_data[i], E_mean_data[i], d_E_mean_data[i] = \
+				M_mean_data[i], d_M_mean_data[i], \
+				E_mean_data[i], d_E_mean_data[i], \
+				C_mean_data[i], d_C_mean_data[i], \
+				U4_data[i], \
+				tau_m_decor_data[i], tau_e_decor_data[i] = \
 					proc_T(L, Temp, h, Nt_per_BF_run, interface_mode, def_spin_state, \
 							OP_A=OP_A, OP_B=OP_B, N_spins_up_init=N_spins_up_init, \
 							verbose=verbose, to_plot_time_evol=to_plot_time_evol, \
 							to_plot_F=False, to_plot_correlations=False, to_plot_ETS=False, \
 							timeevol_stride=timeevol_stride, to_estimate_k=False, 
-							to_get_timeevol=True, N_saved_states_max=N_saved_states_max)
+							to_get_timeevol=True, N_saved_states_max=N_saved_states_max, \
+							stab_step=stab_step)
 		elif(mode  == 'BF_AB'):
-					# proc_T(L, Temp, h[0], Nt, interface_mode, def_spin_state, \
-									# OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
-								# to_plot_time_evol=to_plot_timeevol, to_plot_F=True, to_plot_ETS=to_plot_ETS, \
-								# to_plot_correlations=True and to_plot_timeevol, to_get_timeevol=to_get_timeevol, \
-								# OP_min=OP_min_BF, OP_max=OP_max[0], to_estimate_k=False, timeevol_stride=timeevol_stride)
 			F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
 				rho_fncs[i], d_rho_fncs[i], _, _, _, _, _, _, _, _, _, \
-				k_AB_BFcount, _, k_AB_BFcount_N_data[i], _, _, _, _ = \
+				k_AB_BFcount, _, k_AB_BFcount_N_data[i], _, _, _, _, _, _, _, _, _ = \
 					proc_T(L, Temp, h, Nt_per_BF_run, interface_mode, def_spin_state, \
 							OP_A=OP_A, OP_B=OP_B, N_spins_up_init=N_spins_up_init, \
 							verbose=verbose, to_plot_time_evol=to_plot_time_evol, \
 							timeevol_stride=timeevol_stride, to_estimate_k=False,
 							to_get_timeevol=to_get_timeevol, OP_max=OP_B, \
-							N_saved_states_max=N_saved_states_max)
+							N_saved_states_max=N_saved_states_max, stab_step=stab_step)
 			
 			ln_k_AB_data[i] = np.log(k_AB_BFcount * 1)
 		elif(mode == 'FFS_AB'):
@@ -1274,6 +1391,10 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 	if('503' in mode):
 		M_mean, d_M_mean = get_average(M_mean_data)
 		E_mean, d_E_mean = get_average(E_mean_data)
+		C_mean, d_C_mean = get_average(C_mean_data)
+		U4_mean, d_U4_mean = get_average(U4_data)
+		tau_m_decor_mean, d_tau_m_decor_mean = get_average(tau_m_decor_data)
+		tau_e_decor_mean, d_tau_e_decor_mean = get_average(tau_e_decor_data)
 	else:
 		ln_k_AB, d_ln_k_AB = get_average(ln_k_AB_data)
 		if('AB' not in mode):
@@ -1397,7 +1518,7 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 	elif(mode == 'BF_AB'):
 		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, k_AB_BFcount_N, d_k_AB_BFcount_N
 	elif(mode == 'BF_503'):
-		return M_mean, d_M_mean, E_mean, d_E_mean
+		return M_mean, d_M_mean, E_mean, d_E_mean, C_mean, d_C_mean, U4_mean, d_U4_mean, tau_m_decor_mean, d_tau_m_decor_mean, tau_e_decor_mean, d_tau_e_decor_mean
 
 # def get_init_states(Ns, N_min, N0=1):
 	# # first value is '1' because it's the size of the states' set from which the initial states for simulations in A will be picked. 
@@ -1405,7 +1526,7 @@ def run_many(L, Temp, h, N_runs, interface_mode, def_spin_state, \
 	# return np.array([N0] + list(Ns / min(Ns) * N_min), dtype=np.intc)
 	
 
-def get_h_dependence(h_arr, L, Temp, N_runs, interface_mode, def_spin_state, N_init_states, OP_interfaces, init_gen_mode=-3, to_plot=False, to_save_npy=True, to_recomp=False):
+def get_h_dependence(h_arr, L, Temp, N_runs, interface_mode, def_spin_state, N_init_states, OP_interfaces, init_gen_mode=-3, to_plot=False, to_save_npy=True, to_recomp=False, stab_step=-30):
 	L2 = L**2
 	N_h = len(h_arr)
 	
@@ -1454,7 +1575,8 @@ def get_h_dependence(h_arr, L, Temp, N_runs, interface_mode, def_spin_state, N_i
 						N_init_states_AB=N_init_states, \
 						OP_interfaces_AB=OP_interfaces[i_h], \
 						mode='FFS_AB', init_gen_mode=init_gen_mode, \
-						to_get_timeevol=False, to_plot_committer=False)
+						to_get_timeevol=False, to_plot_committer=False, \
+						stab_step=stab_step)
 			prob_AB.append(prob_AB_new)
 			d_prob_AB.append(d_prob_AB_new)
 			PB_AB.append(PB_AB_new)
@@ -1518,7 +1640,8 @@ def proc_N(L, h, Nt, N_runs, interface_mode, def_spin_state, \
 		   OP_0, OP_max, N_spics_up_init, N_saved_states_max, \
 		   ax_C=None, ax_E=None, ax_M=None, ax_M2=None, to_recomp=False, \
 		   T_min_log10=-0.1, T_max_log10=1.5, N_T=100, N_spins_up_init=None, \
-		   T_arr=None, to_plot_time_evol=False):
+		   T_arr=None, to_plot_time_evol=False, timeevol_stride=-3000, \
+		   stab_step=-30):
 	L2 = L**2
 		
 	if(T_arr is None):
@@ -1537,29 +1660,51 @@ def proc_N(L, h, Nt, N_runs, interface_mode, def_spin_state, \
 		d_E_arr = E_data['d_E_arr']
 		M_arr = E_data['M_arr']
 		d_M_arr = E_data['d_M_arr']
-		#C_fluct = E_data['C_fluct']
+		C_arr = E_data['C_arr']
+		d_C_arr = E_data['d_C_arr']
+		U4_arr = E_data['U4_arr']
+		d_U4_arr = E_data['d_U4_arr']
+		tau_m_decor_arr = E_data['tau_m_decor_arr']
+		d_tau_m_decor_arr = E_data['d_tau_m_decor_arr']
+		tau_e_decor_arr = E_data['tau_e_decor_arr']
+		d_tau_e_decor_arr = E_data['d_tau_e_decor_arr']
 	else:
 		print('computing E & M')
 		#E_arr, d_E_arr, M_arr, d_M_arr, C_fluct = get_E_T(L, Nt, my_seed, T_arr)
 		#np.savez(res_filename, E_arr=E_arr, d_E_arr=d_E_arr, M_arr=M_arr, d_M_arr=d_M_arr, C_fluct=C_fluct)
 
+		C_arr = np.empty(N_T)
+		d_C_arr = np.empty(N_T)
 		E_arr = np.empty(N_T)
 		d_E_arr = np.empty(N_T)
 		M_arr = np.empty(N_T)
 		d_M_arr = np.empty(N_T)
+		U4_arr = np.empty(N_T)
+		d_U4_arr = np.empty(N_T)
+		tau_m_decor_arr = np.empty(N_T)
+		d_tau_m_decor_arr = np.empty(N_T)
+		tau_e_decor_arr = np.empty(N_T)
+		d_tau_e_decor_arr = np.empty(N_T)
 			
 		for i in range(N_T):
 			Nt_local = int(Nt * L2 * np.exp(dE_offset + dE_avg / T_arr[i]))
 			
-			#E_arr[i], d_E_arr[i], M_arr[i], d_M_arr[i], C_fluct[i] = proc_T(T_arr[i], box, Nt, my_seed, verbose=time_verb)
-			M_arr[i], d_M_arr[i], E_arr[i], d_E_arr[i] = \
+			M_arr[i], d_M_arr[i], E_arr[i], d_E_arr[i], C_arr[i], d_C_arr[i], \
+			U4_arr[i], d_U4_arr[i], \
+			tau_m_decor_arr[i], d_tau_m_decor_arr[i], \
+			tau_e_decor_arr[i], d_tau_e_decor_arr[i] = \
 				run_many(L, T_arr[i], h, N_runs, interface_mode, def_spin_state, Nt_per_BF_run=Nt_local, \
 						OP_A=OP_0, OP_B=OP_max, N_spins_up_init=N_spins_up_init, to_plot_time_evol=to_plot_time_evol, \
-						to_plot_k_distr=False, mode='BF_503', N_saved_states_max=N_saved_states_max)
+						to_plot_k_distr=False, mode='BF_503', N_saved_states_max=N_saved_states_max, \
+						timeevol_stride=timeevol_stride, stab_step=stab_step)
 		
 			print((i + 1) / N_T)
 		
-		np.savez(res_filename, E_arr=E_arr, d_E_arr=d_E_arr, M_arr=M_arr, d_M_arr=d_M_arr)
+		np.savez(res_filename, \
+				E_arr=E_arr, d_E_arr=d_E_arr, M_arr=M_arr, d_M_arr=d_M_arr, \
+				C_arr=C_arr, d_C_arr=d_C_arr, U4_arr=U4_arr, d_U4_arr=d_U4_arr,
+				tau_m_decor_arr=tau_m_decor_arr, d_tau_m_decor_arr=d_tau_m_decor_arr, \
+				tau_e_decor_arr=tau_e_decor_arr, d_tau_e_decor_arr=d_tau_e_decor_arr)
 		
 		print('saved ' + res_filename)
 	
@@ -1585,43 +1730,89 @@ def proc_N(L, h, Nt, N_runs, interface_mode, def_spin_state, \
 		#ax_C.plot(T_C_3, C_3, label='d=3')
 		#ax_C.legend()
 		
-	return T_arr, M_arr, d_M_arr, E_arr, d_E_arr
+	return T_arr, M_arr, d_M_arr, E_arr, d_E_arr, C_arr, d_C_arr, \
+			U4_arr, d_U4_arr, \
+			tau_m_decor_arr, d_tau_m_decor_arr, \
+			tau_e_decor_arr, d_tau_e_decor_arr
+
+def get_Kc_from_U4(U4_datas, K_datas, Kc0, Kc_w, order=2, to_debug=False):
+	N_data = len(U4_datas)
+	assert(len(K_datas) == N_data), 'ERROR: K_datas.shape = %s; U4_datas.shape = %s; They do not fit' % (str(K_datas.shape), str(U4_datas.shape))
+	
+	for i in range(N_data):
+		inds = (K_datas[i] > Kc0 - Kc_w) & (K_datas[i] < Kc0 + Kc_w)
+		U4_datas[i] = U4_datas[i][inds]
+		K_datas[i] = K_datas[i][inds]
+	
+	Kc_arr = []
+	d_Kc_arr = []
+	for i in range(N_data - 1):
+		for j in range(i + 1, N_data):
+			fit_i = np.polyfit(K_datas[i], U4_datas[i], order)
+			fit_j = np.polyfit(K_datas[j], U4_datas[j], order)
+			
+			if(to_debug):
+				K_draw = np.linspace(Kc0 - Kc_w, Kc0 + Kc_w, 100)
+				fig, ax, _ = my.get_fig('K', 'U4')
+				ax.plot(K_draw, np.polyval(fit_i, K_draw), label='i', color=my.get_my_color(1))
+				ax.plot(K_draw, np.polyval(fit_j, K_draw), label='j', color=my.get_my_color(2))
+				ax.scatter(K_datas[i], U4_datas[i], color=my.get_my_color(1))
+				ax.scatter(K_datas[j], U4_datas[j], color=my.get_my_color(2))
+				ax.legend()
+				plt.show()
+			
+			Kc_new = scipy.optimize.root(lambda x: np.polyval(fit_i - fit_j, x), Kc0)
+			Kc_arr.append(Kc_new.x)
+	Kc_arr = np.array(Kc_arr)
+	
+	return np.mean(Kc_arr)
+
+def get_onsager_CEM(J):
+	z = np.tanh(2 * J)
+	z2 = 2 * z**2 - 1
+	z1 = 2 * z / np.cosh(2 * J)
+	k1 = scipy.special.ellipk(z1**2)
+	e1 = scipy.special.ellipe(z1**2)
+	
+	onsager_C = (2 / np.pi) * (J / z)**2 * (2 * (k1- e1) - (1 - z2) * (np.pi/2 + z2 * k1))
+	onsager_E = -(J / z) * (1 + (2 / np.pi) * z2 * k1)
+	zm = np.exp(-2 * J[J > Jc])
+	onsager_M = np.zeros(len(J)) 
+	onsager_M[J > Jc] =  (1 + zm**2)**(1/4) * (1 - 6 * zm**2 + zm**4)**(1/8) / (1 - zm**2)**(1/2)
+	
+	return onsager_C, onsager_E, onsager_M
+
+def plot_errScale(Ls, avg_err, name):
+	fig, ax, _ = my.get_fig('L', r'$err_{%s}$' % name, title=r'$err_{%s}(L)$' % name, xscl='log', yscl='log')
+	
+	linfit = np.polyfit(np.log(Ls), np.log(avg_err), 1)
+	
+	ax.plot(Ls, avg_err, 'o', label='data')
+	ax.plot(Ls, np.exp(np.polyval(linfit, np.log(Ls))), label=r'k = %s' % my.f2s(linfit[0]))
+	
+	ax.legend()
 
 def main():
-	# python run.py -mode BF_AB_L -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 35000000 -N_runs 5 -h 0.15 -interface_set_mode spaced -L 100 71 56 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-	
-	# python run.py -mode FFS_AB -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.15 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-	# python run.py -mode FFS_AB_L -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.15 -interface_set_mode spaced -L 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-	# python run.py -mode FFS_AB_L -N_states_FFS 100 -N_init_states_FFS 200 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 3 -h 0.15 -interface_set_mode spaced -L 100 78 56 42 32 24 18 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-	# python run.py -mode FFS_AB_L -N_states_FFS 100 -N_init_states_FFS 500 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 5 -h 0.13 -interface_set_mode spaced -L 100 78 56 42 32 24 18 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-	# python run.py -mode FFS_AB_L -N_states_FFS 500 -N_init_states_FFS 1000 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 15 -h 0.15 -interface_set_mode spaced -L 24 31 39 50 56 63 71 79 89 100 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-	#
-	# python run.py -mode FFS_AB_L -N_states_FFS 500 -N_init_states_FFS 1000 -N_OP_interfaces 15 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.15 -interface_set_mode spaced -L 100 64 48 32 -to_get_timeevol 0 -OP_max 210 -Temp 1.5
-	#
-	# python run.py -mode FFS_AB_h -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.13 0.12 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.13 0.12 0.11 0.1 0.09 0.08 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 250 300 350 400 500 -Temp 1.5
-	#
-	# python run.py -mode FFS_AB_h -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.09 0.08 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 -Temp 1.9
-	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.09 0.08 0.07 0.06 0.05 0.04 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 300 350 400 450 500 600 -Temp 1.9
-	#
-	# python run.py -mode FFS_AB_h -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.06 0.04 0.02 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 400 500 600 -Temp 2.0
-	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.09 0.08 0.07 0.06 0.05 0.04 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 300 350 400 450 500 600 -Temp 2.0
-	#
-	# TODO: remove outdated inputs
-	
 	# python ising_run.py -mode BF_503 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 10000 -N_runs 2 -h 0 -interface_set_mode spaced -L 32 -to_get_timeevol 1 -OP_max 1000000 -Temp 1.5 -to_plot_timeevol 1
 	# python ising_run.py -mode E_M -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1000000 -N_runs 2 -h 0 -interface_set_mode spaced -L 32 -to_get_timeevol 1 -OP_max 1000000 -J 0.6667 -to_plot_timeevol 1 -to_recomp 0 -init_gen_mode 0
 	# python ising_run.py -mode E_M -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 5000000 -N_runs 5 -h 0 -interface_set_mode spaced -L 32 -to_get_timeevol 1 -OP_max 1000000 -Temp 1.5 -to_plot_timeevol 1 -to_recomp 0 -init_gen_mode 0
-	[L, h, Temp, mode, Nt, N_states_FFS, N_init_states_FFS, to_recomp, to_get_timeevol, verbose, my_seed, N_OP_interfaces, N_runs, init_gen_mode, OP_0, OP_max, interface_mode, OP_min_BF, OP_max_BF, Nt_sample_A, Nt_sample_B, def_spin_state, N_spins_up_init, to_plot_ETS, interface_set_mode, timeevol_stride, to_plot_timeevol, N_saved_states_max, J], _ = \
-		my.parse_args(sys.argv,            [ '-L',   '-h', '-Temp', '-mode',        '-Nt', '-N_states_FFS', '-N_init_states_FFS',     '-to_recomp', '-to_get_timeevol', '-verbose', '-my_seed', '-N_OP_interfaces', '-N_runs', '-init_gen_mode', '-OP_0', '-OP_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B', '-def_spin_state', '-N_spins_up_init',   '-to_plot_ETS', '-interface_set_mode', '-timeevol_stride', '-to_plot_timeevol', '-N_saved_states_max',   '-J'], \
-					  possible_arg_numbers=[['+'],  ['+'],  [0, 1],     [1],       [0, 1],          [0, 1],               [0, 1],           [0, 1],             [0, 1],     [0, 1],     [0, 1],                [1],    [0, 1],           [0, 1],   ['+'],     ['+'],               [1],       [0, 1],       [0, 1],         [0, 1],         [0, 1],            [0, 1],             [0, 1],           [0, 1],                [0, 1],             [0, 1],              [0, 1],                [0, 1], [0, 1]], \
-					  default_values=      [ None,   None,  [None],    None, ['-1000000'],       ['-5000'],             ['5000'], [my.no_flags[0]],              ['1'],      ['1'],     ['23'],               None,     ['3'],           ['-3'],    None,      None,              None,       [None],       [None],   ['-1000000'],   ['-1000000'],            ['-1'],             [None], [my.no_flags[0]],           ['optimal'],          ['-3000'],    [my.no_flags[0]],              ['1000'], [None]])
+	
+	# python ising_run.py -mode E_M -to_get_timeevol 1 -OP_max 1000000 -to_recomp 1 -init_gen_mode 0 -N_OP_interfaces 9 -interface_mode CS -OP_0 1 -h 0 -interface_set_mode spaced -Nt 10 -N_runs 5 -L 16 -J 0.6667 -to_plot_timeevol 0
+	# python ising_run.py -mode BF_503 -interface_set_mode spaced -to_get_timeevol 1 -OP_max 1000000 -N_OP_interfaces 9 -interface_mode CS -OP_0 1 -to_plot_timeevol 1 -N_runs 2 -h 0 -L 32 -J 0.6 -Nt 10
+	# python ising_run.py -mode BF_503 -interface_set_mode spaced -to_get_timeevol 1 -OP_max 1000000 -N_OP_interfaces 9 -interface_mode CS -OP_0 1 -to_plot_timeevol 1 -N_runs 2 -h 0 -L 16 -J 0.45 -Nt 1000
+	# python ising_run.py -mode BF_503 -interface_set_mode spaced -to_get_timeevol 1 -OP_max 1000000 -N_OP_interfaces 9 -interface_mode CS -OP_0 1 -to_plot_timeevol 1 -N_runs 5 -h 0 -L 16 -J 0.41 -Nt 3000 -timeevol_stride -300000
+	# python ising_run.py -mode E_M -to_get_timeevol 1 -OP_max 1000000 -init_gen_mode 0 -N_OP_interfaces 9 -interface_mode CS -OP_0 1 -h 0 -interface_set_mode spaced -Nt 3000 -N_runs 5 -L 16 -J 0.6667 -to_plot_timeevol 0 -to_recomp 0 -timeevol_stride -300000   # tau_decor dependence
+	
+	[                                           L,      h,    Temp,    mode,           Nt,    N_states_FFS,    N_init_states_FFS,        to_recomp,    to_get_timeevol,    verbose,    my_seed,    N_OP_interfaces,    N_runs,    init_gen_mode,    OP_0,    OP_max,    interface_mode,    OP_min_BF,    OP_max_BF,    Nt_sample_A,    Nt_sample_B,    def_spin_state,    N_spins_up_init,      to_plot_ETS,    interface_set_mode,    timeevol_stride,    to_plot_timeevol,    N_saved_states_max,      J,     stab_step], _ = \
+		my.parse_args(sys.argv,            [ '-L',   '-h', '-Temp', '-mode',        '-Nt', '-N_states_FFS', '-N_init_states_FFS',     '-to_recomp', '-to_get_timeevol', '-verbose', '-my_seed', '-N_OP_interfaces', '-N_runs', '-init_gen_mode', '-OP_0', '-OP_max', '-interface_mode', '-OP_min_BF', '-OP_max_BF', '-Nt_sample_A', '-Nt_sample_B', '-def_spin_state', '-N_spins_up_init',   '-to_plot_ETS', '-interface_set_mode', '-timeevol_stride', '-to_plot_timeevol', '-N_saved_states_max',   '-J',  '-stab_step'], \
+					  possible_arg_numbers=[['+'],  ['+'],  [0, 1],     [1],       [0, 1],          [0, 1],               [0, 1],           [0, 1],             [0, 1],     [0, 1],     [0, 1],                [1],    [0, 1],           [0, 1],   ['+'],     ['+'],               [1],       [0, 1],       [0, 1],         [0, 1],         [0, 1],            [0, 1],             [0, 1],           [0, 1],                [0, 1],             [0, 1],              [0, 1],                [0, 1], [0, 1],        [0, 1]], \
+					  default_values=      [ None,   None,  [None],    None, ['-1000000'],       ['-5000'],             ['5000'], [my.no_flags[0]],              ['1'],      ['1'],     ['23'],               None,     ['3'],           ['-3'],    None,      None,              None,       [None],       [None],   ['-1000000'],   ['-1000000'],            ['-1'],             [None], [my.no_flags[0]],           ['optimal'],          ['-3000'],    [my.no_flags[0]],              ['1000'], [None],       ['-30']])
 	
 	Ls = np.array([int(l) for l in L], dtype=int)
 	N_L = len(Ls)
 	L = Ls[0]
 	L2 = L**2
-
+	
 	# -------- T < Tc, transitions ---------
 	if(J[0] is None):
 		assert(Temp[0] is not None), 'ERROR: both J and T are assumed to be the unit of energy, which is a contradiction'
@@ -1640,7 +1831,7 @@ def main():
 	N_param_points = N_L if('L' in mode) else (N_h if('h' in mode) else 1)
 	
 	set_OP_defaults(L2)
-
+	
 	my_seed = int(my_seed[0])
 	to_recomp = (to_recomp[0] in my.yes_flags)
 	#mode = mode[0]
@@ -1662,6 +1853,7 @@ def main():
 	timeevol_stride = int(timeevol_stride[0])
 	to_plot_timeevol = (to_plot_timeevol[0] in my.yes_flags)
 	N_saved_states_max = int(N_saved_states_max[0])
+	stab_step = float(stab_step[0])
 	
 	OP_0_handy = np.copy(OP_0)
 	OP_max_handy = np.copy(OP_max)
@@ -1768,12 +1960,14 @@ def main():
 		print('OP_BA:', OP_interfaces_BA)
 		
 	if(mode == 'BF_503'):
-		proc_T(Ls[0], Temp, h[0], Nt, interface_mode, def_spin_state, \
+		Nt_local = int(Nt * L2 * np.exp(dE_offset + dE_avg / Temp))
+		proc_T(Ls[0], Temp, h[0], Nt_local, interface_mode, def_spin_state, \
 				OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
 				to_plot_time_evol=to_plot_timeevol, to_plot_F=False, to_plot_ETS=to_plot_ETS, \
 				to_plot_correlations=True and to_plot_timeevol, to_get_timeevol=True, \
 				OP_min=OP_min_BF, OP_max=OP_max_BF, to_estimate_k=False, \
-				timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max)
+				timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max, \
+				stab_step=stab_step)
 	
 	elif(mode == 'BF_1'):
 		proc_T(Ls[0], Temp, h[0], Nt, interface_mode, def_spin_state, \
@@ -1781,7 +1975,8 @@ def main():
 				to_plot_time_evol=to_plot_timeevol, to_plot_F=True, to_plot_ETS=to_plot_ETS, \
 				to_plot_correlations=True and to_plot_timeevol, to_get_timeevol=True, \
 				OP_min=OP_min_BF, OP_max=OP_max_BF, to_estimate_k=True, \
-				timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max)
+				timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max, \
+				stab_step=stab_step)
 		
 	elif(mode == 'BF_AB'):
 		proc_T(Ls[0], Temp, h[0], Nt, interface_mode, def_spin_state, \
@@ -1789,24 +1984,27 @@ def main():
 				to_plot_time_evol=to_plot_timeevol, to_plot_F=True, to_plot_ETS=to_plot_ETS, \
 				to_plot_correlations=True and to_plot_timeevol, to_get_timeevol=to_get_timeevol, \
 				OP_min=OP_min_BF, OP_max=OP_max[0], to_estimate_k=False, \
-				timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max)
+				timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max, \
+				stab_step=stab_step)
 	
 	elif(mode == 'BF_many'):
 		run_many(Ls[0], Temp, h[0], N_runs, interface_mode, def_spin_state, Nt_per_BF_run=Nt, \
 				OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
 				to_plot_k_distr=True, N_k_bins=N_k_bins, \
-				mode='BF', N_saved_states_max=N_saved_states_max)
+				mode='BF', N_saved_states_max=N_saved_states_max, \
+				stab_step=stab_step)
 	
 	elif(mode == 'BF_503_many'):
 		run_many(Ls[0], Temp, h[0], N_runs, interface_mode, def_spin_state, Nt_per_BF_run=Nt, \
 				OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
-				to_plot_k_distr=False, \
-				mode='BF_503', N_saved_states_max=N_saved_states_max)
+				to_plot_k_distr=False, timeevol_stride=timeevol_stride, \
+				mode='BF_503', N_saved_states_max=N_saved_states_max, \
+				stab_step=stab_step)
 	
 	elif(mode == 'BF_AB_many'):
 		run_many(Ls[0], Temp, h[0], N_runs, interface_mode, def_spin_state, Nt_per_BF_run=Nt, \
 				OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
-				to_plot_k_distr=True, N_k_bins=N_k_bins, \
+				to_plot_k_distr=True, N_k_bins=N_k_bins, stab_step=stab_step, \
 				mode='BF_AB', N_saved_states_max=N_saved_states_max)
 	
 	elif(mode == 'FFS_AB'):
@@ -1853,7 +2051,8 @@ def main():
 	elif('h' in mode):
 		get_h_dependence(h, Ls[0], Temp, N_runs, interface_mode, def_spin_state, \
 						N_init_states_AB, OP_interfaces_AB, init_gen_mode=init_gen_mode, \
-						to_plot=True, to_save_npy=True, to_recomp=to_recomp)
+						to_plot=True, to_save_npy=True, to_recomp=to_recomp, \
+						stab_step=stab_step)
 	
 	elif('L' in mode):
 		ln_k_AB = np.empty(N_L)
@@ -2011,8 +2210,9 @@ def main():
 				run_many(Ls[0], Temp, h[0], N_runs, interface_mode, def_spin_state, \
 						OP_A=OP_0[0], OP_B=OP_max[0], \
 						Nt_per_BF_run=Nt, mode='BF', \
-						to_plot_k_distr=False, N_k_bins=N_k_bins, 
-						N_saved_states_max=N_saved_states_max)
+						to_plot_k_distr=False, N_k_bins=N_k_bins, \
+						N_saved_states_max=N_saved_states_max, \
+						stab_step=stab_step)
 		#F_BF = F_BF - min(F_BF)
 		F_BF = F_BF - F_BF[0]
 		
@@ -2048,57 +2248,157 @@ def main():
 		ax_F.legend()
 		
 	elif(mode == 'E_M'):
-		fig_E, ax_E, _ = my.get_fig('K=J/T', '$E/TL^2$', title='E(K); L = ' + str(L))
-		fig_OP, ax_OP, _ = my.get_fig('K=J/T', '$M/L^2$', title='M(K); L = ' + str(L))
-		fig_dE, ax_dE, _ = my.get_fig('K=J/T', '$E/E_{onsager} - 1$', title=r'$\Delta E(K)$; L = ' + str(L))
-		fig_dOP, ax_dOP, _ = my.get_fig('K=J/T', '$M/M_{onsager} - 1$', title=r'$\Delta M(K)$; L = ' + str(L))
-		#fig_C, ax_C, _ = my.get_fig('T', '$C/L^2$', xscl='log', yscl='log')
-		#fig_M2, ax_M2, _ = my.get_fig('T', '$(M/L^2)^2$')
-		
 		#T_arr = np.power(10, np.linspace(T_min_log10, T_max_log10, N_T))
 		T_arr = np.array([5, 2])
 		T_arr = np.array([1.5, 1.4])
 		
-		J_arr = np.array([0.7])
-		J_arr = np.arange(2,5) / 10
-		J_arr = np.arange(2,8) / 10
+		J_arr = np.array([0.6, 0.5, 0.3])
+		J_arr = np.array([0.25, 0.35, 0.4, 0.41, 0.42, 0.43, 0.435, 0.436, 0.437, 0.438, 0.439, 0.44, 0.441, 0.442, 0.443, 0.444, 0.445, 0.45, 0.46, 0.47, 0.48, 0.49, 0.55, 0.65, 0.75])
+		J_arr = np.array([0.25, 0.35, 0.4, 0.41, 0.42, 0.43, 0.435, 0.436, 0.437, 0.438, 0.439, 0.44, 0.441, 0.442, 0.443, 0.444, 0.445, 0.45, 0.46, 0.47, 0.48, 0.49, 0.55])
+		J_arr = np.array([0.25, 0.35, 0.4, 0.41, 0.42, 0.43, 0.44, 0.45, 0.46, 0.47, 0.48, 0.49, 0.55])
+		#J_arr = np.arange(2,5) / 10
+		#J_arr = np.arange(2,8) / 10
 		T_arr = 1 / J_arr
 		
-		T_arr, M_arr, d_M_arr, E_arr, d_E_arr = \
-			proc_N(Ls[0], h[0], Nt, N_runs, interface_mode, def_spin_state, \
-				OP_0[0], OP_max[0], N_spins_up_init, N_saved_states_max, \
-				T_arr=T_arr, to_recomp=to_recomp, to_plot_time_evol=to_plot_timeevol)
-		   
+		L_arr = np.array([16, 32, 64])
+		N_L = len(L_arr)
 		
-		#ax_E.plot(T_arr, -np.tanh(1/T_arr)*2, '--', label='$-2 th(1/T)$')
-		#T_simulated_ind = (min(T_arr) < T_table) & (T_table < max(T_arr))
-		#ax_E.plot(T_table[T_simulated_ind], E_table[T_simulated_ind], '.', label='Onsager')
+		fig_tauDecor, ax_tauDecor, _ = my.get_fig('K=J/T', r'$\tau_{decor}$ (steps)', title=r'$\tau_{decor}(K)$', yscl='log')
+		fig_tauDecorSweep, ax_tauDecorSweep, _ = my.get_fig('K=J/T', r'$\tau_{decor}$ (sweeps)', title=r'$\tau_{decor}(K)$', yscl='log')
+		fig_U4, ax_U4, _ = my.get_fig('K=J/T', '$(3/2)U_4$', title='$U_4(K)$', yscl='logit')
+		fig_C, ax_C, _ = my.get_fig('K=J/T', '$C/L^2$', title='C(K)', yscl='log')
+		fig_E, ax_E, _ = my.get_fig('K=J/T', '$E/TL^2$', title='E(K)')
+		fig_OP, ax_OP, _ = my.get_fig('K=J/T', '$M/L^2$', title='M(K)', yscl='logit')
+		fig_dC, ax_dC, _ = my.get_fig('K=J/T', '$C/C_{onsager} - 1$', title=r'$\Delta C(K)$')
+		fig_dE, ax_dE, _ = my.get_fig('K=J/T', '$E/E_{onsager} - 1$', title=r'$\Delta E(K)$')
+		fig_dOP, ax_dOP, _ = my.get_fig('K=J/T', '$M/M_{onsager} - 1$', title=r'$\Delta M(K)$')
+		fig_dC_log, ax_dC_log, _ = my.get_fig('K=J/T', '$|C/C_{onsager} - 1|$', title=r'$\Delta C(K)$', yscl='log')
+		fig_dE_log, ax_dE_log, _ = my.get_fig('K=J/T', '$|E/E_{onsager} - 1|$', title=r'$\Delta E(K)$', yscl='log')
+		fig_dOP_log, ax_dOP_log, _ = my.get_fig('K=J/T', '$|M/M_{onsager} - 1|$', title=r'$\Delta M(K)$', yscl='log')
 		
-		ax_E.errorbar(J_arr, E_arr / T_arr, yerr=d_E_arr / T_arr, label='data')
-		z = np.tanh(2 * J_arr)
-		onsager_E = -(J_arr / z) * (1 + (2 / np.pi) * (2 * z**2 - 1) * scipy.special.ellipk(2 * z / np.cosh(2 * J_arr)))
-		ax_E.plot(J_arr, onsager_E, label='Onsager')
+		onsager_C, onsager_E, onsager_M = get_onsager_CEM(J_arr)
+		U4_arrs = [[]] * N_L
+		d_U4_arrs = [[]] * N_L
+		avg_err_C = np.empty(N_L)
+		avg_err_E = np.empty(N_L)
+		avg_err_M = np.empty(N_L)
+		for i_L in range(N_L):
+			set_OP_defaults(L_arr[i_L] ** 2)
+			
+			T_arr, M_arr, d_M_arr, E_arr, d_E_arr, C_arr, d_C_arr, \
+			U4_arrs[i_L], d_U4_arrs[i_L], \
+			tau_m_decor_arr, d_tau_m_decor_arr, \
+			tau_e_decor_arr, d_tau_e_decor_arr = \
+				proc_N(L_arr[i_L], h[0], Nt, N_runs, interface_mode, def_spin_state, \
+					OP_0[0], OP_max[0], N_spins_up_init, N_saved_states_max, \
+					T_arr=T_arr, to_recomp=to_recomp, to_plot_time_evol=to_plot_timeevol, \
+					timeevol_stride=timeevol_stride, stab_step=stab_step)
+			
+			L_lbl = '$L = ' + str(L_arr[i_L]) + '$'
+			
+			#ax_E.plot(T_arr, -np.tanh(1/T_arr)*2, '--', label='$-2 th(1/T)$')
+			#T_simulated_ind = (min(T_arr) < T_table) & (T_table < max(T_arr))
+			#ax_E.plot(T_table[T_simulated_ind], E_table[T_simulated_ind], '.', label='Onsager')
+			
+			# ======== tau_decor =========
+			ax_tauDecor.errorbar(J_arr, tau_m_decor_arr, yerr=d_tau_m_decor_arr, \
+								fmt='-o', markersize=8, markerfacecolor='none', label=L_lbl + '; m', color=my.get_my_color(i_L))
+			ax_tauDecor.errorbar(J_arr, tau_e_decor_arr, yerr=d_tau_e_decor_arr, \
+								fmt='-^', markersize=8, markerfacecolor='none', label=L_lbl + '; e', color=my.get_my_color(i_L))
+			ax_tauDecorSweep.errorbar(J_arr, tau_m_decor_arr / L_arr[i_L]**2, yerr=d_tau_m_decor_arr / L_arr[i_L]**2, \
+								fmt='-o', markersize=8, markerfacecolor='none', label=L_lbl + '; m', color=my.get_my_color(i_L))
+			ax_tauDecorSweep.errorbar(J_arr, tau_e_decor_arr / L_arr[i_L]**2, yerr=d_tau_e_decor_arr / L_arr[i_L]**2, \
+								fmt='-^', markersize=8, markerfacecolor='none', label=L_lbl + '; e', color=my.get_my_color(i_L))
+			
+			# ======== U4 =========
+			ax_U4.errorbar(J_arr, U4_arrs[i_L] * 3/2, yerr=d_U4_arrs[i_L] * 3/2, fmt='-o', markersize=3, label=L_lbl)
+			
+			# ======== C =========
+			ax_C.errorbar(J_arr, C_arr, yerr=d_C_arr, fmt='-o', markersize=3, label=L_lbl)
+			
+			chi2_C = np.mean(((C_arr - onsager_C) / d_C_arr)**2)
+			dC = C_arr / onsager_C - 1
+			avg_err_C[i_L] = np.sqrt(np.mean(dC**2))
+			ax_dC.errorbar(J_arr, dC, yerr=d_C_arr / onsager_C, fmt='-o', markersize=3, label=L_lbl + r'; $\chi^2 = %s$' % (my.f2s(chi2_C)))
+			ax_dC_log.errorbar(J_arr, abs(dC), yerr=d_C_arr / onsager_C, fmt='-o', markersize=3, label=L_lbl + r'; $\chi^2 = %s$' % (my.f2s(chi2_C)))
+			
+			# ======== E =========
+			ax_E.errorbar(J_arr, E_arr / T_arr, yerr=d_E_arr / T_arr, fmt='-o', markersize=3, label=L_lbl)
+			
+			chi2_E = np.mean(((E_arr / T_arr - onsager_E) / (d_E_arr / T_arr))**2)
+			dE = E_arr / T_arr / onsager_E - 1
+			avg_err_E[i_L] = np.sqrt(np.mean(dE**2))
+			ax_dE.errorbar(J_arr, dE, yerr=d_E_arr / T_arr / onsager_E, fmt='-o', markersize=3, label=L_lbl + r'; $\chi^2 = %s$' % (my.f2s(chi2_E)))
+			ax_dE_log.errorbar(J_arr, abs(dE), yerr=d_E_arr / T_arr / onsager_E, fmt='-o', markersize=3, label=L_lbl + r'; $\chi^2 = %s$' % (my.f2s(chi2_E)))
+			
+			# ======== M =========
+			ax_OP.errorbar(J_arr, M_arr, yerr=d_M_arr, fmt='-o', markersize=3, label=L_lbl)
+			
+			non0_onsager_inds = (onsager_M != 0)
+			if(np.any(non0_onsager_inds)):
+				chi2_M = np.mean(((M_arr - onsager_M) / d_M_arr)**2)
+				dM = np.empty(len(M_arr))
+				dM[non0_onsager_inds] = M_arr[non0_onsager_inds] / onsager_M[non0_onsager_inds] - 1
+				dM[~non0_onsager_inds] = M_arr[~non0_onsager_inds]
+				avg_err_M[i_L] = np.sqrt(np.mean(dM**2))
+				d_dM = np.empty(len(M_arr))
+				d_dM[non0_onsager_inds] = d_M_arr[non0_onsager_inds] / onsager_M[non0_onsager_inds]
+				d_dM[~non0_onsager_inds] = d_M_arr[~non0_onsager_inds]
+				ax_dOP.errorbar(J_arr, dM, fmt='-o', markersize=3, yerr=d_dM, label=L_lbl + r' ; $\chi^2 = %s$' % (my.f2s(chi2_M)))
+				ax_dOP_log.errorbar(J_arr, abs(dM), fmt='-o', markersize=3, yerr=d_dM, label=L_lbl + r' ; $\chi^2 = %s$' % (my.f2s(chi2_M)))
 		
-		ax_dE.errorbar(J_arr, E_arr / T_arr / onsager_E - 1, yerr=d_E_arr / T_arr / onsager_E, label='data')
+		J_arr_draw = np.linspace(min(J_arr), max(J_arr), 1000)
+		onsager_C, onsager_E, onsager_M = get_onsager_CEM(J_arr_draw)
+		
+		# ======== tau decor =========
+		ax_tauDecor.plot([Jc] * 2, [min(tau_m_decor_arr), max(tau_m_decor_arr)], '--', label='$K_c$')
+		ax_tauDecorSweep.plot([Jc] * 2, [min(tau_m_decor_arr / L_arr[-1]**2), max(tau_m_decor_arr / L_arr[-1]**2)], '--', label='$K_c$')
+		
+		# ======== C =========
+		ax_C.plot(J_arr_draw, onsager_C, label='Onsager')
+		ax_C.plot([Jc] * 2, [min(onsager_C), max(onsager_C)], '--', label='$K_c$')
+		
+		ax_dC.plot([min(J_arr), max(J_arr)], [0] * 2, label='Onsager')
+		ax_dC.plot([Jc] * 2, [min(dC), max(dC)], '--', label='$K_c$')
+		ax_dC_log.plot([Jc] * 2, [min(abs(dC)), max(abs(dC))], '--', label='$K_c$')
+		
+		# ======== E =========
+		ax_E.plot(J_arr_draw, onsager_E, label='Onsager')
+		ax_E.plot([Jc] * 2, [min(E_arr / T_arr), max(E_arr / T_arr)], '--', label='$K_c$')
+		
 		ax_dE.plot([min(J_arr), max(J_arr)], [0] * 2, label='Onsager')
-
-		ax_OP.errorbar(J_arr, abs(M_arr), yerr=d_M_arr, label='data')
-		Jc = 0.4406868
-		onsager_M = np.zeros(len(J_arr)) 
-		z = np.exp(-2 * J_arr[J_arr > Jc])
-		onsager_M[J_arr > Jc] =  (1 + z**2)**(1/4) * (1 - 6 * z**2 + z**4)**(1/8) / (1 - z**2)**(1/2)
-		ax_OP.plot(J_arr, onsager_M, label='Onsager')
-
-		non0_onsager_inds = (onsager_M != 0)
-		if(np.any(non0_onsager_inds)):
-			ax_dOP.errorbar(J_arr[non0_onsager_inds], abs(M_arr[non0_onsager_inds]) / onsager_M[non0_onsager_inds] - 1, yerr=d_M_arr[non0_onsager_inds] / onsager_M[non0_onsager_inds], label='data')
-			ax_dOP.plot([min(J_arr[non0_onsager_inds]), max(J_arr[non0_onsager_inds])], [0] * 2, label='Onsager')
-
-		#ax_C.legend()
+		ax_dE.plot([Jc] * 2, [min(dE), max(dE)], '--', label='$K_c$')
+		ax_dE_log.plot([Jc] * 2, [min(abs(dE)), max(abs(dE))], '--', label='$K_c$')
+		
+		# ======== M =========
+		ax_OP.plot(J_arr_draw, onsager_M, label='Onsager')
+		ax_OP.plot([Jc] * 2, [min(M_arr), max(M_arr)], '--', label='$K_c$')
+		
+		ax_dOP.plot([min(J_arr[non0_onsager_inds]), max(J_arr[non0_onsager_inds])], [0] * 2, label='Onsager')
+		ax_dOP.plot([Jc] * 2, [min(dM), max(dM)], '--', label='$K_c$')
+		ax_dOP_log.plot([Jc] * 2, [min(abs(dM)), max(abs(dM))], '--', label='$K_c$')
+		
+		# ======== U4 =========
+		Jc_estimate = get_Kc_from_U4(U4_arrs, [J_arr] * N_L, 0.44, 0.012)
+		ax_U4.plot([Jc_estimate] * 2, [min(U4_arrs[0] * 3/2), max(U4_arrs[0] * 3/2)], '--', label=r'$K_{U_4, c}$; $err = %s $ %%' % my.f2s(my.eps_err(Jc_estimate, Jc) * 100))
+		ax_U4.plot([Jc] * 2, [min(U4_arrs[i_L] * 3/2), max(U4_arrs[i_L] * 3/2)], '--', label='$K_c$')
+		
+		plot_errScale(L_arr, avg_err_C, 'C')
+		plot_errScale(L_arr, avg_err_M, 'M')
+		plot_errScale(L_arr, avg_err_E, 'E')
+		
+		ax_tauDecor.legend()
+		ax_tauDecorSweep.legend()
+		ax_U4.legend()
+		ax_C.legend()
 		ax_E.legend()
 		ax_OP.legend()
 		ax_dE.legend()
+		ax_dC.legend()
 		ax_dOP.legend()
+		ax_dE_log.legend()
+		ax_dC_log.legend()
+		ax_dOP_log.legend()
 	
 	else:
 		print('ERROR: mode=%s is not supported' % (mode))
