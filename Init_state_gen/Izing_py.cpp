@@ -47,6 +47,7 @@ PYBIND11_MODULE(izing, m)
 		  py::arg("OP_max")=py::none(),
 		  py::arg("interface_mode")=py::none(),
 		  py::arg("default_spin_state")=py::none(),
+		  py::arg("init_state")=py::none(),
 		  py::arg("verbose")=py::none()
 	);
 

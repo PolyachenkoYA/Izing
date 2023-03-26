@@ -101,7 +101,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
 						 std::optional<int> _interface_mode, std::optional<int> _default_spin_state,
-						 std::optional<int> _verbose);
+						 std::optional< pybind11::array_t<int> > _init_state, std::optional<int> _verbose);
 int compute_hA(py::array_t<int> *h_A, int *OP, long Nt, int OP_A, int OP_B);
 py::tuple cluster_state(py::array_t<int> state, int default_state, std::optional<int> _verbose);
 void print_state(py::array_t<int> state);

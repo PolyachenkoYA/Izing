@@ -119,7 +119,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
 						 std::optional<int> _interface_mode, std::optional<int> _default_spin_state,
-						 std::optional<int> _verbose)
+						 std::optional< pybind11::array_t<int> > _init_state, std::optional<int> _verbose)
 /**
  *
  * @param L - the side-size of the lattice
@@ -141,6 +141,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 {
 	int i, j;
 	int L2 = L*L;
+	int state_size_in_bytes = L2 * sizeof(int);
 
 	Izing::set_OP_default(L2);
 
@@ -159,6 +160,17 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 	int OP_B = (_OP_B.has_value() ? _OP_B.value() : OP_max);
 	int N_spins_up_init = (_N_spins_up_init.has_value() ? _N_spins_up_init.value() : -1);
 
+
+	py::buffer_info _init_state_info;
+	int *_init_state_ptr;
+	if(_init_state.has_value()){
+		_init_state_info = _init_state.value().request();
+		_init_state_ptr = static_cast<int *>(_init_state_info.ptr);
+		assert(_init_state.value().ndim() == 1);
+		assert(_init_state.value().shape()[0] == L2);
+	}
+
+
 // ----------------- create return objects --------------
 	long Nt = 0;
 	long Nt_saved = 0;
@@ -168,7 +180,8 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 //	py::array_t<int> state = py::array_t<int>(L2);   // technically there are N+2 states' sets, but we are not interested in the first and the last sets
 //	py::buffer_info state_info = state.request();
 //	int *state_ptr = static_cast<int *>(state_info.ptr);
-	int *states = (int*) malloc(sizeof (int) * L2 * std::max((long)1, N_saved_states_max));
+	printf("N_saved_max = %d\n", N_saved_states_max);
+	int *states = (int*) malloc(state_size_in_bytes * std::max((long)1, N_saved_states_max));
 
 	double *_E;
 	int *_M;
@@ -184,9 +197,17 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 		_time = (int*) malloc(sizeof(int) * OP_arr_len);
 	}
 
-	if(OP_A > 1){
-		Izing::get_equilibrated_state(L, Temp, h, states, interface_mode, default_spin_state, OP_A, OP_B, verbose);
-		N_states_saved = 1;
+	int to_regenerate_init_state = 1;
+	if(_init_state.has_value()){
+		memcpy(states, _init_state_ptr, state_size_in_bytes);
+		N_states_saved = 0;
+		to_regenerate_init_state = 0;
+	} else{
+		if(OP_A > 1){
+			Izing::get_equilibrated_state(L, Temp, h, states, interface_mode, default_spin_state, OP_A, OP_B, verbose);
+			N_states_saved = 1;
+			to_regenerate_init_state = 0;
+		}
 	}
 
 	Izing::run_bruteforce_C(L, Temp, h, &time_total, INT_MAX, states,
@@ -194,9 +215,9 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 							&Nt, &Nt_saved, dump_step, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
 							interface_mode, default_spin_state, OP_A, OP_B,
 							OP_min, OP_max, &N_states_saved,
-							OP_min, OP_A, save_state_mode_Inside,
-							N_spins_up_init, verbose, Nt_max, &N_launches, 0,
-							OP_A <= 1, N_saved_states_max);
+							OP_min, OP_max, save_state_mode_Inside,
+							N_spins_up_init, verbose, Nt_max, &N_launches, 1,
+							to_regenerate_init_state, N_saved_states_max);
 
 
 	int N_last_elements_to_print = std::min(Nt, (long)10);
@@ -206,6 +227,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 	py::array_t<int> biggest_cluster_sizes;
 	py::array_t<int> h_A;
 	py::array_t<int> time;
+	py::array_t<int> saved_states;
 	if(to_remember_timeevol){
 		if(verbose >= 2){
 			printf("Brute-force core done, Nt_saved = %ld\n", Nt_saved);
@@ -244,6 +266,12 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 		memcpy(time_ptr, _time, sizeof(int) * Nt_saved);
 		free(_time);
 
+		saved_states = py::array_t<int>(Nt_saved * L2);
+		py::buffer_info saved_states_info = saved_states.request();
+		int *saved_states_ptr = static_cast<int *>(saved_states_info.ptr);
+		memcpy(saved_states_ptr, states,  state_size_in_bytes * Nt_saved);
+		// free is done anyway later on
+
 		if(verbose >= 2){
 			printf("internal memory for EM freed\n");
 			Izing::print_E(&(E_ptr[Nt_saved - N_last_elements_to_print]), N_last_elements_to_print, 'P');
@@ -255,7 +283,7 @@ py::tuple run_bruteforce(int L, double Temp, double h, long Nt_max, long N_saved
 
 	free(states);
 
-	return py::make_tuple(E, M, biggest_cluster_sizes, h_A, time, N_launches, time_total);
+	return py::make_tuple(E, M, biggest_cluster_sizes, h_A, time, N_launches, time_total, saved_states);
 }
 
 // int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, long *Nt, int *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M, int to_remember_timeevol, int verbose)
@@ -917,7 +945,7 @@ namespace Izing
 			// ------------------- save the state if it's good (we don't want failed states) -----------------
 //			printf("N_states_to_save = %d, max=%d\n", N_states_to_save, N_saved_states_max);
 			if(N_states_to_save > 0){
-				bool to_save_state = (*N_states_saved < N_saved_states_max) || (N_saved_states_max < 0);
+				bool to_save_state = ((*N_states_saved < N_saved_states_max) || (N_saved_states_max < 0)) && ((*Nt - 1) % dump_step == 0);
 				switch (save_state_mode) {
 					case save_state_mode_Inside:
 						to_save_state = to_save_state && (OP_current >= OP_min_save_state) && (OP_current < OP_max_save_state);
