@@ -14,6 +14,7 @@
 #include <vector>
 
 namespace py = pybind11;
+using namespace pybind11::literals;
 
 #include "lattice_gas.h"
 
@@ -27,6 +28,11 @@ void test_my(int k, py::array_t<long> *_Nt, py::array_t<double> *_probs, py::arr
 	printf("n%d: %ld\n", k, Nt_info.shape[0]);
 	printf("p%d: %ld\n", k, probs_info.shape[0]);
 	printf("d%d: %ld\n", k, d_probs_info.shape[0]);
+}
+
+void print_possible_move_modes()
+{
+	printf("flip : %d\nswap : %d\n", move_mode_flip, move_mode_swap);
 }
 
 py::int_ init_rand(int my_seed)
@@ -49,6 +55,11 @@ py::int_ set_verbose(int new_verbose)
 py::int_ get_verbose()
 {
 	return lattice_gas::verbose_dafault;
+}
+
+py::dict get_move_modes()
+{
+	return py::dict("flip"_a=move_mode_flip, "swap"_a=move_mode_swap, "long_swap"_a=move_mode_long_swap);
 }
 
 int compute_hA(py::array_t<int> *h_A, int *OP, long Nt, int OP_A, int OP_B)
@@ -117,13 +128,14 @@ py::tuple cluster_state(py::array_t<int> state, std::optional<int> _verbose)
 	return py::make_tuple(cluster_element_inds, cluster_sizes, cluster_types);
 }
 
-py::tuple run_bruteforce(int L, py::array_t<double> e, py::array_t<double> mu, long Nt_max,
+py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_t<double> mu, long Nt_max,
 						 long N_saved_states_max, long save_states_stride,
 						 std::optional<int> _N_spins_up_init, std::optional<int> _to_remember_timeevol,
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min_save_state, std::optional<int> _OP_max_save_state,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
 						 std::optional<int> _interface_mode,
+						 std::optional< pybind11::array_t<int> > _init_state,
 						 std::optional<int> _verbose)
 /**
  *
@@ -149,6 +161,7 @@ py::tuple run_bruteforce(int L, py::array_t<double> e, py::array_t<double> mu, l
 {
 	int i, j;
 	int L2 = L*L;
+	int state_size_in_bytes = L2 * sizeof(int);
 
 	lattice_gas::set_OP_default(L2);
 
@@ -176,8 +189,18 @@ py::tuple run_bruteforce(int L, py::array_t<double> e, py::array_t<double> mu, l
 	int OP_max_save_state = (_OP_max_save_state.has_value() ? _OP_max_save_state.value() : OP_max);
 	int N_spins_up_init = (_N_spins_up_init.has_value() ? _N_spins_up_init.value() : -1);
 
+	py::buffer_info _init_state_info;
+	int *_init_state_ptr = nullptr;
+	if(_init_state.has_value()){
+		_init_state_info = _init_state.value().request();
+		_init_state_ptr = static_cast<int *>(_init_state_info.ptr);
+		assert(_init_state.value().ndim() == 1);
+		assert(_init_state.value().shape()[0] == L2);
+	}
+
 // ----------------- create return objects --------------
 	long Nt = 0;
+	long Nt_OP_saved = 0;
 	int N_states_saved = 0;
 	int N_launches;
 	long OP_arr_len = 128;   // the initial value that will be doubling when necessary
@@ -189,9 +212,6 @@ py::tuple run_bruteforce(int L, py::array_t<double> e, py::array_t<double> mu, l
 	if(N_saved_states_max == 0){
 		N_saved_states_max = Nt_max / save_states_stride;
 	}
-	py::array_t<int> states = py::array_t<int>(std::max((long)1, N_saved_states_max) * L2);
-	py::buffer_info states_info = states.request();
-	int *states_ptr = static_cast<int *>(states_info.ptr);
 
 	double *_E;
 	int *_M;
@@ -207,21 +227,24 @@ py::tuple run_bruteforce(int L, py::array_t<double> e, py::array_t<double> mu, l
 		_time = (int*) malloc(sizeof(int) * OP_arr_len);
 	}
 
-	if(OP_A > 1){
-		lattice_gas::get_equilibrated_state(L, e_ptr, mu_ptr, states_ptr, interface_mode, OP_A, OP_B, verbose);
-		N_states_saved = 1;
-	}
+	py::array_t<int> states = py::array_t<int>(std::max((long)1, N_saved_states_max) * L2);
+	py::buffer_info states_info = states.request();
+	int *states_ptr = static_cast<int *>(states_info.ptr);
 
-	lattice_gas::run_bruteforce_C(L, e_ptr, mu_ptr, &time_total, N_saved_states_max, states_ptr,
+	lattice_gas::get_equilibrated_state(move_mode, L, e_ptr, mu_ptr, states_ptr, interface_mode,
+										OP_A, OP_B,_init_state_ptr, verbose);
+	N_states_saved = 1;
+
+	lattice_gas::run_bruteforce_C(move_mode, L, e_ptr, mu_ptr, &time_total, N_saved_states_max, states_ptr,
 							to_remember_timeevol ? &OP_arr_len : nullptr,
-								  &Nt, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
+								  &Nt, &Nt_OP_saved, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
 								  interface_mode, OP_A, OP_B, OP_A > 1,
 								  OP_min, OP_max, &N_states_saved,
 								  OP_min_save_state, OP_max_save_state,save_state_mode_Inside,
 								  N_spins_up_init, verbose, Nt_max, &N_launches, 0,
-								  OP_A <= 1, save_states_stride);
+								  (OP_A <= 1) && (!bool(_init_state_ptr)), save_states_stride);
 
-	int N_last_elements_to_print = std::min(Nt, (long)10);
+	int N_last_elements_to_print = std::min(Nt_OP_saved, (long)10);
 
 	py::array_t<double> E;
 	py::array_t<int> M;
@@ -230,46 +253,46 @@ py::tuple run_bruteforce(int L, py::array_t<double> e, py::array_t<double> mu, l
 	py::array_t<int> time;
 	if(to_remember_timeevol){
 		if(verbose >= 2){
-			printf("Brute-force core done, Nt = %ld\n", Nt);
-			lattice_gas::print_E(&(_E[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
-			lattice_gas::print_M(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+			printf("Brute-force core done, Nt = %ld, Nt_OP = %ld\n", Nt, Nt_OP_saved);
+			lattice_gas::print_E(&(_E[Nt_OP_saved - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+			lattice_gas::print_M(&(_M[Nt_OP_saved - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 //		lattice_gas::print_biggest_cluster_sizes(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
 		}
 
-		E = py::array_t<double>(Nt);
+		E = py::array_t<double>(Nt_OP_saved);
 		py::buffer_info E_info = E.request();
 		double *E_ptr = static_cast<double *>(E_info.ptr);
-		memcpy(E_ptr, _E, sizeof(double) * Nt);
+		memcpy(E_ptr, _E, sizeof(double) * Nt_OP_saved);
 		free(_E);
 
-		M = py::array_t<int>(Nt);
+		M = py::array_t<int>(Nt_OP_saved);
 		py::buffer_info M_info = M.request();
 		int *M_ptr = static_cast<int *>(M_info.ptr);
-		memcpy(M_ptr, _M, sizeof(int) * Nt);
+		memcpy(M_ptr, _M, sizeof(int) * Nt_OP_saved);
 		free(_M);
 
-		biggest_cluster_sizes = py::array_t<int>(Nt);
+		biggest_cluster_sizes = py::array_t<int>(Nt_OP_saved);
 		py::buffer_info biggest_cluster_sizes_info = biggest_cluster_sizes.request();
 		int *biggest_cluster_sizes_ptr = static_cast<int *>(biggest_cluster_sizes_info.ptr);
-		memcpy(biggest_cluster_sizes_ptr, _biggest_cluster_sizes, sizeof(int) * Nt);
+		memcpy(biggest_cluster_sizes_ptr, _biggest_cluster_sizes, sizeof(int) * Nt_OP_saved);
 		free(_biggest_cluster_sizes);
 
-		h_A = py::array_t<int>(Nt);
+		h_A = py::array_t<int>(Nt_OP_saved);
 		py::buffer_info h_A_info = h_A.request();
 		int *h_A_ptr = static_cast<int *>(h_A_info.ptr);
-		memcpy(h_A_ptr, _h_A, sizeof(int) * Nt);
+		memcpy(h_A_ptr, _h_A, sizeof(int) * Nt_OP_saved);
 		free(_h_A);
 
-		time = py::array_t<int>(Nt);
+		time = py::array_t<int>(Nt_OP_saved);
 		py::buffer_info time_info = time.request();
 		int *time_ptr = static_cast<int *>(time_info.ptr);
-		memcpy(time_ptr, _time, sizeof(int) * Nt);
+		memcpy(time_ptr, _time, sizeof(int) * Nt_OP_saved);
 		free(_time);
 
 		if(verbose >= 2){
-			printf("internal memory for EM freed\n");
-			lattice_gas::print_E(&(E_ptr[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'P');
-			lattice_gas::print_M(&(M_ptr[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'P');
+			printf("internal memory for EMt freed\n");
+			lattice_gas::print_E(&(E_ptr[Nt_OP_saved - N_last_elements_to_print]), N_last_elements_to_print, 'P');
+			lattice_gas::print_M(&(M_ptr[Nt_OP_saved - N_last_elements_to_print]), N_last_elements_to_print, 'P');
 			printf("exiting py::run_bruteforce\n");
 		}
 
@@ -280,9 +303,13 @@ py::tuple run_bruteforce(int L, py::array_t<double> e, py::array_t<double> mu, l
 	return py::make_tuple(states, E, M, biggest_cluster_sizes, h_A, time, N_launches, time_total);
 }
 
-// int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, long *Nt, int *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M, int to_remember_timeevol, int verbose)
-py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
+// int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, long *Nt,
+// 				long *Nt_OP_saved, int *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs,
+// 				double **E, int **M, int to_remember_timeevol, int verbose)
+py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<double> mu,
+				  pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
 				  int to_remember_timeevol, int init_gen_mode, int interface_mode,
+				  std::optional< pybind11::array_t<int> > _init_state,
 				  std::optional<int> _verbose)
 /**
  *
@@ -373,12 +400,15 @@ py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11
 //        A       1       2 ...n-1       n-1        B
 //        0       1       2 ...n-1       n-1       n
 	py::array_t<long> Nt = py::array_t<long>(N_OP_interfaces);
+	py::array_t<long> Nt_OP_saved = py::array_t<long>(N_OP_interfaces);
 	py::array_t<double> probs = py::array_t<double>(N_OP_interfaces - 1);
 	py::array_t<double> d_probs = py::array_t<double>(N_OP_interfaces - 1);
 	py::buffer_info Nt_info = Nt.request();
+	py::buffer_info Nt_OP_saved_info = Nt_OP_saved.request();
 	py::buffer_info probs_info = probs.request();
 	py::buffer_info d_probs_info = d_probs.request();
 	long *Nt_ptr = static_cast<long *>(Nt_info.ptr);
+	long *Nt_OP_saved_ptr = static_cast<long *>(Nt_OP_saved_info.ptr);
 	double *probs_ptr = static_cast<double *>(probs_info.ptr);
 	double *d_probs_ptr = static_cast<double *>(d_probs_info.ptr);
 
@@ -401,6 +431,15 @@ py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11
 		_time = (int*) malloc(sizeof(int) * OP_arr_len);
     }
 
+	py::buffer_info _init_state_info;
+	int *_init_state_ptr = nullptr;
+	if(_init_state.has_value()){
+		_init_state_info = _init_state.value().request();
+		_init_state_ptr = static_cast<int *>(_init_state_info.ptr);
+		assert(_init_state.value().ndim() == 1);
+		assert(_init_state.value().shape()[0] == L2);
+	}
+
 	if(verbose){
 		printf("OP interfaces:\n");
 		for(i = 0; i < N_OP_interfaces; ++i){
@@ -409,23 +448,26 @@ py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11
 		printf("\n");
 	}
 
-	lattice_gas::run_FFS_C(&flux0, &d_flux0, L, e_ptr, mu_ptr, states_ptr, N_init_states_ptr,
-						   Nt_ptr, to_remember_timeevol ? &OP_arr_len : nullptr, OP_interfaces_ptr, N_OP_interfaces,
+	lattice_gas::run_FFS_C(move_mode, &flux0, &d_flux0, L, e_ptr, mu_ptr, states_ptr, N_init_states_ptr,
+						   Nt_ptr, Nt_OP_saved_ptr, to_remember_timeevol ? &OP_arr_len : nullptr,
+						   OP_interfaces_ptr, N_OP_interfaces,
 						   probs_ptr, d_probs_ptr,  to_remember_timeevol? &_E : nullptr,
-					 to_remember_timeevol ? &_M : nullptr,
-					 to_remember_timeevol ? &_biggest_cluster_sizes : nullptr,
-					 to_remember_timeevol ? &_time : nullptr,
-						   verbose, init_gen_mode, interface_mode);
+						   to_remember_timeevol ? &_M : nullptr,
+						   to_remember_timeevol ? &_biggest_cluster_sizes : nullptr,
+						   to_remember_timeevol ? &_time : nullptr,
+						   verbose, init_gen_mode, interface_mode, _init_state_ptr);
 
 	if(verbose >= 2){
 		printf("FFS core done\nNt: ");
 	}
 	long Nt_total = 0;
+	long Nt_OP_saved_total = 0;
 	for(i = 0; i < N_OP_interfaces; ++i) {
 		if(verbose >= 2){
 			printf("%ld ", Nt_ptr[i]);
 		}
 		Nt_total += Nt_ptr[i];
+		Nt_OP_saved_total += Nt_OP_saved_ptr[i];
 	}
 
 	py::array_t<double> E;
@@ -435,47 +477,47 @@ py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11
     if(to_remember_timeevol){
 		int N_last_elements_to_print = 10;
 		if(verbose >= 2){
-			lattice_gas::print_E(&(_E[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
-			lattice_gas::print_M(&(_M[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
-			printf("copying time evolution, Nt_total = %ld\n", Nt_total);
+			lattice_gas::print_E(&(_E[Nt_OP_saved_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+			lattice_gas::print_M(&(_M[Nt_OP_saved_total - N_last_elements_to_print]), N_last_elements_to_print, 'F');
+			printf("copying time evolution, Nt_total = %ld\n", Nt_OP_saved_total);
 		}
 
-		E = py::array_t<double>(Nt_total);
+		E = py::array_t<double>(Nt_OP_saved_total);
 		py::buffer_info E_info = E.request();
 		double *E_ptr = static_cast<double *>(E_info.ptr);
-        memcpy(E_ptr, _E, sizeof(double) * Nt_total);
+        memcpy(E_ptr, _E, sizeof(double) * Nt_OP_saved_total);
 		free(_E);
 
-		M = py::array_t<int>(Nt_total);
+		M = py::array_t<int>(Nt_OP_saved_total);
 		py::buffer_info M_info = M.request();
 		int *M_ptr = static_cast<int *>(M_info.ptr);
-        memcpy(M_ptr, _M, sizeof(int) * Nt_total);
+        memcpy(M_ptr, _M, sizeof(int) * Nt_OP_saved_total);
 		free(_M);
 
-		biggest_cluster_sizes = py::array_t<int>(Nt_total);
+		biggest_cluster_sizes = py::array_t<int>(Nt_OP_saved_total);
 		py::buffer_info biggest_cluster_sizes_info = biggest_cluster_sizes.request();
 		int *biggest_cluster_sizes_ptr = static_cast<int *>(biggest_cluster_sizes_info.ptr);
-		memcpy(biggest_cluster_sizes_ptr, _biggest_cluster_sizes, sizeof(int) * Nt_total);
+		memcpy(biggest_cluster_sizes_ptr, _biggest_cluster_sizes, sizeof(int) * Nt_OP_saved_total);
 		free(_biggest_cluster_sizes);
 
-		time = py::array_t<int>(Nt_total);
+		time = py::array_t<int>(Nt_OP_saved_total);
 		py::buffer_info time_info = time.request();
 		int *time_ptr = static_cast<int *>(time_info.ptr);
-		memcpy(time_ptr, _time, sizeof(int) * Nt_total);
+		memcpy(time_ptr, _time, sizeof(int) * Nt_OP_saved_total);
 		free(_time);
 
 		if(verbose >= 2){
-			printf("data copied\n", Nt_total);
+			printf("data copied\n");
 			printf("internal memory for EM freed\n");
-			lattice_gas::print_E(E_ptr, Nt_total < N_last_elements_to_print ? Nt_total : N_last_elements_to_print, 'P');
-			lattice_gas::print_M(M_ptr, Nt_total < N_last_elements_to_print ? Nt_total : N_last_elements_to_print, 'P');
+			lattice_gas::print_E(E_ptr, Nt_OP_saved_total < N_last_elements_to_print ? Nt_OP_saved_total : N_last_elements_to_print, 'P');
+			lattice_gas::print_M(M_ptr, Nt_OP_saved_total < N_last_elements_to_print ? Nt_OP_saved_total : N_last_elements_to_print, 'P');
 		}
     }
 
 	if(verbose >= 2){
 		printf("exiting py::run_FFS\n");
 	}
-    return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M, biggest_cluster_sizes, time);
+    return py::make_tuple(states, probs, d_probs, Nt, Nt_OP_saved, flux0, d_flux0, E, M, biggest_cluster_sizes, time);
 }
 
 namespace lattice_gas
@@ -498,9 +540,10 @@ namespace lattice_gas
 		OP_step[mode_ID_CS] = 1;
 	}
 
-	int run_FFS_C(double *flux0, double *d_flux0, int L, double *e, double *mu, int *states, int *N_init_states, long *Nt,
+	int run_FFS_C(int move_mode, double *flux0, double *d_flux0, int L, const double *e, const double *mu, int *states,
+				  int *N_init_states, long *Nt, long *Nt_OP_saved,
 				  long *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
-				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode)
+				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode, const int *init_state)
 	/**
 	 *
 	 * @param flux0 - the flux from l_A
@@ -532,37 +575,42 @@ namespace lattice_gas
 	{
 		int i, j;
 		int L2 = L*L;
+		int state_size_in_bytes = L2 * sizeof(int);
 
 // get the initial states; they should be sampled from the distribution in [-L^2; M_0), but they are all set to have M == -L^2 because then they all will fall into the local optimum and almost forget the initial state, so it's almost equivalent to sampling from the proper distribution if 'F(M_0) - F_min >~ T'
 		long Nt_total = 0;
+		long Nt_OP_saved_total = 0;
 		long time_0;
-		get_init_states_C(L, e, mu, &time_0, N_init_states[0], states, init_gen_mode,
+		get_init_states_C(move_mode, L, e, mu, &time_0, N_init_states[0], states, init_gen_mode,
 						  OP_interfaces[0], interface_mode,
 						  OP_interfaces[0], OP_interfaces[N_OP_interfaces - 1],
-						  E, M, biggest_cluster_sizes, nullptr, time, &Nt_total, OP_arr_len,
+						  E, M, biggest_cluster_sizes, nullptr, time,
+						  &Nt_total, &Nt_OP_saved_total, OP_arr_len, init_state,
 						  verbose);
-
 		Nt[0] = Nt_total;
+		Nt_OP_saved[0] = Nt_OP_saved_total;
 
 		*flux0 = (double)N_init_states[0] / time_0;   // [1/step]
 		*d_flux0 = *flux0 / sqrt(N_init_states[0]);   // [1/step]; this works only if 'N_init_states[0] >> 1 <==>  (d_f/f << 1)'
 		if(verbose){
-			printf("Init states (N_states = %d, Nt = %ld) generated with mode %d\n", N_init_states[0], Nt[0], init_gen_mode);
+			printf("Init states (N_states = %d, N_OP_saved = %ld, Nt = %ld) generated with mode %d\n", N_init_states[0], Nt_OP_saved[0], Nt[0], init_gen_mode);
 			printf("flux0 = (%e +- %e) 1/step\n", *flux0, *d_flux0);
 		}
 
 		int N_states_analyzed = 0;
-		int state_size_in_bytes = sizeof(int) * L2;
 		long Nt_total_prev;
+		long Nt_OP_saved_total_prev;
 		for(i = 1; i < N_OP_interfaces; ++i){
 			Nt_total_prev = Nt_total;
+			Nt_OP_saved_total_prev = Nt_OP_saved_total;
 			// run each FFS step starting from states saved on the previous step (at &(states[L2 * N_states_analyzed]))
 			// and saving steps for the next step (to &(states[L2 * (N_states_analyzed + N_init_states[i - 1])])).
 			// Keep track of E, M, CS, the timestep. You have `N_init_states[i - 1]` to choose from to start a trial run
 			// and you need to generate 'N_init_states[i]' at the next interface. Use OP_A = OP_interfaces[0], OP_next = OP_interfaces[i].
-			probs[i - 1] = process_step(&(states[L2 * N_states_analyzed]),
+			probs[i - 1] = process_step(move_mode, &(states[L2 * N_states_analyzed]),
 									&(states[L2 * (N_states_analyzed + N_init_states[i - 1])]),
-									E, M, biggest_cluster_sizes, time, &Nt_total, OP_arr_len, N_init_states[i - 1], N_init_states[i],
+									E, M, biggest_cluster_sizes, time, &Nt_total, &Nt_OP_saved_total,
+									OP_arr_len, N_init_states[i - 1], N_init_states[i],
 									L, e, mu, OP_interfaces[0], OP_interfaces[i],
 									interface_mode, verbose); // OP_interfaces[0] - (i == 1 ? 1 : 0)
 			//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
@@ -571,13 +619,16 @@ namespace lattice_gas
 			N_states_analyzed += N_init_states[i - 1];
 
 			Nt[i] = Nt_total - Nt_total_prev;
+			Nt_OP_saved[i] = Nt_OP_saved_total - Nt_OP_saved_total_prev;
 			if(verbose){
-				printf("-log10(p_%d) = (%lf +- %lf)\nNt[%d] = %ld; Nt_total = %ld\n", i, -log(probs[i-1]) / log(10), d_probs[i-1] / probs[i-1] / log(10), i, Nt[i], Nt_total);
+				printf("-log10(p_%d) = (%lf +- %lf)\nNt[%d] = %ld; Nt_total = %ld, Nt_OP[%d] = %ld; Nt_OP_total = %ld\n",
+					   i, -log(probs[i-1]) / log(10), d_probs[i-1] / probs[i-1] / log(10),
+					   i, Nt[i], Nt_total, i, Nt_OP_saved[i], Nt_OP_saved_total);
 				// this assumes p<<1
 				if(verbose >= 2){
 					int N_last_elements_to_print = 10;
 					printf("\nstate[%d] beginning: ", i-1);
-					for(j = 0; j < (Nt[i] > N_last_elements_to_print ? N_last_elements_to_print : Nt[i]); ++j)  printf("%d ", states[L2 * N_states_analyzed - N_init_states[i-1] + j]);
+					for(j = 0; j < (Nt_OP_saved[i] > N_last_elements_to_print ? N_last_elements_to_print : Nt_OP_saved[i]); ++j)  printf("%d ", states[L2 * N_states_analyzed - N_init_states[i-1] + j]);
 					printf("\n");
 				}
 			}
@@ -595,13 +646,15 @@ namespace lattice_gas
 			printf("-log10(k_AB * [1 step]) = (%lf +- %lf)\n", - ln_k_AB / log(10), d_ln_k_AB / log(10));
 			if(verbose >= 2){
 				int N_last_elements_to_print = 10;
-				printf("Nt_total = %ld\n", Nt_total);
+				printf("Nt_total = %ld\n", Nt_OP_saved_total);
 				if(OP_arr_len){
-					if(E) print_E(&((*E)[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'f');
-					if(M) print_M(&((*M)[Nt_total - N_last_elements_to_print]), N_last_elements_to_print, 'f');
+					if(E) print_E(&((*E)[Nt_OP_saved_total - N_last_elements_to_print]), N_last_elements_to_print, 'f');
+					if(M) print_M(&((*M)[Nt_OP_saved_total - N_last_elements_to_print]), N_last_elements_to_print, 'f');
 				}
 				printf("Nt:");
 				for(i = 0; i < N_OP_interfaces; ++i) printf(" %ld", Nt[i]);
+				printf("\nNt_OP:");
+				for(i = 0; i < N_OP_interfaces; ++i) printf(" %ld", Nt_OP_saved[i]);
 				printf("\n");
 			}
 		}
@@ -609,9 +662,9 @@ namespace lattice_gas
 		return 0;
 	}
 
-	double process_step(int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int **time,
-						long *Nt, long *OP_arr_len, int N_init_states, int N_next_states,
-						int L, double *e, double *mu, int OP_0, int OP_next,
+	double process_step(int move_mode, int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int **time,
+						long *Nt, long *Nt_OP_saved, long *OP_arr_len, int N_init_states, int N_next_states,
+						int L, const double *e, const double *mu, int OP_0, int OP_next,
 						int interfaces_mode, int verbose)
 	/**
 	 *
@@ -655,7 +708,7 @@ namespace lattice_gas
 		int init_state_to_process_ID;
 		int run_status;
 		long OP_arr_len_old;
-		long Nt_old;
+//		long Nt_old;
 		long time_of_step_total;
 		while(N_succ < N_next_states){
 			init_state_to_process_ID = gsl_rng_uniform_int(rng, N_init_states);
@@ -663,13 +716,13 @@ namespace lattice_gas
 				printf("state[%d] (id in set = %d):\n", N_succ, init_state_to_process_ID);
 			}
 			memcpy(state_under_process, &(init_states[init_state_to_process_ID * L2]), state_size_in_bytes);   // get a copy of the chosen init state
-			Nt_old = *Nt;
+//			Nt_old = *Nt;
 //			OP_arr_len_old = *OP_arr_len;
 
-			run_status = run_state(state_under_process, L, e, mu, &time_of_step_total, OP_0, OP_next,
+			run_status = run_state(move_mode, state_under_process, L, e, mu, &time_of_step_total, OP_0, OP_next,
 								   E, M, biggest_cluster_sizes, nullptr, time,
 								   cluster_element_inds, cluster_sizes, cluster_types, is_checked,
-								   Nt, OP_arr_len, interfaces_mode, verbose);
+								   Nt, Nt_OP_saved, OP_arr_len, interfaces_mode, verbose);
 
 			switch (run_status) {
 				case 0:  // reached <=OP_A  => unsuccessful run
@@ -697,10 +750,13 @@ namespace lattice_gas
 						}
 					}
 					break;
-				case -1:  // reached >OP_next => overshoot => discard the trajectory => revert all the "pointers to the current stage" to their previous values
-					*Nt = Nt_old;
+//				case -1:  // reached >OP_next => overshoot => discard the trajectory => revert all the "pointers to the current stage" to their previous values
+//					*Nt = Nt_old;
 //					*OP_arr_len = OP_arr_len_old;
-					break;
+//					break;
+				default:
+					printf("Wrong run_status = %d returned by process_state\n", run_status);
+					assert(false);
 			}
 		}
 		if(verbose >= 2) {
@@ -716,15 +772,16 @@ namespace lattice_gas
 		return (double)N_succ / N_runs;   // the probability P(i+1 | i) to go from i to i+1
 	}
 
-	int run_state(int *s, int L, double *e, double *mu, long *time_total,
+	int run_state(int move_mode, int *s, int L, const double *e, const double *mu, long *time_total,
 				  int OP_0, int OP_next, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
-				  int *cluster_element_inds, int *cluster_sizes, int *cluster_types, int *is_checked, long *Nt, long *OP_arr_len,
-				  int interfaces_mode, int verbose, int to_cluster, long Nt_max, int* states_to_save,
+				  int *cluster_element_inds, int *cluster_sizes, int *cluster_types, int *is_checked, long *Nt, long *Nt_OP_saved,
+				  long *OP_arr_len, int interfaces_mode, int verbose, int to_cluster, long Nt_max, int* states_to_save,
 				  int *N_states_saved, int N_states_to_save,  int OP_min_save_state, int OP_max_save_state,
 				  int save_state_mode, int OP_A, int OP_B, long save_states_stride)
 	/**
 	 *	Run state saving states in (OP_min_save_state, OP_max_save_state) and saving OPs for the whole (OP_0; OP_next)
 	 *
+	 * @param move_mode - the mode of MC moves
 	 * @param s - the current state the system under simulation is in
 	 * @param L - see run_FFS
 	 * @param Temp - see run_FFS
@@ -753,9 +810,10 @@ namespace lattice_gas
 	 * @return - the Error status (none implemented yet)
 	 */
 	{
-		int L2 = L*L;
+		int L2 = L * L;
 		int state_size_in_bytes = sizeof(int) * L2;
 		int OP_current;
+		int h_A_current = 0;   // TODO pass this as an argument to make it transferable between runs
 		int OP_prev;
 		int M_current = comp_M(s, L); // remember the 1st M;
 		double E_current = comp_E(s, L, e, mu); // remember the 1st energy;
@@ -790,7 +848,8 @@ namespace lattice_gas
 			printf("E=%lf, M=%d, OP_0=%d, OP_next=%d\n", E_current, M_current, OP_0, OP_next);
 		}
 
-		int ix, iy, s_new;
+		int ix, iy, s_new;   // for flip moves
+		int ix_new, iy_new, s_swap;   // for swap moves
 		double dE;
 		int time_the_flip_took;
 		*time_total = 0;
@@ -798,22 +857,32 @@ namespace lattice_gas
 //		double Emin = -(2 + abs(h)) * L2;
 //		double Emax = 2 * L2;
 		double E_tolerance = 1e-3;   // J=1
-		long Nt_for_numerical_error = int(1e13 * E_tolerance / L2);
+		long Nt_for_numerical_error = long(1e13 * E_tolerance / L2);
 		// the error accumulates, so we need to recompute form scratch time to time
 //      |E| ~ L2 => |dE_numerical| ~ L2 * 1e-13 => |dE_num_total| ~ sqrt(Nt * L2 * 1e-13) << E_tolerance => Nt << 1e13 * E_tolerance / L2
 
 //		print_S(s, L, 't');
 
 		while(1){
-			// ----------- choose which to flip -----------
-			time_the_flip_took = get_flip_point(s, L, e, mu, &ix, &iy, &s_new, &dE);
+			// ----------- decide on state change -----------
+			switch (move_mode) {
+				case move_mode_flip:
+					time_the_flip_took = flip_move(s, L, e, mu, &ix, &iy, &s_new, &dE);
+					M_current += (s_new == main_specie_id ? 1 : (s[ix*L + iy] == main_specie_id ? -1 : 0));
+					s[ix * L + iy] = s_new;
+					break;
+				case move_mode_swap:
+					time_the_flip_took = swap_move(s, L, e, mu, &ix, &iy, &ix_new, &iy_new, &dE);
+					std::swap(s[ix * L + iy], s[ix_new * L + iy_new]);
+					break;
+				case move_mode_long_swap:
+					time_the_flip_took = long_swap_move(s, L, e, mu, &ix, &iy, &ix_new, &iy_new, &dE);
+					std::swap(s[ix * L + iy], s[ix_new * L + iy_new]);
+					break;
+			}
 
-			// --------------- compute time-dependent features ----------
 			*time_total += time_the_flip_took;
 			E_current += dE;
-			M_current += (s_new == main_specie_id ? 1 : (s[ix*L + iy] == main_specie_id ? -1 : 0));
-
-			s[ix*L + iy] = s_new;
 
 //			printf("moved Nt = %ld\n", *Nt);
 			if(to_cluster){
@@ -825,22 +894,43 @@ namespace lattice_gas
 				biggest_cluster_sizes_current = 1;
 			}
 
+			if(h_A){
+//				h_A_prev = h_A_current;
+				h_A_current = (*Nt == 0 ? (OP_current - OP_A > OP_B - OP_current ? 0 : 1) : (h_A_current == 1 ? (OP_current < OP_B ? 1 : 0) : (OP_current >= OP_A ? 0 : 1)));
+			}
+
 			++(*Nt);
 
 			if(verbose_BF){
 //				if(*Nt % (Nt_max / 1000 + 1) == 0){
 //					fflush(stdout);
 //				}
-				if(!(*Nt % 1000)){
+				if(!(*Nt % (640000 / L2))){
 //					print_S(s, L, 't');
 					if(Nt_max > 0){
-						printf("BF run: %lf %%            \r", (double)(*Nt) / (Nt_max) * 100);
+						printf("BF run: %lf %%, Nt_OP = %ld, CS = %d", (double)(*Nt) / (Nt_max) * 100, *Nt_OP_saved, biggest_cluster_sizes_current);
 					} else {
-						printf("BF run: Nt = %ld               \r", *Nt);
+						printf("BF run: Nt = %ld, Nt_OP = %ld, CS = %d", *Nt, *Nt_OP_saved, biggest_cluster_sizes_current);
 					}
+
+					qsort(cluster_sizes, N_clusters_current, sizeof(int), cmpfunc_decr<int>);
+					printf(";       CSs:");
+					for(int j = 0; j < std::min(10, N_clusters_current); ++j){
+						printf(" %ld,", cluster_sizes[j]);
+					}
+					printf("               \r");
+
+//					print_S(s, L, 't');
+//					getchar();
 					fflush(stdout);
 				}
 			}
+
+//			if(*Nt % 10000 == 0){
+//				printf("BF run: Nt = %ld, CS = %d, CS_next = %d              \n", *Nt, biggest_cluster_sizes_current, OP_next);
+////				print_S(s, L, 't');
+////				getchar();
+//			}
 
 			// ------------ update the OP --------------
 			OP_prev = OP_current;
@@ -871,7 +961,7 @@ namespace lattice_gas
 				if(abs(E_current - E_curent_real) > E_tolerance){
 					if(verbose >= 2){
 						printf("\nE-error out of bound: E_current = %lf, dE = %lf, Nt = %ld, E_real = %lf\n", E_current, dE, *Nt, E_curent_real);
-						print_E(&((*E)[*Nt - 10]), 10);
+						print_E(&((*E)[*Nt_OP_saved - 10]), 10);
 						print_S(s, L, 'r');
 //						throw -1;
 //						getchar();
@@ -882,44 +972,41 @@ namespace lattice_gas
 
 			// ------------------ save timeevol ----------------
 			if(OP_arr_len){
-				if(*Nt >= *OP_arr_len){ // double the size of the time-index
-					*OP_arr_len *= 2;
-					if(time){
-						*time = (int*) realloc (*time, sizeof(int) * *OP_arr_len);
-						assert(*time);
-					}
-					if(E){
-						*E = (double*) realloc (*E, sizeof(double) * *OP_arr_len);
-						assert(*E);
-					}
-					if(M){
-						*M = (int*) realloc (*M, sizeof(int) * *OP_arr_len);
-						assert(*M);
-					}
-					if(biggest_cluster_sizes){
-						*biggest_cluster_sizes = (int*) realloc (*biggest_cluster_sizes, sizeof(int) * *OP_arr_len);
-						assert(*biggest_cluster_sizes);
-					}
-					if(h_A){
-						*h_A = (int*) realloc (*h_A, sizeof(int) * *OP_arr_len);
-						assert(*h_A);
+				if((*Nt - 1) % save_states_stride == 0){
+					if(*Nt_OP_saved >= *OP_arr_len){ // double the size of the time-index
+						*OP_arr_len *= 2;
+						if(time){
+							*time = (int*) realloc (*time, sizeof(int) * *OP_arr_len);
+							assert(*time);
+						}
+						if(E){
+							*E = (double*) realloc (*E, sizeof(double) * *OP_arr_len);
+							assert(*E);
+						}
+						if(M){
+							*M = (int*) realloc (*M, sizeof(int) * *OP_arr_len);
+							assert(*M);
+						}
+						if(biggest_cluster_sizes){
+							*biggest_cluster_sizes = (int*) realloc (*biggest_cluster_sizes, sizeof(int) * *OP_arr_len);
+							assert(*biggest_cluster_sizes);
+						}
+						if(h_A){
+							*h_A = (int*) realloc (*h_A, sizeof(int) * *OP_arr_len);
+							assert(*h_A);
+						}
+
+						if(verbose >= 2){
+							printf("\nrealloced to %ld\n", *OP_arr_len);
+						}
 					}
 
-					if(verbose >= 2){
-						printf("\nrealloced to %ld\n", *OP_arr_len);
-					}
-				}
-
-				if(time) (*time)[*Nt - 1] = time_the_flip_took;
-				if(E) (*E)[*Nt - 1] = E_current;
-				if(M) (*M)[*Nt - 1] = M_current;
-				if(biggest_cluster_sizes) (*biggest_cluster_sizes)[*Nt - 1] = biggest_cluster_sizes_current;
-				if(h_A){
-					if(*Nt == 1){   // *Nt is assumed to be >= 1
-						(*h_A)[0] = (OP_current - OP_A > OP_B - OP_current ? 0 : 1);
-					} else {   // *Nt > 1
-						(*h_A)[*Nt - 1] = (*h_A)[*Nt - 2] == 1 ? (OP_current < OP_B ? 1 : 0) : (OP_current >= OP_A ? 0 : 1);
-					}
+					if(time) (*time)[*Nt_OP_saved] = time_the_flip_took;
+					if(E) (*E)[*Nt_OP_saved] = E_current;
+					if(M) (*M)[*Nt_OP_saved] = M_current;
+					if(biggest_cluster_sizes) (*biggest_cluster_sizes)[*Nt_OP_saved] = biggest_cluster_sizes_current;
+					if(h_A) (*h_A)[*Nt_OP_saved] = h_A_current;
+					++ (*Nt_OP_saved);
 				}
 
 //				if((E_current < Emin * (1 + 1e-6)) || (E_current > Emax * (1 + 1e-6))){   // assuming Emin < 0, Emax > 0
@@ -996,8 +1083,8 @@ namespace lattice_gas
 		}
 	}
 
-	int run_bruteforce_C(int L, double *e, double *mu, long *time_total, int N_states, int *states,
-						 long *OP_arr_len, long *Nt, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
+	int run_bruteforce_C(int move_mode, int L, const double *e, const double *mu, long *time_total, int N_states, int *states,
+						 long *OP_arr_len, long *Nt, long *Nt_OP_saved, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 						 int interface_mode, int OP_A, int OP_B, int to_cluster,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
@@ -1099,10 +1186,10 @@ namespace lattice_gas
 
 			memcpy(state_under_process, &(states[L2 * restart_state_ID]), state_size_in_bytes);   // get a copy of the chosen init state
 
-			run_state(state_under_process, L, e, mu, &time_the_try_took,
+			run_state(move_mode, state_under_process, L, e, mu, &time_the_try_took,
 					  OP_min_stop_state, OP_max_stop_state,
 					  E, M, biggest_cluster_sizes, h_A, time, cluster_element_inds, cluster_sizes, cluster_types,
-					  is_checked, Nt, OP_arr_len, interface_mode,
+					  is_checked, Nt, Nt_OP_saved, OP_arr_len, interface_mode,
 					  -verbose, to_cluster, Nt_max, states, N_states_done, N_states,
 					  OP_min_save_state, OP_max_save_state, save_state_mode, OP_A, OP_B, save_states_stride);
 
@@ -1116,7 +1203,7 @@ namespace lattice_gas
 				}
 				if(*N_states_done >= N_states) {
 					if(verbose) printf("\n");
-					-- (*N_tries);  // the last quit was (most likely) due to Nt>Nt_max, not due to OP>OP_B, so we need to substract it.
+					*N_tries = std::max(1, *N_tries - 1);  // the last quit was (most likely) due to Nt>Nt_max, not due to OP>OP_B, so we need to substract it.
 					break;
 				}
 			}
@@ -1147,23 +1234,30 @@ namespace lattice_gas
 		return 0;
 	}
 
-	int get_equilibrated_state(int L, double *e, double *mu, int *init_state, int interface_mode,
-							   int OP_A, int OP_B, int verbose)
+	int get_equilibrated_state(int move_mode, int L, const double *e, const double *mu, int *state, int interface_mode,
+							   int OP_A, int OP_B, const int *init_state, int verbose)
 	{
+		int L2 = L*L;
+		int state_size_in_bytes = sizeof(int) * L2;
+
 		long time_total;
 		long Nt_to_reach_OP_A = 0;
 		int N_states_done = 0;
 		int N_tries;
 		long Nt = 0;
 
-		// run "all spins down" until it reaches OP_A_thr
-		run_bruteforce_C(L, e, mu, &time_total, 1, init_state,
-						 nullptr, &Nt_to_reach_OP_A, nullptr, nullptr, nullptr, nullptr, nullptr,
+		if(init_state){
+			memcpy(state, init_state, state_size_in_bytes);
+		}
+
+		// run "all spins down"/init_state until it reaches OP_A_thr
+		run_bruteforce_C(move_mode, L, e, mu, &time_total, 1, state,
+						 nullptr, &Nt_to_reach_OP_A, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
 						 interface_mode, -1, -1, 1,
 						 OP_min_default[interface_mode], OP_A,
 						 &N_states_done, OP_A,
 						 OP_A, save_state_mode_Influx, -1,
-						 verbose, -1, &N_tries, 0, 1, 1);
+						 verbose, -1, &N_tries, 0, ! bool(init_state), 1);
 		if(verbose > 0){
 			printf("reached OP >= OP_A = %d in Nt = %ld MC steps\n", OP_A, Nt_to_reach_OP_A);
 		}
@@ -1178,8 +1272,8 @@ namespace lattice_gas
 				}
 			}
 			// run it for the same amount of time it took to get to OP_A_thr the first time
-			run_bruteforce_C(L, e, mu, &time_total, -1, init_state,
-							 nullptr, &Nt, nullptr, nullptr, nullptr, nullptr, nullptr,
+			run_bruteforce_C(move_mode, L, e, mu, &time_total, -1, state,
+							 nullptr, &Nt, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
 							 interface_mode, -1, -1, 1,
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, -1,
@@ -1191,10 +1285,10 @@ namespace lattice_gas
 		return 0;
 	}
 
-	int get_init_states_C(int L, double *e, double *mu, long *time_total, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
+	int get_init_states_C(int move_mode, int L, const double *e, const double *mu, long *time_total, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
 						  int interface_mode, int OP_A, int OP_B,
 						  double **E, int **M, int **biggest_cluster_size, int **h_A, int **time,
-						  long *Nt, long *OP_arr_len, int verbose)
+						  long *Nt, long *Nt_OP_saved, long *OP_arr_len, const int *init_state, int verbose)
 	/**
 	 *
 	 * @param L - see run_FFS
@@ -1220,7 +1314,7 @@ namespace lattice_gas
 	{
 		int i;
 		int L2 = L*L;
-//		int state_size_in_bytes = sizeof(int) * L2;
+		int state_size_in_bytes = sizeof(int) * L2;
 
 		if(verbose){
 			printf("generating states:\nN_init_states=%d, gen_mode=%d, OP_A <= %d, OP_mode=%d\n", N_init_states, mode, OP_thr_save_state, interface_mode);
@@ -1236,24 +1330,31 @@ namespace lattice_gas
 			int N_states_done;
 			int N_tries;
 //			long Nt = 0;
-			run_bruteforce_C(L, e, mu, time_total, N_init_states, init_states,
-							 nullptr, Nt, nullptr, nullptr, nullptr, nullptr, nullptr,
+
+			if(init_state){
+				memcpy(init_states, init_state, state_size_in_bytes);
+			}
+
+			run_bruteforce_C(move_mode, L, e, mu, time_total, N_init_states, init_states,
+							 nullptr, Nt, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
 							 interface_mode, 0, 0, 1,
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, OP_min_default[interface_mode],
 							 OP_thr_save_state, save_state_mode_Inside, -1,
-							 verbose, -1, &N_tries, 0, 1, 1);
+							 verbose, -1, &N_tries, 0, ! bool(init_state), 1);
 		} else if(mode == gen_init_state_mode_Influx){
 			int N_states_done;
 			int N_tries = 0;
 
-			get_equilibrated_state(L, e, mu, init_states, interface_mode, OP_thr_save_state, OP_B, verbose);
+			get_equilibrated_state(move_mode, L, e, mu, init_states, interface_mode,
+								   OP_thr_save_state, OP_B, init_state, verbose);
 
 			*Nt = 0;   // forget anything we might have had
+			*Nt_OP_saved = 0;
 			*time_total = 0;
 			N_states_done = 0;
-			run_bruteforce_C(L, e, mu, time_total, N_init_states, init_states,
-							 OP_arr_len, Nt, E, M, biggest_cluster_size, h_A, time,
+			run_bruteforce_C(move_mode, L, e, mu, time_total, N_init_states, init_states,
+							 OP_arr_len, Nt, Nt_OP_saved, E, M, biggest_cluster_size, h_A, time,
 							 interface_mode, OP_A, OP_B, 1,
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, OP_thr_save_state,
@@ -1375,7 +1476,7 @@ namespace lattice_gas
 		return _M;
 	}
 
-	double comp_E(const int* state, int L, double *e, double *mu)
+	double comp_E(const int* state, int L, const double *e, const double *mu)
 	/**
 	 * Computes the Energy of the state 's' of the linear size 'L', immersed in the 'h' magnetic field;
 	 * H = E/T = \sum_{<ij>} s_i s_j e[s_i][s_j] + \sum_i mu[s_i]
@@ -1470,32 +1571,93 @@ namespace lattice_gas
 		return 0;
 	}
 
-	double get_dE(int *state, int L, double *e, double *mu, int ix, int iy, int s_new)
-	/**
-	 * Computes the energy difference '(E_future_after_the_flip - E_current)'.
-	 * H = \sum_{<ij>} s_i s_j e[s_i][s_j] + \sum_i mu[s_i]
-	 * @param state - the current state (before the flip)
-	 * @param ix - the X index os the spin considered for a flip
-	 * @param iy - the Y index os the spin considered for a flip
-	 * @param s_new - the cyclic step from s_current to s_new in the space of species' ids
-	 * @return - the values of a potential Energy change
-	 */
+	double new_spin_energy(int L, const double *e, const double *mu, const int *s_neibs, int s_new)
 	{
-		int s = state[ix*L + iy];
-		int s1 = state[md(ix + 1, L)*L + iy];
-		int s2 = state[ix*L + md(iy + 1, L)];
-		int s3 = state[md(ix - 1, L)*L + iy];
-		int s4 = state[ix*L + md(iy - 1, L)];
-
-		int s_new_ix = s_new * N_species;
-		int s_ix = s * N_species;
-		return (mu[s_new] + (e[s_new_ix + s1] + e[s_new_ix + s2] + e[s_new_ix + s3] + e[s_new_ix + s4]))
-				-(mu[s] + (e[s_ix + s1] + e[s_ix + s2] + e[s_ix + s3] + e[s_ix + s4]));
-//		return (mu[s] + (e[s_ix + s1] + e[s_ix + s2] + e[s_ix + s3] + e[s_ix + s4]))
-//			  -(mu[s_new] + e[s_new_ix + s1] + e[s_new_ix + s2] + e[s_new_ix + s3] + e[s_new_ix + s4]);
+		int s_ix = s_new * N_species;
+		return mu[s_new] + (e[s_ix + s_neibs[1]] + e[s_ix + s_neibs[2]] + e[s_ix + s_neibs[3]] + e[s_ix + s_neibs[4]]);
 	}
 
-	int get_flip_point(int *state, int L, double *e, double *mu, int *ix, int *iy, int *s_new, double *dE)
+	void get_spin_with_neibs(const int *state, int L, int ix, int iy, int *s_group)
+	{
+		s_group[0] = state[ix * L + iy];
+		s_group[1] = state[md(ix + 1, L)*L + iy];
+		s_group[2] = state[ix*L + md(iy + 1, L)];
+		s_group[3] = state[md(ix - 1, L)*L + iy];
+		s_group[4] = state[ix*L + md(iy - 1, L)];
+	}
+
+	double swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new)
+	{
+		if(state[ix * L + iy] == state[ix_new * L + iy_new]){
+			return 0;
+		} else {
+			int s1[2 * dim + 1];
+			int s2[2 * dim + 1];
+			get_spin_with_neibs(state, L, ix, iy, s1);
+			get_spin_with_neibs(state, L, ix_new, iy_new, s2);
+
+			return (new_spin_energy(L, e, mu, s1, s2[0]) + new_spin_energy(L, e, mu, s2, s1[0])) -
+				   (new_spin_energy(L, e, mu, s1, s1[0]) + new_spin_energy(L, e, mu, s2, s2[0]));
+		}
+	}
+
+	double flip_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int s_new)
+	{
+		int s[2 * dim + 1];
+		get_spin_with_neibs(state, L, ix, iy, s);
+
+		return new_spin_energy(L, e, mu, s, s_new) - new_spin_energy(L, e, mu, s, s[0]);
+	}
+
+	int long_swap_move(const int *state, int L, const double *e, const double *mu, int *ix, int *iy, int *ix_new, int *iy_new, double *dE)
+	{
+		int N_flip_tries = 0;
+		int L2 = L * L;
+		int total_range = L2 * (L2 - 1);
+		int rnd, pos, shift;
+		do{
+			rnd = gsl_rng_uniform_int(rng, total_range);
+
+			pos = rnd % L2;
+			*iy = pos % L;
+			*ix = pos / L;
+
+			pos = (pos + rnd / L2 + 1) % L2;
+			*ix_new = pos % L;
+			*iy_new = pos / L;
+
+			*dE = swap_mode_dE(state, L, e, mu, *ix, *iy, *ix_new, *iy_new);
+			++N_flip_tries;
+		}while(!(*dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- *dE))));
+
+		return N_flip_tries;
+	}
+
+	int swap_move(const int *state, int L, const double *e, const double *mu, int *ix, int *iy, int *ix_new, int *iy_new, double *dE)
+	{
+		int N_flip_tries = 0;
+		int L2 = L * L;
+		int total_range = L2 * dim;
+		int rnd, pos, direction;
+		do{
+			rnd = gsl_rng_uniform_int(rng, total_range);
+			direction = rnd / L2;   // we try only x+1 and y+1 flips (and not x-1, y-1), since it covers all the possible flips
+
+			pos = rnd % L2;
+			*iy = pos % L;
+			*ix = pos / L;
+
+			*ix_new = (*ix + (direction == 0)) % L;
+			*iy_new = (*iy + (direction == 1)) % L;
+
+			*dE = swap_mode_dE(state, L, e, mu, *ix, *iy, *ix_new, *iy_new);
+			++N_flip_tries;
+		}while(!(*dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- *dE))));
+
+		return N_flip_tries;
+	}
+
+	int flip_move(const int *state, int L, const double *e, const double *mu, int *ix, int *iy, int *s_new, double *dE)
 	/**
 	 * Get the positions [*ix, *iy] of a spin to flip in a MC process
 	 * @param ix - int*, the X index of the spin to be flipped (already decided)
@@ -1507,13 +1669,21 @@ namespace lattice_gas
 		int N_flip_tries = 0;
 		int L2 = L * L;
 		int total_range = L2 * (N_species - 1);
+		int rnd, pos;
 		do{
-			*iy = gsl_rng_uniform_int(rng, total_range);
-			*ix = (*iy) % L2;
-			*s_new = (state[*ix] + 1 + (*iy) / L2) % N_species;
+			rnd = gsl_rng_uniform_int(rng, total_range);
+			pos = rnd % L2;
+			*s_new = (state[pos] + 1 + rnd / L2) % N_species;
 //			*s_new = 1 - state[*ix];
-			*iy = *ix % L;
-			*ix = *ix / L;
+			*iy = pos % L;
+			*ix = pos / L;
+
+//			*iy = gsl_rng_uniform_int(rng, total_range);
+//			*ix = (*iy) % L2;
+//			*s_new = (state[*ix] + 1 + (*iy) / L2) % N_species;
+////			*s_new = 1 - state[*ix];
+//			*iy = *ix % L;
+//			*ix = *ix / L;
 
 //			*ix = gsl_rng_uniform_int(rng, L2);
 //			*s_new = (state[*ix] + 1 + gsl_rng_uniform_int(rng, N_species - 1)) % N_species;
@@ -1524,9 +1694,9 @@ namespace lattice_gas
 //			*iy = gsl_rng_uniform_int(rng, L);
 //			*s_new = (state[*ix * L + *iy] + 1 + gsl_rng_uniform_int(rng, N_species - 1)) % N_species;
 
-			*dE = get_dE(state, L, e, mu, *ix, *iy, *s_new);
+			*dE = flip_mode_dE(state, L, e, mu, *ix, *iy, *s_new);
 			++N_flip_tries;
-		}while(!(*dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- *dE) ? 1 : 0)));
+		}while(!(*dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- *dE))));
 
 		return N_flip_tries;
 	}
@@ -1551,7 +1721,7 @@ namespace lattice_gas
 
 	void print_E(const double *E, long Nt, char prefix, char suffix)
     {
-        if(prefix > 0) printf("Es: %c\n", prefix);
+        if(prefix > 0) printf("Es:  %c\n", prefix);
         for(int i = 0; i < Nt; ++i) printf("%lf ", E[i]);
         if(suffix > 0) printf("%c", suffix);
     }
@@ -1605,7 +1775,7 @@ namespace lattice_gas
 		return 1;
 	}
 
-	void print_e_matrix(double *e)
+	void print_e_matrix(const double *e)
 	{
 		int ix, iy;
 		printf("e:\n");
@@ -1617,7 +1787,7 @@ namespace lattice_gas
 		}
 	}
 
-	void print_mu_vector(double *mu)
+	void print_mu_vector(const double *mu)
 	{
 		printf("mu: ( ");
 		for(int i = 0; i < N_species; ++i)

@@ -36,6 +36,7 @@ int main(int argc, char** argv) {
 	int interface_mode = mode_ID_CS;
 	int OP_0;
 	int OP_max;
+	int move_mode = move_mode_swap;
 
 	// for valgrind
 	N_init_states_default = 10;
@@ -144,10 +145,10 @@ int main(int argc, char** argv) {
 	double flux0;
 	double d_flux0;
 
-	lattice_gas::run_FFS_C(&flux0, &d_flux0, L, e, mu, states, N_init_states,
+	lattice_gas::run_FFS_C(move_mode, &flux0, &d_flux0, L, e, mu, states, N_init_states,
 						   Nt, to_remember_timeevol ? &OP_arr_len : nullptr, OP_interfaces, N_OP_interfaces,
 						   probs, d_probs, &E, &M, &biggest_cluster_sizes, &time,
-						   verbose, init_gen_mode, interface_mode);
+						   verbose, init_gen_mode, interface_mode, nullptr);
 
 	if(to_remember_timeevol){
 		free(E);   // the pointer to the array

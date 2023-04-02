@@ -11,22 +11,22 @@
 			"cmake" : "/home/ypolyach/clion-2020.3.2/bin/cmake/linux/x64/bin/cmake",
 			"cpack" : "/home/ypolyach/clion-2020.3.2/bin/cmake/linux/x64/bin/cpack",
 			"ctest" : "/home/ypolyach/clion-2020.3.2/bin/cmake/linux/x64/bin/ctest",
-			"root" : "/home/ypolyach/clion-2020.3.2/bin/cmake/linux/x64/share/cmake-3.24"
+			"root" : "/home/ypolyach/clion-2020.3.2/bin/cmake/linux/x64/share/cmake-3.25"
 		},
 		"version" : 
 		{
 			"isDirty" : false,
 			"major" : 3,
-			"minor" : 24,
+			"minor" : 25,
 			"patch" : 2,
-			"string" : "3.24.2",
+			"string" : "3.25.2",
 			"suffix" : ""
 		}
 	},
 	"objects" : 
 	[
 		{
-			"jsonFile" : "codemodel-v2-739f6783eba87da1b4ce.json",
+			"jsonFile" : "codemodel-v2-62c3b1ae7c6184c34e5a.json",
 			"kind" : "codemodel",
 			"version" : 
 			{
@@ -35,7 +35,7 @@
 			}
 		},
 		{
-			"jsonFile" : "cache-v2-ed544af3c5a89e0eedb9.json",
+			"jsonFile" : "cache-v2-60a1ed2b5a98c022db15.json",
 			"kind" : "cache",
 			"version" : 
 			{
@@ -44,7 +44,7 @@
 			}
 		},
 		{
-			"jsonFile" : "cmakeFiles-v1-2382a81abdf39a53342a.json",
+			"jsonFile" : "cmakeFiles-v1-94e145ad3c470a4385de.json",
 			"kind" : "cmakeFiles",
 			"version" : 
 			{
@@ -66,7 +66,7 @@
 	{
 		"cache-v2" : 
 		{
-			"jsonFile" : "cache-v2-ed544af3c5a89e0eedb9.json",
+			"jsonFile" : "cache-v2-60a1ed2b5a98c022db15.json",
 			"kind" : "cache",
 			"version" : 
 			{
@@ -76,7 +76,7 @@
 		},
 		"cmakeFiles-v1" : 
 		{
-			"jsonFile" : "cmakeFiles-v1-2382a81abdf39a53342a.json",
+			"jsonFile" : "cmakeFiles-v1-94e145ad3c470a4385de.json",
 			"kind" : "cmakeFiles",
 			"version" : 
 			{
@@ -86,7 +86,7 @@
 		},
 		"codemodel-v2" : 
 		{
-			"jsonFile" : "codemodel-v2-739f6783eba87da1b4ce.json",
+			"jsonFile" : "codemodel-v2-62c3b1ae7c6184c34e5a.json",
 			"kind" : "codemodel",
 			"version" : 
 			{

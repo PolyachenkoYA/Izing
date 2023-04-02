@@ -43,7 +43,7 @@
 				}
 			],
 			"type" : "STRING",
-			"value" : "Release"
+			"value" : "Debug"
 		},
 		{
 			"name" : "CMAKE_CACHEFILE_DIR",
@@ -55,7 +55,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "/home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-release"
+			"value" : "/home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-debug"
 		},
 		{
 			"name" : "CMAKE_CACHE_MAJOR_VERSION",
@@ -79,7 +79,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "24"
+			"value" : "25"
 		},
 		{
 			"name" : "CMAKE_CACHE_PATCH_VERSION",
@@ -154,7 +154,7 @@
 					"value" : "CXX compiler"
 				}
 			],
-			"type" : "FILEPATH",
+			"type" : "STRING",
 			"value" : "/usr/bin/c++"
 		},
 		{
@@ -282,7 +282,7 @@
 					"value" : "C compiler"
 				}
 			],
-			"type" : "FILEPATH",
+			"type" : "STRING",
 			"value" : "/usr/bin/cc"
 		},
 		{
@@ -543,7 +543,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "/home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-release/CMakeFiles/pkgRedirects"
+			"value" : "/home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-debug/CMakeFiles/pkgRedirects"
 		},
 		{
 			"name" : "CMAKE_GENERATOR",
@@ -887,7 +887,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "/home/ypolyach/clion-2020.3.2/bin/cmake/linux/x64/share/cmake-3.24"
+			"value" : "/home/ypolyach/clion-2020.3.2/bin/cmake/linux/x64/share/cmake-3.25"
 		},
 		{
 			"name" : "CMAKE_SHARED_LINKER_FLAGS",
@@ -1307,7 +1307,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "/home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-release"
+			"value" : "/home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-debug"
 		},
 		{
 			"name" : "lattice_gas_IS_TOP_LEVEL",
