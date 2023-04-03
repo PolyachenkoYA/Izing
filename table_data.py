@@ -199,6 +199,7 @@ OP_interfaces_table['nvt9'] = np.array([11, 13, 15, 17, 19, 21, 23, 25], dtype=i
 OP_interfaces_table['nvt10'] = np.array([24, 29, 34, 39, 44, 52, 62, 85], dtype=int)
 OP_interfaces_table['nvt11'] = np.array([14, 19, 24, 29, 34, 39, 44], dtype=int)
 OP_interfaces_table['nvt12'] = np.array([13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 40, 45], dtype=int)
+OP_interfaces_table['nvt13'] = np.array([13, 15, 17, 19, 21, 23, 25, 27, 29, 31], dtype=int)
 
 L_reference = 100
 

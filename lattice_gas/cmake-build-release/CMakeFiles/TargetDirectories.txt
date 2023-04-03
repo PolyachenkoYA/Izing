@@ -1,4 +1,0 @@
-/home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-release/CMakeFiles/lattice_gas.dir
-/home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-release/CMakeFiles/lattice_gas.so.dir
-/home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-release/CMakeFiles/edit_cache.dir
-/home/ypolyach/!Princeton/Izing/lattice_gas/cmake-build-release/CMakeFiles/rebuild_cache.dir
