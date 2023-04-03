@@ -1,6 +1,7 @@
 # my
 */cmake-build-*
 *__pycache__*
+*__MACOSX*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
