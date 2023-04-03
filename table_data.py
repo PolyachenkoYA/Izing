@@ -187,6 +187,7 @@ OP_interfaces_table['mu4'] = np.array([24, 29, 34, 39, 44, 46, 48, 50, 52, 54], 
 OP_interfaces_table['mu5'] = np.array([20, 28, 36, 44, 52, 62, 85, 200], dtype=int)
 OP_interfaces_table['mu6'] = np.array([12, 20, 28, 36, 44, 52, 62, 85, 200], dtype=int)
 
+OP_interfaces_table['nvt0'] = np.array([2, 70], dtype=int)
 OP_interfaces_table['nvt1'] = np.array([15, 20, 24, 29, 34, 39, 44, 46, 48, 50, 52, 54], dtype=int)
 OP_interfaces_table['nvt2'] = np.array([12, 16, 20, 24, 29, 34, 39, 44, 50, 60], dtype=int)
 OP_interfaces_table['nvt3'] = np.array([10, 15, 20, 25, 30, 35, 40, 45, 52, 62, 85,    200], dtype=int)
@@ -200,6 +201,7 @@ OP_interfaces_table['nvt10'] = np.array([24, 29, 34, 39, 44, 52, 62, 85], dtype=
 OP_interfaces_table['nvt11'] = np.array([14, 19, 24, 29, 34, 39, 44], dtype=int)
 OP_interfaces_table['nvt12'] = np.array([13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 40, 45], dtype=int)
 OP_interfaces_table['nvt13'] = np.array([13, 15, 17, 19, 21, 23, 25, 27, 29, 31], dtype=int)
+OP_interfaces_table['nvt14'] = np.array([21, 23, 25, 27, 29, 31, 33, 35, 37, 40, 45], dtype=int)
 
 L_reference = 100
 
