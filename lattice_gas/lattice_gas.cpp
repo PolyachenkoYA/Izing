@@ -905,12 +905,12 @@ namespace lattice_gas
 //				if(*Nt % (Nt_max / 1000 + 1) == 0){
 //					fflush(stdout);
 //				}
-				if(!(*Nt % (640000 / L2))){
+				if(!(*Nt % (81920000 / L2))){
 //					print_S(s, L, 't');
 					if(Nt_max > 0){
-						printf("BF run: %lf %%, Nt_OP = %ld, CS = %d", (double)(*Nt) / (Nt_max) * 100, *Nt_OP_saved, biggest_cluster_sizes_current);
+						printf("BF run: %lf %%, Nt_OP = %ld, CS = %d", (double)(*Nt) / (Nt_max) * 100, Nt_OP_saved ? *Nt_OP_saved : -1, biggest_cluster_sizes_current);
 					} else {
-						printf("BF run: Nt = %ld, Nt_OP = %ld, CS = %d", *Nt, *Nt_OP_saved, biggest_cluster_sizes_current);
+						printf("BF run: Nt = %ld, Nt_OP = %ld, CS = %d", *Nt, Nt_OP_saved ? *Nt_OP_saved : -1, biggest_cluster_sizes_current);
 					}
 
 					qsort(cluster_sizes, N_clusters_current, sizeof(int), cmpfunc_decr<int>);

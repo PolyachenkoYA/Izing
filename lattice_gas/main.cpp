@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
 	int interface_mode = mode_ID_CS;
 	int OP_0;
 	int OP_max;
-	int move_mode = move_mode_swap;
+	int move_mode = move_mode_flip;
 
 	// for valgrind
 	N_init_states_default = 10;
@@ -86,6 +86,7 @@ int main(int argc, char** argv) {
 //        A       1       2 ...n-1       n-1        B
 //        0       1       2 ...n-1       n-1       n
 	long *Nt = (long*) malloc(sizeof(long) * (N_OP_interfaces));
+	long *Nt_OP_saved = (long*) malloc(sizeof(long) * (N_OP_interfaces));
 //	int *OP_arr_len = (int*) malloc(sizeof(int) * (N_OP_interfaces + 1));
 	int *OP_interfaces = (int*) malloc((sizeof(int) * (N_OP_interfaces)));
 	int *N_init_states = (int*) malloc(sizeof(int) * (N_OP_interfaces));
@@ -146,7 +147,7 @@ int main(int argc, char** argv) {
 	double d_flux0;
 
 	lattice_gas::run_FFS_C(move_mode, &flux0, &d_flux0, L, e, mu, states, N_init_states,
-						   Nt, to_remember_timeevol ? &OP_arr_len : nullptr, OP_interfaces, N_OP_interfaces,
+						   Nt, Nt_OP_saved, to_remember_timeevol ? &OP_arr_len : nullptr, OP_interfaces, N_OP_interfaces,
 						   probs, d_probs, &E, &M, &biggest_cluster_sizes, &time,
 						   verbose, init_gen_mode, interface_mode, nullptr);
 

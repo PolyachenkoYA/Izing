@@ -308,7 +308,8 @@ def center_state_by_cluster(state, cluster_inds, \
 def proc_order_parameter_FFS(L, e, mu, flux0, d_flux0, probs, \
 							d_probs, OP_interfaces, N_init_states, \
 							interface_mode, \
-							OP_data=None, time_data=None, Nt=None, OP_hist_edges=None, memory_time=1, \
+							OP_data=None, time_data=None, Nt=None, Nt_OP=None, \
+							OP_hist_edges=None, memory_time=1, \
 							to_plot_time_evol=False, to_plot_hists=False, stride=1, \
 							x_lbl='', y_lbl='', Ms_alpha=0.5, OP_match_BF_to=None, \
 							states=None, OP_optim_minstep=None, cluster_map_dx=1.41, cluster_map_dr=0.5):
@@ -806,7 +807,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 	#			  int to_remember_timeevol, int init_gen_mode, int interface_mode,
 	#			  std::optional<int> _verbose)
 	# return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M, biggest_cluster_sizes, time);
-	(_states, probs, d_probs, Nt, flux0, d_flux0, _E, _M, _CS, times) = \
+	(_states, probs, d_probs, Nt, Nt_OP, flux0, d_flux0, _E, _M, _CS, times) = \
 		lattice_gas.run_FFS(MC_move_mode, L, e.flatten(), mu, N_init_states, \
 							OP_interfaces, verbose=verbose, \
 							to_remember_timeevol=to_get_timeevol, \
@@ -841,8 +842,8 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 			proc_order_parameter_FFS(L, e, mu, flux0, d_flux0, probs, d_probs, OP_interfaces, N_init_states, \
 						interface_mode, OP_match_BF_to=OP_match_BF_to, \
 						OP_data=(data[interface_mode] / OP_scale[interface_mode] if(to_get_timeevol) else None), \
-						time_data = times, \
-						Nt=Nt, OP_hist_edges=get_OP_hist_edges(interface_mode, OP_max=OP_interfaces[-1]), \
+						time_data = times, Nt_OP=Nt_OP, Nt=Nt, \
+						OP_hist_edges=get_OP_hist_edges(interface_mode, OP_max=OP_interfaces[-1]), \
 						memory_time=max(1, OP_std_overestimate[interface_mode] / OP_step[interface_mode]), 
 						to_plot_time_evol=to_plot_time_evol, to_plot_hists=to_plot_hists, stride=timeevol_stride, \
 						x_lbl=feature_label[interface_mode], y_lbl=title[interface_mode], Ms_alpha=Ms_alpha, \
@@ -884,8 +885,10 @@ def exp2_integrate(fit2, x1):
 	return np.exp(c) / 2 * np.sqrt(np.pi / np.abs(a)) * (scipy.special.erfi(dx) if(a > 0) else scipy.special.erf(dx))
 
 def proc_order_parameter_BF(L, e, mu, states, m, E, stab_step, dOP_step, OP_hist_edges, OP_peak_guess, OP_OP_fit2_width, \
-						 x_lbl=None, y_lbl=None, verbose=None, to_estimate_k=False, hA=None, OP_A=None, OP_B=None, \
-						 to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, stride=1, OP_jumps_hist_edges=None, \
+						 x_lbl=None, y_lbl=None, verbose=None, to_estimate_k=False, \
+						 hA=None, OP_A=None, OP_B=None, \
+						 to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, \
+						 stride=1, OP_jumps_hist_edges=None, \
 						 possible_jumps=None, means_only=False):
 	
 	k_AB, d_k_AB, k_BA, d_k_BA, k_bc_AB, k_bc_BA, ax_OP, ax_OP_hist, ax_F, \

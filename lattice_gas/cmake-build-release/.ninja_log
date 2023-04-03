@@ -37,3 +37,10 @@
 2873	5739	1680472260733091863	lattice_gas.so.cpython-38-x86_64-linux-gnu.so	8550ebaf74fd96d2
 1	2249	1680472278413059521	CMakeFiles/lattice_gas.so.dir/lattice_gas.cpp.o	c5d2660cc51b50d9
 2250	4857	1680472281021054755	lattice_gas.so.cpython-38-x86_64-linux-gnu.so	8550ebaf74fd96d2
+0	1629	1680481211030652572	CMakeFiles/lattice_gas.dir/main.cpp.o	1ad2504d8a3d595c
+1	4247	1680481213650719709	CMakeFiles/lattice_gas.dir/lattice_gas.cpp.o	4c8ad1cd34b640da
+4247	4326	1680481213726721617	lattice_gas	b0c7d2d347a8f838
+1	2179	1680481378486653767	CMakeFiles/lattice_gas.so.dir/lattice_gas.cpp.o	c5d2660cc51b50d9
+2179	4829	1680481381138608193	lattice_gas.so.cpython-38-x86_64-linux-gnu.so	8550ebaf74fd96d2
+1	2283	1680486297696233507	CMakeFiles/lattice_gas.so.dir/lattice_gas.cpp.o	c5d2660cc51b50d9
+2283	4804	1680486300216223011	lattice_gas.so.cpython-38-x86_64-linux-gnu.so	8550ebaf74fd96d2
