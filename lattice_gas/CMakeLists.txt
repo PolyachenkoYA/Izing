@@ -16,9 +16,9 @@ set(MATH_LIBS m gsl gslcblas)
 set(PY_LIBS crypt pthread dl util rt python3.8)
 
 find_package(PythonLibs REQUIRED)
-include_directories(/home/ypolyach/anaconda3/include)
-include_directories(/home/ypolyach/anaconda3/include/python3.8)
-link_directories(/home/ypolyach/anaconda3/lib)
+include_directories(${HOME}/anaconda3/include)
+include_directories(${HOME}/anaconda3/include/python3.8)
+link_directories(${HOME}/anaconda3/lib)
 
 add_executable(lattice_gas main.cpp lattice_gas.h lattice_gas.cpp)
 target_link_libraries(lattice_gas ${MATH_LIBS} ${PY_LIBS})
