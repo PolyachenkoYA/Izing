@@ -11,9 +11,9 @@ import table_data
 # ========================== general params ==================
 dim = 2
 z_neib = dim * 2
+N_species = 3
 
 dE_avg = 6   # J
-N_species = 3
 print_scale_k = 1e5
 print_scale_flux = 1e2
 OP_min_default = {}
@@ -49,6 +49,8 @@ feature_label = {}
 feature_label['M'] = 'm'
 feature_label['CS'] = 'Scl'
 
+def join_lbls(arr, spr, n=3):
+	return spr.join([my.f2s(a, n=n) for a in arr])
 
 def set_OP_defaults(L2):
 	OP_min_default['M'] = - 1
@@ -929,12 +931,13 @@ def exp2_integrate(fit2, x1):
 	
 	return np.exp(c) / 2 * np.sqrt(np.pi / np.abs(a)) * (scipy.special.erfi(dx) if(a > 0) else scipy.special.erf(dx))
 
-def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, dOP_step, OP_hist_edges, OP_peak_guess, OP_OP_fit2_width, \
-						 x_lbl=None, y_lbl=None, verbose=None, to_estimate_k=False, \
-						 hA=None, OP_A=None, OP_B=None, to_save_npz=False, \
-						 to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, \
-						 stride=1, OP_jumps_hist_edges=None, init_composition=None, \
-						 possible_jumps=None, means_only=False):
+def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
+							dOP_step, OP_hist_edges, OP_peak_guess, OP_OP_fit2_width, \
+							x_lbl=None, y_lbl=None, verbose=None, to_estimate_k=False, \
+							hA=None, OP_A=None, OP_B=None, to_save_npz=False, \
+							to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, \
+							stride=1, OP_jumps_hist_edges=None, init_composition=None, \
+							possible_jumps=None, means_only=False, to_recomp=False):
 	
 	k_AB, d_k_AB, k_BA, d_k_BA, k_bc_AB, k_bc_BA, ax_OP, ax_OP_hist, ax_F, \
 		F, d_F, OP_hist_centers, OP_hist_lens, rho_interp1d, d_rho_interp1d, \
@@ -950,37 +953,15 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, dOP
 	Nt_states = states.shape[0]
 	swap_type_move = (MC_move_mode in [move_modes['swap'], move_modes['long_swap']])
 	
-	# e11_lbl = e[1,1] + e[0,0] - e[1,0] - e[0,1]
-	# e12_lbl = e[1,2] + e[0,0] - e[1,0] - e[0,2]
-	# e22_lbl = e[2,2] + e[0,0] - e[2,0] - e[0,2]
-	# mu1_lbl = mu[1] - mu[0] + z_neib * (e[0,1] - (e[0,0] + e[1,1])/2)
-	# mu2_lbl = mu[1] - mu[0] + z_neib * (e[0,2] - (e[0,0] + e[2,2])/2)
-	e11_lbl = my.f2s(e[1,1])
-	e12_lbl = my.f2s(e[1,2])
-	e22_lbl = my.f2s(e[2,2])
-	if(swap_type_move):
-		mu_str_main = r'%s'.join([my.f2s(init_composition[1]), my.f2s(init_composition[2])])
-		mu_str = 'phi' + mu_str_main
-	else:
-		mu_str_main = r'%s'.join([my.f2s(mu[1]), my.f2s(mu[2])])
-		mu_str = 'muT' + mu_str_main
-	if(to_save_npz):
-		npz_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
-		npz_basename = 'L' + str(L) + '_eT' + '_'.join([e11_lbl, e12_lbl, e22_lbl]) + '_' + (mu_str % '_') + '_stride' + str(stride) + '_OP' + str(OP_A) + '_' + str(OP_B) + '_stab' + str(stab_step) + '_Nstates' + str(Nt_states)
+	npz_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
+	npz_basename = 'L' + str(L) + '_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + '_muT' + join_lbls(mu[1:], '_') + '_stride' + str(stride) + '_OP' + str(OP_A) + '_' + str(OP_B) + '_stab' + str(stab_step) + '_Nstates' + str(Nt_states)
 	
 	states_timesteps = np.arange(Nt_states) * stride
 	stab_states_inds = (states_timesteps > stab_step)
 	N_stab_states = np.sum(stab_states_inds)
 	
 	phi_filepath = os.path.join(npz_basepath, npz_basename + '_phi.npz')
-	if(os.path.isfile(phi_filepath) and False):
-		npz_data = np.load(phi_filepath)
-		print(phi_filepath, 'loaded')
-		
-		states_timesteps = npz_data['states_timesteps']
-		phi_Lmeans = npz_data['phi_Lmeans']
-		stab_step = npz_data['stab_step']
-	else:
+	if((not os.path.isfile(phi_filepath)) or to_recomp):
 		phi_Lmeans = np.zeros((N_species, Nt_states))
 		for i in range(N_species - 1):
 			#phi_Lmeans[i, :] = np.mean((states == i).reshape((Nt_states, L, L)), axis=(1,2))
@@ -989,6 +970,13 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, dOP
 		if(to_save_npz):
 			np.savez(phi_filepath, states_timesteps=states_timesteps, phi_Lmeans=phi_Lmeans, stab_step=stab_step)
 			print(phi_filepath, 'written')
+	else:
+		npz_data = np.load(phi_filepath, allow_pickle=True)
+		print(phi_filepath, 'loaded')
+		
+		states_timesteps = npz_data['states_timesteps']
+		phi_Lmeans = npz_data['phi_Lmeans']
+		stab_step = npz_data['stab_step']
 	
 	# metastable_inds = (~stab_states_inds) & (states_timesteps > 5 * L2)
 	# N_metastable_states = np.sum(metastable_inds)
@@ -999,9 +987,8 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, dOP
 	phi_LTmeans = np.mean(phi_Lmeans_stab, axis=1)
 	d_phi_LTmeans = np.std(phi_Lmeans_stab, axis=1)
 	
-	
-	ThL_lbl = '$\epsilon_{11,12,22}/T = ' + ','.join([e11_lbl, e12_lbl, e22_lbl]) + \
-				'$;\n$' + ('\phi_{1,2}' if(swap_type_move) else '\mu_{1,2}/T') + ' = ' + (mu_str_main % ',') + '$; L = ' + str(L)
+	ThL_lbl = '$\epsilon_{11,12,22}/T = ' + join_lbls([e[1,1], e[1,2], e[2,2]], ',') + \
+				'$;\n$' + ('\phi_{1,2}' if(swap_type_move) else '\mu_{1,2}/T') + ' = ' + join_lbls(mu[1:], ',') + '$; L = ' + str(L)
 	
 	if(to_plot_time_evol):
 		fig_phi, ax_phi, _ = my.get_fig('step', r'$\varphi$', title=r'$\vec{\varphi}$(step); ' + ThL_lbl)
@@ -1018,63 +1005,117 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, dOP
 		ax_phi.legend()
 	
 	if(not means_only):
-		OP_stab = m[stab_ind]
+		F_filepath = os.path.join(npz_basepath, npz_basename + '_F.npz')
 		
-		OP_jumps = OP_stab[1:] - OP_stab[:-1]
-		OP_mean = np.mean(OP_stab)
-		OP_std = np.std(OP_stab)
-		memory_time = max(1, OP_std / dOP_step)   
-		d_OP_mean = OP_std / np.sqrt(Nt_stab / memory_time)
-		# Time of statistical decorelation of the system state.
-		# 'the number of flips necessary to cover the typical system states range' * 'the upper-bound estimate on the number of steps for 1 flip to happen'
-		print('memory time =', my.f2s(memory_time))
-		
-		OP_hist, _ = np.histogram(OP_stab, bins=OP_hist_edges)
-		OP_jumps_hist, _ = np.histogram(OP_jumps, bins=OP_jumps_hist_edges)
-		OP_jumps_hist = OP_jumps_hist / Nt_stab
-		OP_hist_lens = (OP_hist_edges[1:] - OP_hist_edges[:-1])
-		N_m_points = len(OP_hist_lens)
-		OP_hist[OP_hist == 0] = 1   # to not get errors for log(hist)
-		OP_hist = OP_hist / memory_time
-		OP_hist_centers = (OP_hist_edges[1:] + OP_hist_edges[:-1]) / 2
-		rho = OP_hist / OP_hist_lens / Nt_stab
-		d_rho = np.sqrt(OP_hist * (1 - OP_hist / Nt_stab)) / OP_hist_lens / Nt_stab
+		if((not os.path.isfile(F_filepath)) or to_recomp):
+			OP_stab = m[stab_ind]
+			
+			OP_jumps = OP_stab[1:] - OP_stab[:-1]
+			OP_mean = np.mean(OP_stab)
+			OP_std = np.std(OP_stab)
+			memory_time = max(1, OP_std / dOP_step)   
+			d_OP_mean = OP_std / np.sqrt(Nt_stab / memory_time)
+			# Time of statistical decorelation of the system state.
+			# 'the number of flips necessary to cover the typical system states range' * 'the upper-bound estimate on the number of steps for 1 flip to happen'
+			print('memory time =', my.f2s(memory_time))
+			
+			OP_hist, _ = np.histogram(OP_stab, bins=OP_hist_edges)
+			OP_jumps_hist, _ = np.histogram(OP_jumps, bins=OP_jumps_hist_edges)
+			OP_jumps_hist = OP_jumps_hist / Nt_stab
+			OP_hist_lens = (OP_hist_edges[1:] - OP_hist_edges[:-1])
+			N_m_points = len(OP_hist_lens)
+			OP_hist[OP_hist == 0] = 1   # to not get errors for log(hist)
+			OP_hist = OP_hist / memory_time
+			OP_hist_centers = (OP_hist_edges[1:] + OP_hist_edges[:-1]) / 2
+			rho = OP_hist / OP_hist_lens / Nt_stab
+			d_rho = np.sqrt(OP_hist * (1 - OP_hist / Nt_stab)) / OP_hist_lens / Nt_stab
 
-		rho_interp1d = scipy.interpolate.interp1d(OP_hist_centers, rho, fill_value='extrapolate')
-		d_rho_interp1d = scipy.interpolate.interp1d(OP_hist_centers, d_rho, fill_value='extrapolate')
+			rho_interp1d = scipy.interpolate.interp1d(OP_hist_centers, rho, fill_value='extrapolate')
+			d_rho_interp1d = scipy.interpolate.interp1d(OP_hist_centers, d_rho, fill_value='extrapolate')
 
-		F = -np.log(rho * OP_hist_lens)
-		F = F - F[0]
-		d_F = d_rho / rho
-		
-		E_avg = np.empty(N_m_points)
-		for i in range(N_m_points):
-			E_for_avg = E[(OP_hist_edges[i] < m) & (m < OP_hist_edges[i+1])] * L2
-			#E_avg[i] = np.average(E_for_avg, weights=np.exp(- E_for_avg))
-			E_avg[i] = np.mean(E_for_avg) if(len(E_for_avg) > 0) else (e[1,1] + abs(mu[1])) * L2
-		E_avg = E_avg - E_avg[0]   # we can choose the E constant
-		S = (E_avg - F)
-		S = S - S[0] # S[m=+-1] = 0 because S = log(N), and N(m=+-1)=1
+			F = -np.log(rho * OP_hist_lens)
+			F = F - F[0]
+			d_F = d_rho / rho
+			
+			E_avg = np.empty(N_m_points)
+			for i in range(N_m_points):
+				E_for_avg = E[(OP_hist_edges[i] < m) & (m < OP_hist_edges[i+1])] * L2
+				#E_avg[i] = np.average(E_for_avg, weights=np.exp(- E_for_avg))
+				E_avg[i] = np.mean(E_for_avg) if(len(E_for_avg) > 0) else (e[1,1] + abs(mu[1])) * L2
+			E_avg = E_avg - E_avg[0]   # we can choose the E constant
+			S = (E_avg - F)
+			S = S - S[0] # S[m=+-1] = 0 because S = log(N), and N(m=+-1)=1
+			
+			if(to_save_npz):
+				np.savez(F_filepath, OP_hist_centers=OP_hist_centers, \
+						rho=rho, d_rho=d_rho, OP_hist_lens=OP_hist_lens, \
+						possible_jumps=possible_jumps, \
+						OP_jumps_hist=OP_jumps_hist, F=F, d_F=d_F, \
+						E_avg=E_avg, S=S, \
+						rho_interp1d=rho_interp1d, 
+						d_rho_interp1d=d_rho_interp1d, \
+						OP_mean=OP_mean, OP_std=OP_std, d_OP_mean=d_OP_mean)
+				print(F_filepath, 'written')
+		else:
+			npz_data = np.load(F_filepath, allow_pickle=True)
+			print(F_filepath, 'loaded')
+			
+			OP_hist_centers = npz_data['OP_hist_centers']
+			rho = npz_data['rho']
+			d_rho = npz_data['d_rho']
+			OP_hist_lens = npz_data['OP_hist_lens']
+			possible_jumps = npz_data['possible_jumps']
+			OP_jumps_hist = npz_data['OP_jumps_hist']
+			F = npz_data['F']
+			d_F = npz_data['d_F']
+			E_avg = npz_data['E_avg']
+			S = npz_data['S']
+			rho_interp1d = npz_data['rho_interp1d'].item()
+			d_rho_interp1d = npz_data['d_rho_interp1d'].item()
+			OP_mean = npz_data['OP_mean']
+			OP_std = npz_data['OP_std']
+			d_OP_mean = npz_data['d_OP_mean']
 		
 		if(to_estimate_k):
-			assert(hA is not None), 'ERROR: k estimation is requested in BF, but no hA provided'
-			#k_AB_ratio = np.sum(hA > 0.5) / np.sum(hA < 0.5)
-			hA_jump = hA[1:] - hA[:-1]   # jump > 0 => {0->1} => from B to A => k_BA ==> k_ratio = k_BA / k_AB
-			jump_inds = np.where(hA_jump != 0)[0]
-
-			N_AB_jumps = np.sum(hA_jump < 0)
-			if(N_AB_jumps > 0):
-				k_AB = N_AB_jumps / np.sum(hA > 0.5)
-				d_k_AB = k_AB / np.sqrt(N_AB_jumps)
+			k_filepath = os.path.join(npz_basepath, npz_basename + '_kAB.npz')
+			if((not os.path.isfile(k_filepath)) or to_recomp):
+				assert(hA is not None), 'ERROR: k estimation is requested in BF, but no hA provided'
+				#k_AB_ratio = np.sum(hA > 0.5) / np.sum(hA < 0.5)
+				hA_jump = hA[1:] - hA[:-1]   # jump > 0 => {0->1} => from B to A => k_BA ==> k_ratio = k_BA / k_AB
+				jump_inds = np.where(hA_jump != 0)[0]
+				
+				N_AB_jumps = np.sum(hA_jump < 0)
+				if(N_AB_jumps > 0):
+					k_AB = N_AB_jumps / np.sum(hA > 0.5)
+					d_k_AB = k_AB / np.sqrt(N_AB_jumps)
+				else:
+					k_AB, d_k_AB = 0, 0
+				
+				N_BA_jumps = np.sum(hA_jump > 0)
+				if(N_BA_jumps > 0):
+					k_BA = N_BA_jumps / np.sum(hA < 0.5)
+					d_k_BA = k_BA / np.sqrt(N_BA_jumps)
+				else:
+					k_BA, d_k_BA = 0, 0
+				
+				if(to_save_npz):
+					np.savez(k_filepath, hA=hA, hA_jump=hA_jump, \
+							jump_inds=jump_inds, N_AB_jumps=N_AB_jumps, \
+							k_AB=k_AB, d_k_AB=d_k_AB, \
+							k_BA=k_BA, d_k_BA=d_k_BA)
+					print(k_filepath, 'written')
 			else:
-				k_AB, d_k_AB = 0, 0
-
-			N_BA_jumps = np.sum(hA_jump > 0)
-			if(N_BA_jumps > 0):
-				k_BA = N_BA_jumps / np.sum(hA < 0.5)
-				d_k_BA = k_BA / np.sqrt(N_BA_jumps)
-			else:
-				k_BA, d_k_BA = 0, 0
+				npz_data = np.load(k_filepath, allow_pickle=True)
+				print(k_filepath, 'loaded')
+				
+				hA = npz_data['hA']
+				hA_jump = npz_data['hA_jump']
+				jump_inds = npz_data['jump_inds']
+				N_AB_jumps = npz_data['N_AB_jumps']
+				k_AB = npz_data['k_AB']
+				d_k_AB = npz_data['d_k_AB']
+				k_BA = npz_data['k_BA']
+				d_k_BA = npz_data['d_k_BA']
 			
 			OP_fit2_OPmin_ind = np.argmax(OP_hist_centers > OP_peak_guess - OP_OP_fit2_width)
 			OP_fit2_OPmax_ind = np.argmax(OP_hist_centers > OP_peak_guess + OP_OP_fit2_width)
@@ -1095,7 +1136,11 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, dOP
 			else:
 				print('WARNING: too few (%d) points with good data found near guessed OP_peak (%d)' % (N_good_points_near_OPpeak, OP_peak_guess))
 				k_bc_AB, k_bc_BA = 0, 0
-			
+				
+				# OP_fit2, OP_peak, m_peak_ind, F_max, bc_Z_AB, bc_Z_BA, \
+				# k_bc_AB, k_bc_BA = \
+					# tuple([np.nan] * 8)
+				
 			if(k_AB > 0):
 				get_log_errors(np.log(k_AB), d_k_AB / k_AB, lbl='k_AB_BF', print_scale=print_scale_k)
 			else:
@@ -1105,6 +1150,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, dOP
 				get_log_errors(np.log(k_BA), d_k_BA / k_BA, lbl='k_BA_BF', print_scale=print_scale_k)
 			else:
 				print('k_BA = 0')
+				
 		
 		if(to_plot_time_evol):
 			fig_OP, ax_OP, _ = my.get_fig('step', y_lbl, title='$' + x_lbl + '$(step); ' + ThL_lbl)
@@ -1201,7 +1247,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 			OP_min=None, OP_max=None, OP_A=None, OP_B=None, \
 			OP_min_save_state=None, OP_max_save_state=None, \
 			means_only=False, stab_step=-10, init_composition=None, \
-			to_save_npz=False):
+			to_save_npz=True, to_recomp=False):
 	L2 = L**2
 	if(verbose is None):
 		verbose = lattice_gas.get_verbose()
@@ -1224,19 +1270,53 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 	if(timeevol_stride < 0):
 		timeevol_stride = np.int_(- Nt / timeevol_stride)
 	
-	init_state = get_fixed_composition_random_state(L, init_composition) if(MC_move_mode in [move_modes["swap"], move_modes["long_swap"]]) else None
+	to_gen_init_state = MC_move_mode in [move_modes["swap"], move_modes["long_swap"]]
 	
-	(states, E, M, CS, hA, times, k_AB_launches, time_total) = \
-		lattice_gas.run_bruteforce(MC_move_mode, L, e.flatten(), mu, Nt, 
-			N_saved_states_max=N_saved_states_max, \
-			save_states_stride=timeevol_stride, \
-			N_spins_up_init=N_spins_up_init, OP_A=OP_A, OP_B=OP_B, \
-			OP_min=OP_min, OP_max=OP_max, \
-			OP_min_save_state=OP_min_save_state, OP_max_save_state=OP_max_save_state, \
-			to_remember_timeevol=to_get_timeevol, \
-			interface_mode=OP_C_id[interface_mode], \
-			init_state=None if(init_state is None) else init_state.flatten(), \
-			verbose=verbose)
+	traj_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
+	traj_basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
+					'_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					'_muT' + join_lbls(mu[1:], '_') + '_Nt' + str(Nt) + \
+					'_NstatesMax' + str(N_saved_states_max) + \
+					'_stride' + str(timeevol_stride) + \
+					'_OPab' + str(OP_A) + '_' + str(OP_B) + \
+					'_OPminx' + str(OP_min) + '_' + str(OP_max) + \
+					'_OPminxSave' + str(OP_min_save_state) + '_' + str(OP_max_save_state) + \
+					'_timeData' + str(to_get_timeevol) + \
+					'_haveInitState' + str(to_gen_init_state)
+	traj_filepath = os.path.join(traj_basepath, traj_basename + '_traj.npz')
+	
+	if((not os.path.isfile(traj_filepath)) or to_recomp):
+		init_state = get_fixed_composition_random_state(L, init_composition) if(to_gen_init_state) else None
+		
+		(states, E, M, CS, hA, times, k_AB_launches, time_total) = \
+			lattice_gas.run_bruteforce(MC_move_mode, L, e.flatten(), mu, Nt, 
+				N_saved_states_max=N_saved_states_max, \
+				save_states_stride=timeevol_stride, \
+				N_spins_up_init=N_spins_up_init, OP_A=OP_A, OP_B=OP_B, \
+				OP_min=OP_min, OP_max=OP_max, \
+				OP_min_save_state=OP_min_save_state, OP_max_save_state=OP_max_save_state, \
+				to_remember_timeevol=to_get_timeevol, \
+				interface_mode=OP_C_id[interface_mode], \
+				init_state=None if(init_state is None) else init_state.flatten(), \
+				verbose=verbose)
+		
+		if(to_save_npz):
+			np.savez(traj_filepath, states=states, \
+					E=E, M=M, CS=CS, hA=hA, times=times, \
+					k_AB_launches=k_AB_launches, time_total=time_total)
+			print(traj_filepath, 'written')
+	else:
+		npz_data = np.load(traj_filepath, allow_pickle=True)
+		print(traj_filepath, 'loaded')
+		
+		states = npz_data['states']
+		E = npz_data['E']
+		M = npz_data['M']
+		CS = npz_data['CS']
+		hA = npz_data['hA']
+		times = npz_data['times']
+		k_AB_launches = npz_data['k_AB_launches']
+		time_total = npz_data['time_total']
 	
 	Nt_states = len(states) // L2
 	states = states.reshape((Nt_states, L, L))
@@ -1293,7 +1373,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 									to_plot_time_evol=to_plot_timeevol, to_plot_F=to_plot_F, to_plot_ETS=to_plot_ETS, stride=timeevol_stride, \
 									OP_A=int(OP_A / OP_scale[interface_mode] + 0.1), OP_B=int(OP_B / OP_scale[interface_mode] + 0.1), OP_jumps_hist_edges=OP_jumps_hist_edges, \
 									possible_jumps=OP_possible_jumps[interface_mode], means_only=means_only, to_save_npz=to_save_npz, \
-									init_composition=init_composition)
+									init_composition=init_composition, to_recomp=to_recomp)
 		
 		if(not means_only):
 			BC_cluster_size = L2 / np.pi
@@ -1327,7 +1407,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 def run_phi01_pair(MC_move_mode, L, e, mu, Nt, interface_mode, timeevol_stride, \
 					stab_step, to_plot_timeevol=False, to_save_npz=False, \
 					init_composition_0=None, init_composition_1=None, \
-					verbose=1):
+					to_recomp=False, verbose=1):
 	L2 = L**2
 	
 	restricted_MC_modes = [move_modes["swap"], move_modes["long_swap"]]
@@ -1343,7 +1423,8 @@ def run_phi01_pair(MC_move_mode, L, e, mu, Nt, interface_mode, timeevol_stride, 
 				OP_min=-1, OP_max=L2 + 1, stab_step=stab_step, \
 				timeevol_stride=timeevol_stride, N_saved_states_max=0, \
 				means_only=True, init_composition=init_composition_0, \
-				to_save_npz=to_save_npz, verbose=verbose)   # phi_0 is a state-vector enriched in phi0
+				to_save_npz=to_save_npz, to_recomp=to_recomp, \
+				verbose=verbose)   # phi_0 is a state-vector enriched in phi0
 	
 	_, _, _, _, _, _, \
 		_, _, _, _, _, _, _, _, \
@@ -1355,7 +1436,8 @@ def run_phi01_pair(MC_move_mode, L, e, mu, Nt, interface_mode, timeevol_stride, 
 				OP_min=-1, OP_max=L2 + 1, stab_step=stab_step, \
 				timeevol_stride=timeevol_stride, N_saved_states_max=0, \
 				means_only=True, init_composition=init_composition_1, \
-				to_save_npz=to_save_npz, verbose=verbose)
+				to_save_npz=to_save_npz, to_recomp=to_recomp, \
+				verbose=verbose)
 	
 	return phi_0, d_phi_0, phi_1, d_phi_1, phi_0_evol, phi_1_evol
 
@@ -1589,7 +1671,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			mode='BF', N_init_states_AB=None, N_init_states_BA=None, \
 			init_gen_mode=-2, to_plot_committer=None, to_get_timeevol=None, \
 			target_states0=None, target_states1=None, stab_step=-5, 
-			init_composition=None, to_save_npz=False):
+			init_composition=None, to_save_npz=True, to_recomp=False):
 	if(verbose is None):
 		verbose = lattice_gas.get_verbose()
 	L2 = L**2
@@ -1655,7 +1737,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 							to_plot_F=False, to_plot_correlations=False, to_plot_ETS=False, \
 							timeevol_stride=timeevol_stride, to_estimate_k=True, 
 							to_get_timeevol=True, N_saved_states_max=N_saved_states_max, 
-							init_composition=init_composition_0, to_save_npz=to_save_npz)
+							init_composition=init_composition_0, \
+							to_save_npz=to_save_npz, to_recomp=to_recomp)
 			
 			ln_k_bc_AB_data[i] = np.log(k_bc_AB_BF * 1)   # proc_T returns 'k', not 'log(k)'; *1 for units [1/step]
 			ln_k_bc_BA_data[i] = np.log(k_bc_BA_BF * 1)
@@ -1679,7 +1762,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 							to_get_timeevol=to_get_timeevol, OP_max=OP_B, \
 							N_saved_states_max=N_saved_states_max, \
 							init_composition=init_composition_0, \
-							to_save_npz=to_save_npz)
+							to_save_npz=to_save_npz, to_recomp=to_recomp)
 			
 			ln_k_AB_data[i] = np.log(k_AB_BFcount * 1)
 		elif(mode == 'FFS_AB'):
@@ -1844,7 +1927,7 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 	
 	if(os.path.isfile(npy_filename) and (not to_recomp)):
 		print('loading from "' + npy_filename + '"')
-		npy_data = np.load(npy_filename)
+		npy_data = np.load(npy_filename, allow_pickle=True)
 		
 		mu_arr = npy_data['mu_arr']
 		k_AB_mean = npy_data['k_AB']
@@ -2015,7 +2098,7 @@ def main():
 	# python run.py -mode FFS_AB -L 128 -to_get_timeevol 0 -N_states_FFS 50 -N_init_states_FFS 100 -N_runs 2 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -init_composition 0.97 0.02 0.01 -OP_interfaces_set_IDs nvt10
 	# python run.py -mode BF_1 -Nt 150000 -L 128 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.97 0.02 0.01 -OP_interfaces_set_IDs nvt10 -e -2.68010292 -1.34005146 -1.71526587
 	# python run.py -mode BF_1 -Nt 800000000 -L 128 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt-1 -e -2.68010292 -1.34005146 -1.71526587 -OP_min_BF -1 -OP_max_BF 0 -timeevol_stride 16000
-	# python run.py -mode FFS_AB -L 128 -to_get_timeevol 0 -N_states_FFS 5 -N_init_states_FFS 10 -N_runs 2 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -init_composition 0.977 0.013 0.01 -OP_interfaces_set_IDs nvt16
+	# python run.py -mode FFS_AB -L 256 -to_get_timeevol 0 -N_states_FFS 5 -N_init_states_FFS 10 -N_runs 2 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -init_composition 0.977 0.013 0.01 -OP_interfaces_set_IDs nvt16
 	
 	################################ Ising ############################
 	# python run.py -mode BF_AB_L -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 35000000 -N_runs 5 -h 0.15 -interface_set_mode spaced -L 100 71 56 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
@@ -2111,10 +2194,6 @@ def main():
 	mu_orig = np.copy(mu)
 	for i in range(N_species):
 		mu[:, i] = (mu_orig[:, i] - mu_orig[:, 0] + z_neib * (e[0, i] - e[0,0]))
-	
-	#print(mu)
-	#print(mu_orig)
-	#input('ok')
 	
 	Temp = float(Temp[0])
 	e /= Temp
@@ -2269,7 +2348,7 @@ def main():
 				OP_min=OP_min_BF, OP_max=OP_max_BF, to_estimate_k=True, \
 				timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max, \
 				stab_step=stab_step, init_composition=init_composition, \
-				to_save_npz=to_save_npz)
+				to_save_npz=to_save_npz, to_recomp=to_recomp)
 		
 	elif(mode == 'BF_mu_grid'):
 		
@@ -2410,7 +2489,7 @@ def main():
 				OP_min=OP_min_BF, OP_max=OP_max[0], to_estimate_k=False, \
 				timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max, \
 				stab_step=stab_step, init_composition=init_composition, \
-				to_save_npz=to_save_npz)
+				to_save_npz=to_save_npz, to_recomp=to_recomp)
 	
 	elif(mode == 'BF_many'):
 		run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, Nt_per_BF_run=Nt, \

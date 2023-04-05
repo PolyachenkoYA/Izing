@@ -1281,6 +1281,7 @@ namespace lattice_gas
 //		print_S(&(state[(N_states_done - 1) * L2]), L, 'w');
 //		getchar();
 
+//		long N_steps_to_equil = 2 * Nt_to_reach_OP_A + stab_step;   // * 2 because we already have Nt = Nt_reach, and we want to run Nt_reach+stab_step new steps
 		long N_steps_to_equil = Nt_to_reach_OP_A + stab_step;
 		long Nt;
 		N_tries = 0;
@@ -1303,7 +1304,6 @@ namespace lattice_gas
 							 N_states_done, -1,
 							 -1, -1, -1,
 							 0, N_steps_to_equil, &N_tries, 1, 0, 1);
-//			printf("================ Proc N_states_done = %d, N_tr = %d ==================\n", N_states_done, N_tries);
 			if(N_tries == 0){
 				if(get_max_CS(&(state[(*N_states_done - 1) * L2]), L) < OP_A){
 					memcpy(&(state[(N_states_done_local - 1) * L2]), &(state[(*N_states_done - 1) * L2]), state_size_in_bytes);
@@ -1322,21 +1322,11 @@ namespace lattice_gas
 				// Such N_steps_to_equil is ~N_tries smaller than current N_steps_to_equil
 				//// but *1.5 go not get always down but looks for a maximum possible time
 			}
-//			if(N_steps_to_equil == 1){
-//				printf("Nt_steps = 1\n");
-//				getchar();
-//			}
 		}while(1);
 		
 		printf("Equilibrated state generated                                                \n");
-//		}while(N_tries > 0);
 		// N_tries = 0 in the beginning of BF. If we went over the N_c, I want to restart because we might not have obtained enough statistic back around the optimum.
-
-//		printf("N_states_done = %d\n", N_states_done);
-//		print_S(&(state[0 * L2]), L, 'e');
-//		print_S(&(state[(N_states_done - 1) * L2]), L, 'e');
-//		getchar();
-
+		
 		return 0;
 	}
 
