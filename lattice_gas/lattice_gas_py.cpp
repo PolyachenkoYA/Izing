@@ -26,15 +26,19 @@ PYBIND11_MODULE(lattice_gas, m)
 		  py::arg("to_remember_timeevol")=0,
 		  py::arg("init_gen_mode")=gen_init_state_mode_Inside,
 		  py::arg("interface_mode")=mode_ID_CS,
+		  py::arg("stab_step")=-5,
 		  py::arg("init_state")=py::none(),
 		  py::arg("verbose")=py::none()
     );
 
-// py::tuple run_bruteforce(int L, double **e, double *mu, long Nt_max, long N_saved_states_max,
+// py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_t<double> mu, long Nt_max,
+//						 long N_saved_states_max, long save_states_stride, long stab_step,
 //						 std::optional<int> _N_spins_up_init, std::optional<int> _to_remember_timeevol,
 //						 std::optional<int> _OP_A, std::optional<int> _OP_B,
+//						 std::optional<int> _OP_min_save_state, std::optional<int> _OP_max_save_state,
 //						 std::optional<int> _OP_min, std::optional<int> _OP_max,
 //						 std::optional<int> _interface_mode,
+//						 std::optional< pybind11::array_t<int> > _init_state,
 //						 std::optional<int> _verbose)
 	m.def("run_bruteforce", &run_bruteforce,
 		  "run Brute-force simulation for the 2D lattice gas model for Nt_max steps, starting from ~equilibrated state",
@@ -45,6 +49,7 @@ PYBIND11_MODULE(lattice_gas, m)
 		  py::arg("Nt_max"),
 		  py::arg("N_saved_states_max")=0,
 		  py::arg("save_states_stride")=1,
+		  py::arg("stab_step")=-5,
 		  py::arg("N_spins_up_init")=py::none(),
 		  py::arg("to_remember_timeevol")=py::none(),
 		  py::arg("OP_A")=py::none(),

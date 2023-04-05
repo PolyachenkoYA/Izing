@@ -247,11 +247,23 @@ def center_crd(x, L):
 	
 	return np.argmin(r2), r2
 
-def draw_state(x_crds, y_crds, to_show=False, ax=None, title=None):
+def draw_state_crds(x_crds, y_crds, to_show=False, ax=None, title=None):
 	if(ax is None):
 		fig, ax, _ = my.get_fig('x', 'y', title=title)
 	
 	ax.scatter(x_crds, y_crds)
+	
+	if(to_show):
+		plt.show()
+
+def draw_state(state, to_show=False, ax=None, title=None):
+	L = state.shape[0]
+	assert(state.shape[1] == L)
+	
+	if(ax is None):
+		fig, ax, _ = my.get_fig('x', 'y', title=title)
+	
+	ax.imshow(state)
 	
 	if(to_show):
 		plt.show()
@@ -301,7 +313,7 @@ def center_state_by_cluster(state, cluster_inds, \
 		species_crds[i] = np.empty((len(specie_inds), 2))
 		species_crds[i][:, 0] = np.mod(specie_inds % L + x_shift_to1image - x_cm + L/2, L)
 		species_crds[i][:, 1] = np.mod(specie_inds // L + y_shift_to1image - y_cm + L/2, L)
-		#draw_state(species_crds[i][:, 0], species_crds[i][:, 1], to_show=True)
+		#draw_state_crds(species_crds[i][:, 0], species_crds[i][:, 1], to_show=True)
 	
 	return species_crds, cluster_centered0_crds
 
@@ -420,6 +432,9 @@ def proc_order_parameter_FFS(L, e, mu, flux0, d_flux0, probs, \
 						
 						#cluster_centered_crds[i][j], _, _, _, _ = \
 						#	center_cluster(max_cluster_inds, L)
+						
+						# if(j == 0):
+							# draw_state(states[i][j, :, :], to_show=True, ax=None, title='CS = ' + str(OP_interfaces[i]))
 						
 						state_centered_crds[i][j], cluster_centered_crds[i][j] = \
 							center_state_by_cluster(states[i][j, :, :], max_cluster_inds)
@@ -793,7 +808,7 @@ def proc_order_parameter_FFS(L, e, mu, flux0, d_flux0, probs, \
 			ax_OP, ax_OPhists, ax_F, ax_PB_log, ax_PB, ax_PB_sgm, ax_fl, ax_fl_i
 
 def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_mode, \
-				verbose=None, to_get_timeevol=False, \
+				stab_step=-5, verbose=None, to_get_timeevol=False, \
 				OP_sample_BF_to=None, OP_match_BF_to=None, 
 				to_plot_time_evol=False, to_plot_hists=False, timeevol_stride=-3000, \
 				init_gen_mode=-2, Ms_alpha=0.5, OP_optim_minstep=8, \
@@ -809,7 +824,8 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 	# return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M, biggest_cluster_sizes, time);
 	(_states, probs, d_probs, Nt, Nt_OP, flux0, d_flux0, _E, _M, _CS, times) = \
 		lattice_gas.run_FFS(MC_move_mode, L, e.flatten(), mu, N_init_states, \
-							OP_interfaces, verbose=verbose, \
+							OP_interfaces, stab_step=stab_step, \
+							verbose=verbose, \
 							to_remember_timeevol=to_get_timeevol, \
 							init_gen_mode=init_gen_mode, \
 							interface_mode=OP_C_id[interface_mode], \
@@ -1343,7 +1359,9 @@ def phi_to_x(p, d_p):
 	d_x = x * np.sqrt(np.sum((d_p[1:] / p[1:])**2))
 	return x, d_x
 
-def cost_fnc(MC_move_mode, L, e, mu, Nt, interface_mode, phi0_target, phi1_target, timeevol_stride, N_runs, stab_step, verbose=0, to_plot_timeevol=False, to_plot_debug=False, cost_mode=0):
+def cost_fnc(MC_move_mode, L, e, mu, Nt, interface_mode, phi0_target, phi1_target, \
+			timeevol_stride, N_runs, stab_step, verbose=0, stab_step_FFS=-5, \
+			to_plot_timeevol=False, to_plot_debug=False, cost_mode=0):
 	L2 = L**2
 	if(len(mu) == 2):
 		mu_full = np.zeros(N_species)
@@ -1363,7 +1381,7 @@ def cost_fnc(MC_move_mode, L, e, mu, Nt, interface_mode, phi0_target, phi1_targe
 	phi_0, d_phi_0, phi_1, d_phi_1, \
 		phi_0_evol, d_phi_0_evol, phi_1_evol, d_phi_1_evol = \
 			run_many(MC_move_mode, L, e_full, mu_full, N_runs, interface_mode, \
-				Nt_per_BF_run=Nt, stab_step=stab_step, \
+				Nt_per_BF_run=Nt, stab_step=stab_step_FFS, \
 				mode='BF_2sides', timeevol_stride=timeevol_stride, \
 				to_plot_time_evol=to_plot_timeevol, verbose=max(verbose - 1, 0))
 	
@@ -1440,7 +1458,8 @@ mu/T:
 def find_optimal_mu(MC_move_mode, L, e0, mu0, Temp0, phi0_target, phi1_target, Nt, \
 				interface_mode, N_runs, cost_mode, to_plot_timeevol=False, \
 				timeevol_stride=-3000, to_plot_debug=False, stab_step=-10, \
-				opt_mode=0, verbose=0, mu_step=None, Temp_step = 0.02):
+				opt_mode=0, verbose=0, mu_step=None, Temp_step=0.02, \
+				stab_step_FFS=-5):
 	L2 = L**2
 	
 	assert(phi0_target[0] > phi0_target[1]), 'ERROR: phi0_target is supposed to have 0-component majority, but phi0 = ' + str(phi0_target)
@@ -1465,7 +1484,8 @@ def find_optimal_mu(MC_move_mode, L, e0, mu0, Temp0, phi0_target, phi1_target, N
 							phi0_target, phi1_target, \
 							timeevol_stride, N_runs, \
 							stab_step, verbose=verbose, \
-							cost_mode=cost_mode), \
+							cost_mode=cost_mode, \
+							stab_step_FFS=stab_step_FFS), \
 				x0, method="Nelder-Mead", \
 				)  #, bounds=bounds, method='SLSQP'
 	elif(opt_mode == 1):
@@ -1476,7 +1496,8 @@ def find_optimal_mu(MC_move_mode, L, e0, mu0, Temp0, phi0_target, phi1_target, N
 					cost_fnc(MC_move_mode, L, x[:3], x[3:], Nt, interface_mode, \
 							phi0_target, phi1_target, timeevol_stride, \
 							N_runs, stab_step, verbose=verbose, \
-							cost_mode=cost_mode), \
+							cost_mode=cost_mode, \
+							stab_step_FFS=stab_step_FFS), \
 				x0, \
 				bounds=((-3,-2), (-2,-1), (-2, -1), (5.1, 5.5), (4, 10)))  #, method='SLSQP'
 	elif(opt_mode == 2):
@@ -1487,7 +1508,8 @@ def find_optimal_mu(MC_move_mode, L, e0, mu0, Temp0, phi0_target, phi1_target, N
 			lambda x: \
 				cost_fnc(MC_move_mode, L, e0 * Temp0 / x[0], x[1:] / x[0], Nt, interface_mode, \
 						phi0_target, phi1_target, timeevol_stride, N_runs, \
-						stab_step, verbose=verbose, cost_mode=cost_mode)
+						stab_step, verbose=verbose, cost_mode=cost_mode, \
+						stab_step_FFS=stab_step_FFS)
 		if(mu_step is None):
 			x_opt = scipy.optimize.minimize(cost_lambda, x0, method="Nelder-Mead")
 		else:
@@ -1609,6 +1631,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			PB_AB_data[:, i], d_PB_AB_data[:, i], PB_sigmoid_data[:, i], d_PB_sigmoid_data[:, i], PB_linfit_data[:, i], PB_linfit_inds_data[:, i], OP0_AB_data[i] = \
 				proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states_AB, \
 							OP_interfaces_AB, interface_mode, \
+							stab_step=stab_step, \
 							OP_sample_BF_to=OP_sample_BF_A_to, \
 							OP_match_BF_to=OP_match_BF_A_to, \
 							init_gen_mode=init_gen_mode, \
@@ -1733,7 +1756,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 
 def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 						N_init_states, OP_interfaces, init_gen_mode=-3, \
-						init_composition=None, \
+						init_composition=None, stab_step=-5, \
 						to_plot=False, to_save_npy=True, to_recomp=False):
 	L2 = L**2
 	N_mu = mu_arr.shape[0]
@@ -1781,6 +1804,7 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 				d_flux0_A[i_mu], prob_AB_new, d_prob_AB_new, PB_AB_new, d_PB_AB_new, \
 				OP0_AB[i_mu], d_OP0_AB[i_mu] = \
 					run_many(MC_move_mode, L, e, mu_arr[i_mu, :], N_runs, interface_mode, \
+						stab_step=stab_step, \
 						N_init_states_AB=N_init_states, \
 						OP_interfaces_AB=OP_interfaces[i_mu], \
 						mode='FFS_AB', init_gen_mode=init_gen_mode, \
@@ -2082,6 +2106,10 @@ def main():
 	else:
 		OP_0[0] = table_data.OP_interfaces_table[OP_interfaces_set_IDs[0]][0]
 		OP_max[0] = table_data.OP_interfaces_table[OP_interfaces_set_IDs[0]][-1]
+		if(OP_min_BF == 0):
+			OP_min_BF = OP_0[0]
+		if(OP_max_BF == 0):
+			OP_max_BF = OP_max[0]
 		
 	OP_0 = np.array(([int(OP_0[0])] * N_param_points) if(len(OP_0) == 1) else [int(x) for x in OP_0], dtype=int)
 	OP_max = np.array(([int(OP_max[0])] * N_param_points) if(len(OP_max) == 1) else [int(x) for x in OP_max], dtype=int)
@@ -2249,7 +2277,6 @@ def main():
 			plot_Q_target_phase_data(target_states1_all, target_phase_id1, phi_1, d_phi_1, '1', cost_mode)
 
 	elif(mode == 'BF_2sides_muOpt'):
-		
 		N_targets = target_states0.shape[0]
 		phi_0 = np.empty((N_targets, N_species))
 		d_phi_0 = np.empty((N_targets, N_species))
@@ -2267,7 +2294,7 @@ def main():
 			x_opt = find_optimal_mu(MC_move_mode, Ls[0], e, mu[0, :], Temp, \
 						target_states0[i, :], target_states1[i, :], \
 						Nt, interface_mode, N_runs, cost_mode, \
-						stab_step=stab_step, 
+						stab_step_FFS=stab_step, 
 						opt_mode=opt_mode, verbose=verbose)
 			
 			if(opt_mode == 0):
@@ -2322,13 +2349,15 @@ def main():
 	
 	elif(mode == 'BF_many'):
 		run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, Nt_per_BF_run=Nt, \
+				stab_step=stab_step, \
 				OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
 				to_plot_k_distr=True, N_k_bins=N_k_bins, \
 				mode='BF', N_saved_states_max=N_saved_states_max, 
 				init_composition=init_composition)
 	
 	elif(mode == 'BF_AB_many'):
-		run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, Nt_per_BF_run=Nt, \
+		run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, 
+				Nt_per_BF_run=Nt, stab_step=stab_step, \
 				OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
 				to_plot_k_distr=True, N_k_bins=N_k_bins, \
 				mode='BF_AB', N_saved_states_max=N_saved_states_max, \
@@ -2337,6 +2366,7 @@ def main():
 	elif(mode == 'FFS_AB'):
 		proc_FFS_AB(MC_move_mode, Ls[0], e, mu[0, :], N_init_states_AB, \
 					OP_interfaces_AB[0], interface_mode, \
+					stab_step=stab_step, \
 					OP_sample_BF_to=OP_sample_BF_A_to[0], \
 					OP_match_BF_to=OP_match_BF_A_to[0], \
 					timeevol_stride=timeevol_stride, \
@@ -2350,6 +2380,7 @@ def main():
 			flux0_AB_FFS, d_flux0_AB_FFS, prob_AB_FFS, d_prob_AB_FFS, PB_AB_FFS, d_PB_AB_FFS, \
 			OP0_AB, d_OP0_AB = \
 				run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, \
+					stab_step=stab_step, \
 					N_init_states_AB=N_init_states_AB, \
 					OP_interfaces_AB=OP_interfaces_AB[0], \
 					to_plot_k_distr=False, N_k_bins=N_k_bins, \
@@ -2366,6 +2397,7 @@ def main():
 	elif('mu' in mode):
 		get_mu_dependence(MC_move_mode, mu, Ls[0], e, N_runs, interface_mode, \
 						N_init_states_AB, OP_interfaces_AB, init_gen_mode=init_gen_mode, \
+						stab_step=stab_step, \
 						to_plot=True, to_save_npy=True, to_recomp=to_recomp)
 	
 	elif('L' in mode):
@@ -2404,6 +2436,7 @@ def main():
 					ln_k_AB[i_l], d_ln_k_AB[i_l], k_AB_BFcount_N[i_l], d_k_AB_BFcount_N[i_l] = \
 						run_many(MC_move_mode, Ls[i_l], e, mu[0, :], \
 								N_runs, interface_mode, Nt_per_BF_run=Nt, \
+								stab_step=stab_step, \
 								OP_A=OP_0[i_l], OP_B=OP_max[i_l], \
 								N_spins_up_init=N_spins_up_init, \
 								to_get_timeevol=to_get_timeevol, mode='BF_AB', \
@@ -2417,6 +2450,7 @@ def main():
 					PB_AB_FFS[:, i_l], d_PB_AB_FFS[:, i_l], \
 					OP0_AB[i_l], d_OP0_AB[i_l] = \
 						run_many(MC_move_mode, Ls[i_l], e, mu[0, :], N_runs, interface_mode, \
+							stab_step=stab_step, \
 							N_init_states_AB=N_init_states_AB, \
 							OP_interfaces_AB=OP_interfaces_AB[i_l], \
 							mode='FFS_AB', init_gen_mode=init_gen_mode, \
@@ -2499,6 +2533,7 @@ def main():
 			PB_AB_FFS, d_PB_AB_FFS, \
 			OP0_AB, d_OP0_AB = \
 				run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, \
+					stab_step=stab_step, \
 					N_init_states_AB=N_init_states_AB, \
 					OP_interfaces_AB=OP_interfaces_AB[0], \
 					to_plot_k_distr=False, N_k_bins=N_k_bins, \
@@ -2511,6 +2546,7 @@ def main():
 		F_BF, d_F_BF, M_hist_centers_BF, M_hist_lens_BF, ln_k_AB_BF, d_ln_k_AB_BF, ln_k_BA_BF, d_ln_k_BA_BF, \
 			ln_k_bc_AB_BF, d_ln_k_bc_AB_BF, ln_k_bc_BA_BF, d_ln_k_bc_BA_BF = \
 				run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, \
+						stab_step=stab_step, \
 						OP_A=OP_0[0], OP_B=OP_max[0], \
 						Nt_per_BF_run=Nt, mode='BF', \
 						to_plot_k_distr=False, N_k_bins=N_k_bins, \

@@ -10,8 +10,16 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+#include <pybind11/pytypes.h>
+#include <pybind11/cast.h>
+
+//#include <numpy/arrayobject.h>
+//#include "ndarray/pybind11.h"
+
+#include <Python.h>
 
 namespace py = pybind11;
+using namespace py::literals;
 
 #define dim 2
 
@@ -65,7 +73,7 @@ namespace lattice_gas
 	int state_is_valid(const int *s, int L, int k=0, char prefix=0);
 
 	int run_FFS_C(int move_mode, double *flux0, double *d_flux0, int L, const double *e, const double *mu, int *states,
-				  int *N_init_states, long *Nt, long *Nt_OP_saved,
+				  int *N_init_states, long *Nt, long *Nt_OP_saved, long stab_step,
 				  long *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
 				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode, const int *init_state);
 	int run_bruteforce_C(int move_mode, int L, const double *e, const double *mu, long *time_total, int N_states, int *states,
@@ -79,21 +87,23 @@ namespace lattice_gas
 						long *Nt, long *Nt_OP_saved, long *OP_arr_len, int N_init_states, int N_next_states,
 						int L, const double *e, const double *mu, int OP_0, int OP_next,
 						int interfaces_mode, int verbose);
-	int run_state(int move_mode, int *s, int L, const double *e, const double *mu, long *time_total,
+	int run_state(int move_mode, int *s, int *OP_current, int L, const double *e, const double *mu, long *time_total,
 				  int OP_0, int OP_next, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 				  int *cluster_element_inds, int *cluster_sizes, int *cluster_types, int *is_checked, long *Nt, long *Nt_OP_saved,
 				  long *OP_arr_len, int interfaces_mode, int verbose, int to_cluster=1, long Nt_max=-1, int* states_to_save=nullptr,
 				  int *N_states_saved=nullptr, int N_states_to_save=-1,  int OP_min_save_state=0, int OP_max_save_state=0,
 				  int save_state_mode=save_state_mode_Inside, int OP_A=0, int OP_B=0, long save_states_stride=1);
-	int get_init_states_C(int move_mode, int L, const double *e, const double *mu, long *time_total, int N_init_states, int *init_states, int mode, int OP_thr_save_state,
+	int get_init_states_C(int move_mode, int L, const double *e, const double *mu, long *time_total, int N_init_states,
+						  int *init_states, int mode, int OP_thr_save_state, long stab_step,
 						  int interface_mode, int OP_A, int OP_B,
 						  double **E, int **M, int **biggest_cluster_size, int **h_A, int **time,
 						  long *Nt, long *Nt_OP_saved, long *OP_arr_len, const int *init_state, int verbose);
-	int get_equilibrated_state(int move_mode, int L, const double *e, const double *mu, int *state, int interface_mode,
-							   int OP_A, int OP_B, const int *init_state, int verbose);
+	int get_equilibrated_state(int move_mode, int L, const double *e, const double *mu, int *state, int *N_states_done,
+							   int interface_mode, int OP_A, int OP_B, long stab_step, const int *init_state, int verbose);
 
 
 	int init_rand_C(int my_seed);
+	int get_max_CS(int *state, int L);
 	double comp_E(const int* state, int L, const double *e, const double *mu);
 	int comp_M(const int *s, int L);
 	int generate_state(int *s, int L, int mode, int interface_mode, int verbose);
@@ -118,11 +128,11 @@ namespace lattice_gas
 //py::tuple get_init_states(int L, double Temp, double h, int N0, int M_0, int to_get_EM, std::optional<int> _verbose);
 py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<double> mu,
 				  pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
-				  int to_remember_timeevol, int init_gen_mode, int interface_mode,
+				  int to_remember_timeevol, int init_gen_mode, int interface_mode, long stab_step,
 				  std::optional< pybind11::array_t<int> > _init_state,
 				  std::optional<int> _verbose);
 py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_t<double> mu, long Nt_max,
-						 long N_states_to_save, long save_states_stride,
+						 long N_saved_states_max, long save_states_stride, long stab_step,
 						 std::optional<int> _N_spins_up_init, std::optional<int> _to_remember_timeevol,
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min_save_state, std::optional<int> _OP_max_save_state,
