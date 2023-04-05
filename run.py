@@ -94,7 +94,7 @@ if(__name__ == "__main__"):
 			if(compile_mode == 'della'):
 				compile_results = my.run_it('make %s.so -j 9' % (filebase), check=True).split('\n')
 			else:
-				compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True)
+				compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True).split('\n')
 			
 			N_recompile_log_lines = len(compile_results)
 			
@@ -102,10 +102,7 @@ if(__name__ == "__main__"):
 			if(compile_mode == 'della'):
 				nothing_done_in_recompile = (compile_results[0] == '[100%] Built target lattice_gas.so') and (N_recompile_log_lines <= 2)
 			else:
-				print(compile_results)
 				nothing_done_in_recompile = np.any(np.array([('ninja: no work to do.' in s) for s in compile_results]))
-				input('ok')
-				# python run.py -mode BF_1 -Nt 16000000 -L 128 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt-1 -e -2.68010292 -1.34005146 -1.71526587 -OP_min_BF -1 -OP_max_BF 0 -timeevol_stride 16000
 			os.chdir(path_back)
 			if(nothing_done_in_recompile):
 				print('Nothing done, keeping the old .so lib')
