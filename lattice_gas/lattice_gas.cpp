@@ -178,7 +178,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 	assert(L > 0);
 	int verbose = (_verbose.has_value() ? _verbose.value() : lattice_gas::verbose_dafault);
 	int to_remember_timeevol = (_to_remember_timeevol.has_value() ? _to_remember_timeevol.value() : 1);
-	int interface_mode = (_interface_mode.has_value() ? _interface_mode.value() : mode_ID_CS);  
+	int interface_mode = (_interface_mode.has_value() ? _interface_mode.value() : mode_ID_CS);
 	assert((interface_mode >= 0) && (interface_mode < N_interface_modes));
 	int OP_min = (_OP_min.has_value() ? _OP_min.value() : lattice_gas::OP_min_default[interface_mode]);
 	int OP_max = (_OP_max.has_value() ? _OP_max.value() : lattice_gas::OP_max_default[interface_mode]);
