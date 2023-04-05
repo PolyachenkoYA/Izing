@@ -107,7 +107,8 @@ namespace lattice_gas
 	double new_spin_energy(int L, const double *e, const double *mu, const int *s_neibs, int s_new);
 	void get_spin_with_neibs(const int *state, int L, int ix, int iy, int *s_group);
 	int swap_move(const int *state, int L, const double *e, const double *mu, int *ix, int *iy, int *ix_new, int *iy_new, double *dE);
-	int long_swap_move(const int *state, int L, const double *e, const double *mu, int *ix, int *iy, int *ix_new, int *iy_new, double *dE);
+//	int long_swap_move(const int *state, int L, const double *e, const double *mu, int *ix, int *iy, int *ix_new, int *iy_new, double *dE);
+	int long_swap_move(const int *state, uint L, const double *e, const double *mu, int *ix, int *iy, int *ix_new, int *iy_new, double *dE);
 	int flip_move(const int *state, int L, const double *e, const double *mu, int *ix, int *iy, int *s_new, double *dE);
 	double swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new);
 	double flip_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int s_new);
