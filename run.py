@@ -72,24 +72,30 @@ if(__name__ == "__main__"):
 	to_recompile = True
 	if(to_recompile):
 		filebase = 'lattice_gas'
-		path_to_so = os.path.join(filebase, 'cmake-build-release')
+		build_dir = 'cmake-build-release'
+		build_dir = 'build'
+		path_to_so = os.path.join(filebase, build_dir)
 		N_dirs_down = path_to_so.count('/') + 1
 		path_back = '/'.join(['..'] * N_dirs_down)
-
+	
 		os.chdir(path_to_so)
-		compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True)
+		#compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True)
+		compile_results = my.run_it('make %s.so -j 9' % (filebase), check=True)
 		nothing_done_in_recompile = np.any(np.array([('ninja: no work to do.' in s) for s in compile_results.split('\n')]))
 		os.chdir(path_back)
 		if(nothing_done_in_recompile):
 			print('Nothing done, keeping the old .so lib')
 		else:
-			my.run_it('cp %s/%s.so.cpython-38-x86_64-linux-gnu.so ./%s.so' % (path_to_so, filebase, filebase))
+			py_suffix = my.run_it('python3-config --extension-suffix', check=True)[:-1]   # [:-1] to remove "\n"
+			my.run_it('cp %s/%s.so%s ./%s.so' % (path_to_so, filebase, py_suffix, filebase))
 			print('recompiled %s' % (filebase))
-
+	
 	import lattice_gas
-	#exit()
 	
 	move_modes = lattice_gas.get_move_modes()
+	
+	print(move_modes)
+	exit()
 
 # ========================== functions ==================
 

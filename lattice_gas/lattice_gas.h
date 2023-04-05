@@ -13,9 +13,6 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/cast.h>
 
-//#include <numpy/arrayobject.h>
-//#include "ndarray/pybind11.h"
-
 #include <Python.h>
 
 namespace py = pybind11;

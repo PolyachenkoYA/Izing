@@ -9,7 +9,7 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/cast.h>
 #include <pybind11/stl.h>
-#include <python3.8/Python.h>
+#include <Python.h>
 
 #include <vector>
 
