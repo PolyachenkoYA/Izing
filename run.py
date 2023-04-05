@@ -2015,7 +2015,7 @@ def main():
 	# python run.py -mode FFS_AB -L 128 -to_get_timeevol 0 -N_states_FFS 50 -N_init_states_FFS 100 -N_runs 2 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -init_composition 0.97 0.02 0.01 -OP_interfaces_set_IDs nvt10
 	# python run.py -mode BF_1 -Nt 150000 -L 128 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.97 0.02 0.01 -OP_interfaces_set_IDs nvt10 -e -2.68010292 -1.34005146 -1.71526587
 	# python run.py -mode BF_1 -Nt 800000000 -L 128 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt-1 -e -2.68010292 -1.34005146 -1.71526587 -OP_min_BF -1 -OP_max_BF 0 -timeevol_stride 16000
-	# python run.py -mode FFS_AB -L 128 -to_get_timeevol 0 -N_states_FFS 5 -N_init_states_FFS 10 -N_runs 2 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -init_composition 0.977 0.013 0.01 -OP_interfaces_set_IDs nvt15
+	# python run.py -mode FFS_AB -L 128 -to_get_timeevol 0 -N_states_FFS 5 -N_init_states_FFS 10 -N_runs 2 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -init_composition 0.977 0.013 0.01 -OP_interfaces_set_IDs nvt16
 	
 	################################ Ising ############################
 	# python run.py -mode BF_AB_L -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 35000000 -N_runs 5 -h 0.15 -interface_set_mode spaced -L 100 71 56 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5

@@ -1289,7 +1289,7 @@ namespace lattice_gas
 			Nt = Nt_to_reach_OP_A;
 			if(verbose > 0){
 //				printf("Proc N_states_done = %d\n", N_states_done);
-				printf("Attempting to simulate Nt = %ld MC steps towards the local optimum\n", N_steps_to_equil);
+				printf("Attempting to simulate Nt = %ld MC steps towards the local optimum            \r", N_steps_to_equil);
 				if(N_tries > 0){
 					printf("Previous attempt results in %d reaches of state B (OP_B = %d), so restating from the initial ~OP_A\n", N_tries, OP_B);
 				}
@@ -1322,11 +1322,13 @@ namespace lattice_gas
 				// Such N_steps_to_equil is ~N_tries smaller than current N_steps_to_equil
 				//// but *1.5 go not get always down but looks for a maximum possible time
 			}
-			if(N_steps_to_equil == 1){
-				printf("Nt_steps = 1\n");
-				getchar();
-			}
+//			if(N_steps_to_equil == 1){
+//				printf("Nt_steps = 1\n");
+//				getchar();
+//			}
 		}while(1);
+		
+		printf("Equilibrated state generated                                                \n");
 //		}while(N_tries > 0);
 		// N_tries = 0 in the beginning of BF. If we went over the N_c, I want to restart because we might not have obtained enough statistic back around the optimum.
 
