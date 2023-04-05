@@ -203,7 +203,7 @@ OP_interfaces_table['nvt11'] = np.array([14, 19, 24, 29, 34, 39, 44], dtype=int)
 OP_interfaces_table['nvt12'] = np.array([13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 40, 45], dtype=int)
 OP_interfaces_table['nvt13'] = np.array([13, 15, 17, 19, 21, 23, 25, 27, 29, 31], dtype=int)
 OP_interfaces_table['nvt14'] = np.array([21, 23, 25, 27, 29, 31, 33, 35, 37, 40, 45], dtype=int)
-OP_interfaces_table['nvt15'] = np.array([21, 25, 29, 33, 37, 41, 45, 50, 60, 80], dtype=int)
+OP_interfaces_table['nvt15'] = np.array([21, 25, 29, 33, 37, 41, 45, 50, 60, 80], dtype=int) - 2
 
 L_reference = 100
 
