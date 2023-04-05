@@ -1671,12 +1671,13 @@ namespace lattice_gas
 		return new_spin_energy(L, e, mu, s, s_new) - new_spin_energy(L, e, mu, s, s[0]);
 	}
 
-	int long_swap_move(const int *state, int L, const double *e, const double *mu, int *ix, int *iy, int *ix_new, int *iy_new, double *dE)
+	int long_swap_move(const int *state, uint L, const double *e, const double *mu, int *ix, int *iy, int *ix_new, int *iy_new, double *dE)
 	{
 		int N_flip_tries = 0;
-		int L2 = L * L;
-		int total_range = L2 * (L2 - 1);
-		int rnd, pos, shift;
+		uint L2 = L * L;
+		ulong total_range = L2 * (L2 - 1);
+		ulong rnd;
+		uint pos, shift;
 		do{
 			rnd = gsl_rng_uniform_int(rng, total_range);
 

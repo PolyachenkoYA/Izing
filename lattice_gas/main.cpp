@@ -12,8 +12,8 @@ int main(int argc, char** argv) {
 //	py::module_ sys = py::module_::import("sys");
 //	py::print(sys.attr("path"));
 
-	test_BF();
-//	test_FFS_C();
+//	test_BF();
+	test_FFS_C();
 
 	printf("DONE\n");
 
@@ -112,60 +112,6 @@ void test_BF()
 								  N_spins_up_init, verbose, Nt_max, &N_launches, 0,
 								  (OP_A <= 1) && (!bool(_init_state_ptr)), save_states_stride);
 
-//	int N_last_elements_to_print = std::min(Nt_OP_saved, (long)10);
-
-//	py::array_t<double> E;
-//	py::array_t<int> M;
-//	py::array_t<int> biggest_cluster_sizes;
-//	py::array_t<int> h_A;
-//	py::array_t<int> time;
-//	if(to_remember_timeevol){
-//		if(verbose >= 2){
-//			printf("Brute-force core done,  Nt = %ld, Nt_OP = %ld\n", Nt, Nt_OP_saved);
-//			lattice_gas::print_E(&(_E[Nt_OP_saved - N_last_elements_to_print]), N_last_elements_to_print, 'F');
-//			lattice_gas::print_M(&(_M[Nt_OP_saved - N_last_elements_to_print]), N_last_elements_to_print, 'F');
-////		lattice_gas::print_biggest_cluster_sizes(&(_M[Nt - N_last_elements_to_print]), N_last_elements_to_print, 'F');
-//		}
-//
-//		E = py::array_t<double>(Nt_OP_saved);
-//		py::buffer_info E_info = E.request();
-//		double *E_ptr = static_cast<double *>(E_info.ptr);
-//		memcpy(E_ptr, _E, sizeof(double) * Nt_OP_saved);
-//		free(_E);
-//
-//		M = py::array_t<int>(Nt_OP_saved);
-//		py::buffer_info M_info = M.request();
-//		int *M_ptr = static_cast<int *>(M_info.ptr);
-//		memcpy(M_ptr, _M, sizeof(int) * Nt_OP_saved);
-//		free(_M);
-//
-//		biggest_cluster_sizes = py::array_t<int>(Nt_OP_saved);
-//		py::buffer_info biggest_cluster_sizes_info = biggest_cluster_sizes.request();
-//		int *biggest_cluster_sizes_ptr = static_cast<int *>(biggest_cluster_sizes_info.ptr);
-//		memcpy(biggest_cluster_sizes_ptr, _biggest_cluster_sizes, sizeof(int) * Nt_OP_saved);
-//		free(_biggest_cluster_sizes);
-//
-//		h_A = py::array_t<int>(Nt_OP_saved);
-//		py::buffer_info h_A_info = h_A.request();
-//		int *h_A_ptr = static_cast<int *>(h_A_info.ptr);
-//		memcpy(h_A_ptr, _h_A, sizeof(int) * Nt_OP_saved);
-//		free(_h_A);
-//
-//		time = py::array_t<int>(Nt_OP_saved);
-//		py::buffer_info time_info = time.request();
-//		int *time_ptr = static_cast<int *>(time_info.ptr);
-//		memcpy(time_ptr, _time, sizeof(int) * Nt_OP_saved);
-//		free(_time);
-//
-//		if(verbose >= 2){
-//			printf("internal memory for EMt freed\n");
-//			lattice_gas::print_E(&(E_ptr[Nt_OP_saved - N_last_elements_to_print]), N_last_elements_to_print, 'P');
-//			lattice_gas::print_M(&(M_ptr[Nt_OP_saved - N_last_elements_to_print]), N_last_elements_to_print, 'P');
-//			printf("exiting py::run_bruteforce\n");
-//		}
-//
-//	}
-
 	if(to_remember_timeevol){
 		free(_E);
 		free(_M);
@@ -208,7 +154,7 @@ void test_FFS_C()
 	int verbose = 2;
 	int my_seed = 2;
 
-	int L = 32;
+	int L = 256;
 	int N_init_states_default = 1000;
 	int N_init_states_A = 100000;
 	int N_OP_interfaces = 3;
@@ -219,6 +165,8 @@ void test_FFS_C()
 	int OP_max;
 	int move_mode = move_mode_flip;
 	int stab_step = -10;
+
+	move_mode = move_mode_long_swap;
 
 	// for valgrind
 	N_init_states_default = 10;
