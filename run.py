@@ -71,7 +71,12 @@ def set_OP_defaults(L2):
 if(__name__ == "__main__"):
 	to_recompile = True
 	if(to_recompile):
-		if('which: no cmake in' in my.run_it('which cmake', check=True, verbose=False)):
+		try:
+			which_cmake_res = my.run_it('which cmake', check=True, verbose=False)
+		except OSError as e:
+			print("cmake not found:", e, file=sys.stderr)
+			to_recompile = False
+		if(to_recompile):
 			compile_modes = {'yp1065' : 'della', 'ypolyach' : 'local'}
 			username = my.get_username()
 			compile_mode = compile_modes[username]
@@ -86,9 +91,13 @@ if(__name__ == "__main__"):
 			path_back = '/'.join(['..'] * N_dirs_down)
 		
 			os.chdir(path_to_so)
-			#compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True)
-			compile_results = my.run_it('make %s.so -j 9' % (filebase), check=True).split('\n')
+			if(compile_mode == 'della'):
+				compile_results = my.run_it('make %s.so -j 9' % (filebase), check=True).split('\n')
+			else:
+				compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True)
+			
 			N_recompile_log_lines = len(compile_results)
+			
 			assert(N_recompile_log_lines > 0), 'ERROR: nothing printed by make'
 			if(compile_mode == 'della'):
 				nothing_done_in_recompile = (compile_results[0] == '[100%] Built target lattice_gas.so') and (N_recompile_log_lines <= 2)
