@@ -9,7 +9,7 @@
 #include <pybind11/pytypes.h>
 #include <pybind11/cast.h>
 #include <pybind11/stl.h>
-#include <python3.8/Python.h>
+#include <Python.h>
 
 #include <vector>
 
@@ -21,7 +21,7 @@ using namespace pybind11::literals;
 void test_my(int k, py::array_t<long> *_Nt, py::array_t<double> *_probs, py::array_t<double> *_d_probs, int l)
 // A function for DEBUG purposes
 {
-	printf("checking step %d\n", k);
+	printf("checking  step %d\n", k);
 	py::buffer_info Nt_info = (*_Nt).request();
 	py::buffer_info probs_info = (*_probs).request();
 	py::buffer_info d_probs_info = (*_d_probs).request();

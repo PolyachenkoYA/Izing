@@ -71,25 +71,45 @@ def set_OP_defaults(L2):
 if(__name__ == "__main__"):
 	to_recompile = True
 	if(to_recompile):
-		filebase = 'lattice_gas'
-		path_to_so = os.path.join(filebase, 'cmake-build-release')
-		N_dirs_down = path_to_so.count('/') + 1
-		path_back = '/'.join(['..'] * N_dirs_down)
-
-		os.chdir(path_to_so)
-		compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True)
-		nothing_done_in_recompile = np.any(np.array([('ninja: no work to do.' in s) for s in compile_results.split('\n')]))
-		os.chdir(path_back)
-		if(nothing_done_in_recompile):
-			print('Nothing done, keeping the old .so lib')
+		if('which: no cmake in' in my.run_it('which cmake', check=True, verbose=False)):
+			compile_modes = {'yp1065' : 'della', 'ypolyach' : 'local'}
+			username = my.get_username()
+			compile_mode = compile_modes[username]
+			
+			filebase = 'lattice_gas'
+			if(compile_mode == 'della'):
+				build_dir = 'build'
+			else:
+				build_dir = 'cmake-build-release'
+			path_to_so = os.path.join(filebase, build_dir)
+			N_dirs_down = path_to_so.count('/') + 1
+			path_back = '/'.join(['..'] * N_dirs_down)
+		
+			os.chdir(path_to_so)
+			#compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True)
+			compile_results = my.run_it('make %s.so -j 9' % (filebase), check=True).split('\n')
+			N_recompile_log_lines = len(compile_results)
+			assert(N_recompile_log_lines > 0), 'ERROR: nothing printed by make'
+			if(compile_mode == 'della'):
+				nothing_done_in_recompile = (compile_results[0] == '[100%] Built target lattice_gas.so') and (N_recompile_log_lines <= 2)
+			else:
+				nothing_done_in_recompile = np.any(np.array([('ninja: no work to do.' in s) for s in compile_results]))
+			os.chdir(path_back)
+			if(nothing_done_in_recompile):
+				print('Nothing done, keeping the old .so lib')
+			else:
+				py_suffix = my.run_it('python3-config --extension-suffix', check=True, verbose=False)[:-1]   # [:-1] to remove "\n"
+				my.run_it('cp %s/%s.so%s ./%s.so' % (path_to_so, filebase, py_suffix, filebase))
+				print('recompiled %s' % (filebase))
 		else:
-			my.run_it('cp %s/%s.so.cpython-38-x86_64-linux-gnu.so ./%s.so' % (path_to_so, filebase, filebase))
-			print('recompiled %s' % (filebase))
-
+			print('cmake not found. Attempting to import existing library')
+	
 	import lattice_gas
-	#exit()
 	
 	move_modes = lattice_gas.get_move_modes()
+	
+	#print(move_modes)
+	#exit()
 
 # ========================== functions ==================
 

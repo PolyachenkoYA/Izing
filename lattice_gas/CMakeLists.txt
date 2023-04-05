@@ -13,21 +13,13 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 set(MATH_LIBS m gsl gslcblas)
-#find_library(python3.8 PATHS "$ENV{HOME}/anaconda3/lib" NO_DEFAULT_PATH)
-set(PY_LIBS crypt pthread dl util rt python3.8)
-#set(Python3_INTERPRETER_ID Anaconda)
-#set(PYTHON_INCLUDE_PATH "$ENV{HOME}/anaconda3/include/python3.8")
-#set(PYTHON_LIBRARIES "$ENV{HOME}/anaconda3/lib/libpython3.8.so")
+set(PY_LIBS crypt pthread dl util rt python3)
 
-find_package(Python3 REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+#message(STATUS "${Python_EXECUTABLE}")
 include_directories($ENV{HOME}/anaconda3/include)
-include_directories($ENV{HOME}/anaconda3/include/python3.8)
+#include_directories($ENV{HOME}/anaconda3/include/python3.8)
 link_directories($ENV{HOME}/anaconda3/lib)
-
-#set(Python3_LIBRARY "$ENV{HOME}/anaconda3/lib")
-#set(Python3_INCLUDE_DIR "$ENV{HOME}/anaconda3/include")
-# "$ENV{HOME}/anaconda3/include/python3.8"
-#find_package(Python3 REQUIRED)
 
 find_package(pybind11 REQUIRED)
 add_executable(lattice_gas main.cpp lattice_gas.h lattice_gas.cpp)
