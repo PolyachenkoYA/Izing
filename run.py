@@ -49,26 +49,6 @@ feature_label = {}
 feature_label['M'] = 'm'
 feature_label['CS'] = 'Scl'
 
-def join_lbls(arr, spr, n=3):
-	return spr.join([my.f2s(a, n=n) for a in arr])
-
-def set_OP_defaults(L2):
-	OP_min_default['M'] = - 1
-	OP_max_default['M'] = L2 + 1
-	OP_scale['M'] = L2
-	dOP_step['M'] = OP_step['M'] / OP_scale['M']
-	OP_std_overestimate['M'] = 2 * L2
-	OP_possible_jumps['M'] = np.array([-1, 0, 1])
-	OP_peak_guess['M'] = 150
-	
-	OP_min_default['CS'] = -1
-	OP_max_default['CS'] = L2 + 1
-	OP_scale['CS'] = 1
-	dOP_step['CS'] = OP_step['CS'] / OP_scale['CS']
-	OP_std_overestimate['CS'] = L2
-	OP_possible_jumps['CS'] = np.arange(-L2 // 2 - 1, L2 // 2 + 1)
-	OP_peak_guess['CS'] = L2 // 2
-
 # ========================== recompile ==================
 if(__name__ == "__main__"):
 	to_recompile = True
@@ -123,6 +103,31 @@ if(__name__ == "__main__"):
 	#exit()
 
 # ========================== functions ==================
+
+def join_lbls(arr, spr, n=3):
+	return spr.join([my.f2s(a, n=n) for a in arr])
+
+def get_ThL_lbl(e, mu, init_composition, L, swap_type_move):
+	return r'$\epsilon_{11,12,22}/T = ' + join_lbls([e[1,1], e[1,2], e[2,2]], ',') + \
+				'$;\n$' + ((r'\phi_{1,2} = ' + join_lbls(init_composition[1:], ',')) if(swap_type_move) \
+						else (r'\mu_{1,2}/T = ' + join_lbls(mu[1:], ','))) + '$; L = ' + str(L)
+
+def set_OP_defaults(L2):
+	OP_min_default['M'] = - 1
+	OP_max_default['M'] = L2 + 1
+	OP_scale['M'] = L2
+	dOP_step['M'] = OP_step['M'] / OP_scale['M']
+	OP_std_overestimate['M'] = 2 * L2
+	OP_possible_jumps['M'] = np.array([-1, 0, 1])
+	OP_peak_guess['M'] = 150
+	
+	OP_min_default['CS'] = -1
+	OP_max_default['CS'] = L2 + 1
+	OP_scale['CS'] = 1
+	dOP_step['CS'] = OP_step['CS'] / OP_scale['CS']
+	OP_std_overestimate['CS'] = L2
+	OP_possible_jumps['CS'] = np.arange(-L2 // 2 - 1, L2 // 2 + 1)
+	OP_peak_guess['CS'] = L2 // 2
 
 def eFull_from_eCut(e_cut):
 	assert(len(e_cut) == N_species * (N_species - 1) // 2), 'ERROR: invalid number of components in e_cut:' + str(e_cut)
@@ -348,18 +353,30 @@ def center_state_by_cluster(state, cluster_inds, \
 	
 	return species_crds, cluster_centered0_crds
 
-def proc_order_parameter_FFS(L, e, mu, flux0, d_flux0, probs, \
+def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							d_probs, OP_interfaces, N_init_states, \
 							interface_mode, \
 							OP_data=None, time_data=None, Nt=None, Nt_OP=None, \
 							OP_hist_edges=None, memory_time=1, \
 							to_plot_time_evol=False, to_plot_hists=False, stride=1, \
 							x_lbl='', y_lbl='', Ms_alpha=0.5, OP_match_BF_to=None, \
-							states=None, OP_optim_minstep=None, cluster_map_dx=1.41, cluster_map_dr=0.5):
+							states=None, OP_optim_minstep=None, cluster_map_dx=1.41, \
+							cluster_map_dr=0.5, npz_basename=None, \
+							to_recomp=0, to_save_npz=True, \
+							init_composition=None, to_do_hists=True):
 	L2 = L**2
 	ln_k_AB = np.log(flux0 * 1) + np.sum(np.log(probs))   # [flux0 * 1] = 1, because [flux] = 1/time = 1/step
 	d_ln_k_AB = np.sqrt((d_flux0 / flux0)**2 + np.sum((d_probs / probs)**2))
 	Temp = 4 / e[1, 1]
+	swap_type_move = (MC_move_mode in [move_modes['swap'], move_modes['long_swap']])
+	
+	# npz_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
+	# npz_basename = 'L' + str(L) + '_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					# (('_muT' + join_lbls(mu[1:], '_')) if(init_composition is None) \
+						# else ('_phi' + join_lbls(init_composition[1:], '_'))) + \
+					# '_stride' + str(stride) + \
+					# '_OP' + str(OP_A) + '_' + str(OP_B) + '_stab' + str(stab_step) + \
+					# '_Nstates' + str(Nt_states) + '_ID' + str(lattice_gas.get_seed())
 	
 	print('Nt:', Nt)
 	#print('N_init_guess: ', np.exp(np.mean(np.log(Nt))) / Nt)
@@ -434,214 +451,254 @@ def proc_order_parameter_FFS(L, e, mu, flux0, d_flux0, probs, \
 		OP_hist_centers = None
 		OP_hist_lens = None
 	
-	if(to_plot_hists):
+	if(to_do_hists):
+		state_Rdens_centers, state_centered_Rdens_total, d_state_centered_Rdens = \
+			tuple([None] * 3)
+		#input(str(states is not None))
 		if(states is not None):
-			# ============ process ===========
-			OP_init_states = []
-			OP_init_hist = np.empty((N_OP_hist, N_OP_interfaces))
-			d_OP_init_hist = np.empty((N_OP_hist, N_OP_interfaces))
-			cluster_centered_crds = []
-			state_centered_crds = []
-			cluster_centered_crds_per_interface = [[]] * N_OP_interfaces
-			state_centered_crds_per_interface = [[]] * N_OP_interfaces
-			for i in range(N_OP_interfaces):
-				OP_init_states.append(np.empty(N_init_states[i], dtype=int))
-				cluster_centered_crds.append([[]] * N_init_states[i])
-				state_centered_crds.append([[]] * N_init_states[i])
-				for j in range(N_init_states[i]):
-					if(interface_mode == 'M'):
-						OP_init_states[i][j] = np.sum(states[i][j, :, :])
-					elif(interface_mode == 'CS'):
-						#(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j, :, :].reshape((L2)))
-						(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j, :, :].flatten())
-						#OP_init_states[i][j] = max(cluster_sizes)
-						
-						max_cluster_id = np.argmax(cluster_sizes)
-						OP_init_states[i][j] = cluster_sizes[max_cluster_id]
-						max_cluster_1st_ind_id = np.sum(cluster_sizes[:max_cluster_id])
-						max_cluster_inds = cluster_element_inds[max_cluster_1st_ind_id : max_cluster_1st_ind_id + cluster_sizes[max_cluster_id]]
-						
-						#cluster_centered_crds[i][j], _, _, _, _ = \
-						#	center_cluster(max_cluster_inds, L)
-						
-						# if(j == 0):
-							# draw_state(states[i][j, :, :], to_show=True, ax=None, title='CS = ' + str(OP_interfaces[i]))
-						
-						state_centered_crds[i][j], cluster_centered_crds[i][j] = \
-							center_state_by_cluster(states[i][j, :, :], max_cluster_inds)
-				
-				#cluster_centered_crds_per_interface[i] = np.concatenate(tuple(cluster_centered_crds[i]), axis=0)
-				cluster_centered_crds_per_interface[i] = np.concatenate(tuple([cluster_centered_crds[i][j] for j in range(N_init_states[i]) if(OP_init_states[i][j] == OP_interfaces[i])]), axis=0)
-				state_centered_crds_per_interface[i] = [[]] * N_species
-				for k in range(N_species):
-					state_centered_crds_per_interface[i][k] = \
-						np.concatenate(tuple([state_centered_crds[i][j][k] for j in range(N_init_states[i])]), axis=0)
-				
-				assert(OP_hist_edges is not None), 'ERROR: no "OP_hist_edges" provided but "OP_init_states" is asked to be analyzed (_states != None)'
-				OP_init_hist[:, i], _ = np.histogram(OP_init_states[i], bins=OP_hist_edges * OP_scale[interface_mode])
-				OP_init_hist[:, i] = OP_init_hist[:, i] / N_init_states[i]
-				d_OP_init_hist[:, i] = np.sqrt(OP_init_hist[:, i] * (1 - OP_init_hist[:, i]) / N_init_states[i])
-				
-			cluster_centered_crds_all = np.concatenate(tuple(cluster_centered_crds_per_interface), axis=0)
-			def stepped_linspace(x, dx, margin=1e-3):
-				mn = min(x) - dx * margin
-				mx = max(x) + dx * margin
-				return np.linspace(mn, mx, int((mx - mn) / dx + 0.5))
+			npz_states_filepath = os.path.join(npz_basename + '_FFSab_states.npz')
 			
-			# ==== cluster ====
-			cluster_map_edges = [stepped_linspace(cluster_centered_crds_all[:, 0], cluster_map_dx), \
-								 stepped_linspace(cluster_centered_crds_all[:, 1], cluster_map_dx)]
-			cluster_Rdens_edges = stepped_linspace(np.linalg.norm(cluster_centered_crds_all, axis=1), cluster_map_dr)
-			cluster_map_centers = [(cluster_map_edges[0][1:] + cluster_map_edges[0][:-1]) / 2, \
-									(cluster_map_edges[1][1:] + cluster_map_edges[1][:-1]) / 2]
-			cluster_Rdens_centers = (cluster_Rdens_edges[1:] + cluster_Rdens_edges[:-1]) / 2
-			
-			# ==== state ====
-			state_map_edges = [stepped_linspace([-L/2, L/2], cluster_map_dx), \
-								 stepped_linspace([-L/2, L/2], cluster_map_dx)]
-			state_Rdens_edges = stepped_linspace([0, L/2], cluster_map_dr)
-			state_map_centers = [(state_map_edges[0][1:] + state_map_edges[0][:-1]) / 2, \
-									(state_map_edges[1][1:] + state_map_edges[1][:-1]) / 2]
-			state_Rdens_centers = (state_Rdens_edges[1:] + state_Rdens_edges[:-1]) / 2
-			
-			cluster_centered_map_total = [[]] * N_OP_interfaces
-			cluster_centered_maps = [[]] * N_OP_interfaces
-			cluster_centered_Rdens_total = [[]] * N_OP_interfaces
-			cluster_centered_Rdens_s = [[]] * N_OP_interfaces
-			d_cluster_centered_map_total = [[]] * N_OP_interfaces
-			d_cluster_centered_Rdens_total = [[]] * N_OP_interfaces
-			state_centered_map_total = [[]] * N_OP_interfaces
-			state_centered_Rdens_total = [[]] * N_OP_interfaces
-			state_centered_maps = [[]] * N_OP_interfaces
-			state_centered_Rdens_s = [[]] * N_OP_interfaces
-			d_state_centered_map = [[]] * N_OP_interfaces
-			d_state_centered_Rdens = [[]] * N_OP_interfaces
-			for i in range(N_OP_interfaces):
-				# ==== cluster ====
-				cluster_centered_map_total[i], _, _ = \
-					np.histogram2d(cluster_centered_crds_per_interface[i][:, 0], \
-									cluster_centered_crds_per_interface[i][:, 1], \
-									bins=cluster_map_edges)
-				cluster_centered_Rdens_total[i], _ = \
-					np.histogram(np.linalg.norm(cluster_centered_crds_per_interface[i], axis=1), \
-								bins=cluster_Rdens_edges)
-				
-				cluster_centered_maps[i] = np.empty((cluster_centered_map_total[i].shape[0], cluster_centered_map_total[i].shape[1], N_init_states[i]))
-				cluster_centered_Rdens_s[i] = np.empty((cluster_centered_Rdens_total[i].shape[0], N_init_states[i]))
-				for j in range(N_init_states[i]):
-					cluster_centered_maps[i][:, :, j], _, _ = \
-						np.histogram2d(cluster_centered_crds[i][j][:, 0], \
-									cluster_centered_crds[i][j][:, 1], \
-									bins=cluster_map_edges)
-					
-					cluster_centered_Rdens_s[i][:, j], _ = \
-						np.histogram(np.linalg.norm(cluster_centered_crds[i][j], axis=1), \
-									bins=cluster_Rdens_edges)
-
-				d_cluster_centered_map_total[i] = np.std(cluster_centered_maps[i], axis=2)
-				d_cluster_centered_Rdens_total[i] = np.std(cluster_centered_Rdens_s[i], axis=1)
-				
-				cluster_centered_map_norm = N_init_states[i] * cluster_map_dx**2
-				cluster_centered_map_total[i] = cluster_centered_map_total[i] / cluster_centered_map_norm
-				d_cluster_centered_map_total[i] = d_cluster_centered_map_total[i] / cluster_centered_map_norm * np.sqrt(N_init_states[i])
-				
-				cluster_centered_Rdens_norm = N_init_states[i] * (np.pi * (cluster_Rdens_edges[1:]**2 - cluster_Rdens_edges[:-1]**2))
-				cluster_centered_Rdens_total[i] = cluster_centered_Rdens_total[i] / cluster_centered_Rdens_norm
-				d_cluster_centered_Rdens_total[i] = d_cluster_centered_Rdens_total[i] / cluster_centered_Rdens_norm * np.sqrt(N_init_states[i])
-				
-				# ==== state ====
-				state_centered_map_total[i] = [[]] * N_species
-				state_centered_Rdens_total[i] = [[]] * N_species
-				state_centered_maps[i] = [[]] * N_species
-				state_centered_Rdens_s[i] = [[]] * N_species
-				d_state_centered_map[i] = [[]] * N_species
-				d_state_centered_Rdens[i] = [[]] * N_species
-				for k in range(N_species):
-					state_centered_map_total[i][k], _, _ = \
-						np.histogram2d(state_centered_crds_per_interface[i][k][:, 0] - L/2, \
-										 state_centered_crds_per_interface[i][k][:, 1] - L/2, \
-										 bins=state_map_edges)
-					
-					state_centered_Rdens_total[i][k], _ = \
-						np.histogram(np.linalg.norm(state_centered_crds_per_interface[i][k] - L/2, axis=1), \
-									 bins=state_Rdens_edges)
-					
-					state_centered_maps[i][k] = np.empty((state_centered_map_total[i][k].shape[0], state_centered_map_total[i][k].shape[1], N_init_states[i]))
-					state_centered_Rdens_s[i][k] = np.empty((state_centered_Rdens_total[i][k].shape[0], N_init_states[i]))
+			if((not os.path.isfile(npz_states_filepath)) or to_recomp):
+				# ============ process ===========
+				OP_init_states = []
+				OP_init_hist = np.empty((N_OP_hist, N_OP_interfaces))
+				d_OP_init_hist = np.empty((N_OP_hist, N_OP_interfaces))
+				cluster_centered_crds = []
+				state_centered_crds = []
+				cluster_centered_crds_per_interface = [[]] * N_OP_interfaces
+				state_centered_crds_per_interface = [[]] * N_OP_interfaces
+				for i in range(N_OP_interfaces):
+					OP_init_states.append(np.empty(N_init_states[i], dtype=int))
+					cluster_centered_crds.append([[]] * N_init_states[i])
+					state_centered_crds.append([[]] * N_init_states[i])
 					for j in range(N_init_states[i]):
-						state_centered_maps[i][k][:, :, j], _, _ = \
-							np.histogram2d(state_centered_crds[i][j][k][:, 0], \
-										state_centered_crds[i][j][k][:, 1], \
-										bins=state_map_edges)
-						
-						state_centered_Rdens_s[i][k][:, j], _ = \
-							np.histogram(np.linalg.norm(state_centered_crds[i][j][k], axis=1), \
-										bins=state_Rdens_edges)
-						
+						if(interface_mode == 'M'):
+							OP_init_states[i][j] = np.sum(states[i][j, :, :])
+						elif(interface_mode == 'CS'):
+							#(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j, :, :].reshape((L2)))
+							(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j, :, :].flatten())
+							#OP_init_states[i][j] = max(cluster_sizes)
+							
+							max_cluster_id = np.argmax(cluster_sizes)
+							OP_init_states[i][j] = cluster_sizes[max_cluster_id]
+							max_cluster_1st_ind_id = np.sum(cluster_sizes[:max_cluster_id])
+							max_cluster_inds = cluster_element_inds[max_cluster_1st_ind_id : max_cluster_1st_ind_id + cluster_sizes[max_cluster_id]]
+							
+							#cluster_centered_crds[i][j], _, _, _, _ = \
+							#	center_cluster(max_cluster_inds, L)
+							
+							# if(j == 0):
+								# draw_state(states[i][j, :, :], to_show=True, ax=None, title='CS = ' + str(OP_interfaces[i]))
+							
+							state_centered_crds[i][j], cluster_centered_crds[i][j] = \
+								center_state_by_cluster(states[i][j, :, :], max_cluster_inds)
 					
-					#print(state_centered_Rdens_s[i][k].shape)
-					d_state_centered_map[i][k] = np.std(state_centered_maps[i][k], axis=2)
-					d_state_centered_Rdens[i][k] = np.std(state_centered_Rdens_s[i][k], axis=1)
-					#print(np.std(state_centered_Rdens_s[i][k], axis=1).shape)
+					#cluster_centered_crds_per_interface[i] = np.concatenate(tuple(cluster_centered_crds[i]), axis=0)
+					cluster_centered_crds_per_interface[i] = np.concatenate(tuple([cluster_centered_crds[i][j] for j in range(N_init_states[i]) if(OP_init_states[i][j] == OP_interfaces[i])]), axis=0)
+					state_centered_crds_per_interface[i] = [[]] * N_species
+					for k in range(N_species):
+						state_centered_crds_per_interface[i][k] = \
+							np.concatenate(tuple([state_centered_crds[i][j][k] for j in range(N_init_states[i])]), axis=0)
 					
-					state_centered_map_norm = N_init_states[i] * cluster_map_dx**2
-					state_centered_map_total[i][k] = state_centered_map_total[i][k] / state_centered_map_norm
-					d_state_centered_map[i][k] = d_state_centered_map[i][k] / state_centered_map_norm * np.sqrt(N_init_states[i])
+					assert(OP_hist_edges is not None), 'ERROR: no "OP_hist_edges" provided but "OP_init_states" is asked to be analyzed (_states != None)'
+					OP_init_hist[:, i], _ = np.histogram(OP_init_states[i], bins=OP_hist_edges * OP_scale[interface_mode])
+					OP_init_hist[:, i] = OP_init_hist[:, i] / N_init_states[i]
+					d_OP_init_hist[:, i] = np.sqrt(OP_init_hist[:, i] * (1 - OP_init_hist[:, i]) / N_init_states[i])
 					
-					state_centered_Rdens_norm = N_init_states[i] * (np.pi * (state_Rdens_edges[1:]**2 - state_Rdens_edges[:-1]**2))
-					state_centered_Rdens_total[i][k] = state_centered_Rdens_total[i][k] / state_centered_Rdens_norm
-					d_state_centered_Rdens[i][k] = d_state_centered_Rdens[i][k] / state_centered_Rdens_norm * np.sqrt(N_init_states[i])
-			
-			# ============ plot ===========
-			ThL_lbl = '$\epsilon_{11, 22}/T = ' + my.f2s(e[1,1]) + ',' + my.f2s(e[2,2]) + '$; $\mu_{1,2}/T = ' + my.f2s(mu[1]) + ',' + my.f2s(mu[2]) + '$; L = ' + str(L)
-			
-			# ==== cluster ====
-			fig_OPinit_hists, ax_OPinit_hists, _ = my.get_fig(y_lbl, r'$p_i(' + x_lbl + ')$', title=r'$p(' + x_lbl + ')$; ' + ThL_lbl, yscl='log')
-			fig_cluster_Rdens, ax_cluster_Rdens, _ = my.get_fig('r', r'$\rho$', title=r'$\rho(r)$; ' + ThL_lbl)
-			fig_cluster_Rdens_log, ax_cluster_Rdens_log, _ = my.get_fig('r', r'$\rho$', title=r'$\rho(r)$; ' + ThL_lbl, yscl='logit')
-			fig_cluster_map = [[]] * N_OP_interfaces
-			ax_cluster_map = [[]] * N_OP_interfaces
-			
-			# ==== state ====
-			fig_state_map = [[]] * N_species
-			ax_state_map = [[]] * N_species
-			fig_state_Rdens = [[]] * N_species
-			ax_state_Rdens = [[]] * N_species
-			fig_state_Rdens_log = [[]] * N_species
-			ax_state_Rdens_log = [[]] * N_species
-			for k in range(N_species):
-				fig_state_Rdens[k], ax_state_Rdens[k], _ = my.get_fig('r', r'$\rho_%d$' % k, title=(r'$\rho_%d(r)$; ' % k) + ThL_lbl)
-				fig_state_Rdens_log[k], ax_state_Rdens_log[k], _ = my.get_fig('r', r'$\rho_%d$' % k, title=(r'$\rho_%d(r)$; ' % k) + ThL_lbl, yscl='logit')
-				fig_state_map[k] = [[]] * N_OP_interfaces
-				ax_state_map[k] = [[]] * N_OP_interfaces
-			
-			for i in range(N_OP_interfaces):
-				ax_OPinit_hists.bar(OP_hist_centers, OP_init_hist[:, i], yerr=d_OP_init_hist[:, i], width=OP_hist_lens, align='center', label='OP = ' + str(OP_interfaces[i]), alpha=Ms_alpha)
+				cluster_centered_crds_all = np.concatenate(tuple(cluster_centered_crds_per_interface), axis=0)
+				def stepped_linspace(x, dx, margin=1e-3):
+					mn = min(x) - dx * margin
+					mx = max(x) + dx * margin
+					return np.linspace(mn, mx, int((mx - mn) / dx + 0.5))
 				
 				# ==== cluster ====
-				cluster_lbl = r'$OP[%d] = %d$; ' % (i, OP_interfaces[i])
-				ax_cluster_Rdens.errorbar(cluster_Rdens_centers, cluster_centered_Rdens_total[i], yerr=d_cluster_centered_Rdens_total[i], label=cluster_lbl)
-				ax_cluster_Rdens_log.errorbar(cluster_Rdens_centers, cluster_centered_Rdens_total[i], yerr=d_cluster_centered_Rdens_total[i], label=cluster_lbl)
-				
-				fig_cluster_map[i], ax_cluster_map[i], fig_id = my.get_fig('x', 'y', title=cluster_lbl + ThL_lbl)
-				im = ax_cluster_map[i].imshow(cluster_centered_map_total[i], \
-										extent = [min(cluster_map_centers[1]), max(cluster_map_centers[1]), \
-												  min(cluster_map_centers[0]), max(cluster_map_centers[0])], \
-										interpolation ='bilinear', origin ='lower', aspect='auto')
-				plt.figure(fig_id)
-				cbar = plt.colorbar(im)
+				cluster_map_edges = [stepped_linspace(cluster_centered_crds_all[:, 0], cluster_map_dx), \
+									 stepped_linspace(cluster_centered_crds_all[:, 1], cluster_map_dx)]
+				cluster_Rdens_edges = stepped_linspace(np.linalg.norm(cluster_centered_crds_all, axis=1), cluster_map_dr)
+				cluster_map_centers = [(cluster_map_edges[0][1:] + cluster_map_edges[0][:-1]) / 2, \
+										(cluster_map_edges[1][1:] + cluster_map_edges[1][:-1]) / 2]
+				cluster_Rdens_centers = (cluster_Rdens_edges[1:] + cluster_Rdens_edges[:-1]) / 2
 				
 				# ==== state ====
-				for k in range(N_species):
-					ax_state_Rdens[k].errorbar(state_Rdens_centers, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens[i][k], label=cluster_lbl)
-					ax_state_Rdens_log[k].errorbar(state_Rdens_centers, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens[i][k], label=cluster_lbl)
+				state_map_edges = [stepped_linspace([-L/2, L/2], cluster_map_dx), \
+									 stepped_linspace([-L/2, L/2], cluster_map_dx)]
+				state_Rdens_edges = stepped_linspace([0, L/2], cluster_map_dr)
+				state_map_centers = [(state_map_edges[0][1:] + state_map_edges[0][:-1]) / 2, \
+										(state_map_edges[1][1:] + state_map_edges[1][:-1]) / 2]
+				state_Rdens_centers = (state_Rdens_edges[1:] + state_Rdens_edges[:-1]) / 2
+				
+				cluster_centered_map_total = [[]] * N_OP_interfaces
+				cluster_centered_maps = [[]] * N_OP_interfaces
+				cluster_centered_Rdens_total = [[]] * N_OP_interfaces
+				cluster_centered_Rdens_s = [[]] * N_OP_interfaces
+				d_cluster_centered_map_total = [[]] * N_OP_interfaces
+				d_cluster_centered_Rdens_total = [[]] * N_OP_interfaces
+				state_centered_map_total = [[]] * N_OP_interfaces
+				state_centered_Rdens_total = [[]] * N_OP_interfaces
+				state_centered_maps = [[]] * N_OP_interfaces
+				state_centered_Rdens_s = [[]] * N_OP_interfaces
+				d_state_centered_map = [[]] * N_OP_interfaces
+				d_state_centered_Rdens = [[]] * N_OP_interfaces
+				for i in range(N_OP_interfaces):
+					# ==== cluster ====
+					cluster_centered_map_total[i], _, _ = \
+						np.histogram2d(cluster_centered_crds_per_interface[i][:, 0], \
+										cluster_centered_crds_per_interface[i][:, 1], \
+										bins=cluster_map_edges)
+					cluster_centered_Rdens_total[i], _ = \
+						np.histogram(np.linalg.norm(cluster_centered_crds_per_interface[i], axis=1), \
+									bins=cluster_Rdens_edges)
+					
+					cluster_centered_maps[i] = np.empty((cluster_centered_map_total[i].shape[0], cluster_centered_map_total[i].shape[1], N_init_states[i]))
+					cluster_centered_Rdens_s[i] = np.empty((cluster_centered_Rdens_total[i].shape[0], N_init_states[i]))
+					for j in range(N_init_states[i]):
+						cluster_centered_maps[i][:, :, j], _, _ = \
+							np.histogram2d(cluster_centered_crds[i][j][:, 0], \
+										cluster_centered_crds[i][j][:, 1], \
+										bins=cluster_map_edges)
+						
+						cluster_centered_Rdens_s[i][:, j], _ = \
+							np.histogram(np.linalg.norm(cluster_centered_crds[i][j], axis=1), \
+										bins=cluster_Rdens_edges)
+
+					d_cluster_centered_map_total[i] = np.std(cluster_centered_maps[i], axis=2)
+					d_cluster_centered_Rdens_total[i] = np.std(cluster_centered_Rdens_s[i], axis=1)
+					
+					cluster_centered_map_norm = N_init_states[i] * cluster_map_dx**2
+					cluster_centered_map_total[i] = cluster_centered_map_total[i] / cluster_centered_map_norm
+					d_cluster_centered_map_total[i] = d_cluster_centered_map_total[i] / cluster_centered_map_norm * np.sqrt(N_init_states[i])
+					
+					cluster_centered_Rdens_norm = N_init_states[i] * (np.pi * (cluster_Rdens_edges[1:]**2 - cluster_Rdens_edges[:-1]**2))
+					cluster_centered_Rdens_total[i] = cluster_centered_Rdens_total[i] / cluster_centered_Rdens_norm
+					d_cluster_centered_Rdens_total[i] = d_cluster_centered_Rdens_total[i] / cluster_centered_Rdens_norm * np.sqrt(N_init_states[i])
+					
+					# ==== state ====
+					state_centered_map_total[i] = [[]] * N_species
+					state_centered_Rdens_total[i] = [[]] * N_species
+					state_centered_maps[i] = [[]] * N_species
+					state_centered_Rdens_s[i] = [[]] * N_species
+					d_state_centered_map[i] = [[]] * N_species
+					d_state_centered_Rdens[i] = [[]] * N_species
+					for k in range(N_species):
+						state_centered_map_total[i][k], _, _ = \
+							np.histogram2d(state_centered_crds_per_interface[i][k][:, 0] - L/2, \
+											 state_centered_crds_per_interface[i][k][:, 1] - L/2, \
+											 bins=state_map_edges)
+						
+						state_centered_Rdens_total[i][k], _ = \
+							np.histogram(np.linalg.norm(state_centered_crds_per_interface[i][k] - L/2, axis=1), \
+										 bins=state_Rdens_edges)
+						
+						state_centered_maps[i][k] = np.empty((state_centered_map_total[i][k].shape[0], state_centered_map_total[i][k].shape[1], N_init_states[i]))
+						state_centered_Rdens_s[i][k] = np.empty((state_centered_Rdens_total[i][k].shape[0], N_init_states[i]))
+						for j in range(N_init_states[i]):
+							state_centered_maps[i][k][:, :, j], _, _ = \
+								np.histogram2d(state_centered_crds[i][j][k][:, 0], \
+											state_centered_crds[i][j][k][:, 1], \
+											bins=state_map_edges)
+							
+							state_centered_Rdens_s[i][k][:, j], _ = \
+								np.histogram(np.linalg.norm(state_centered_crds[i][j][k], axis=1), \
+											bins=state_Rdens_edges)
+							
+						
+						#print(state_centered_Rdens_s[i][k].shape)
+						d_state_centered_map[i][k] = np.std(state_centered_maps[i][k], axis=2)
+						d_state_centered_Rdens[i][k] = np.std(state_centered_Rdens_s[i][k], axis=1)
+						#print(np.std(state_centered_Rdens_s[i][k], axis=1).shape)
+						
+						state_centered_map_norm = N_init_states[i] * cluster_map_dx**2
+						state_centered_map_total[i][k] = state_centered_map_total[i][k] / state_centered_map_norm
+						d_state_centered_map[i][k] = d_state_centered_map[i][k] / state_centered_map_norm * np.sqrt(N_init_states[i])
+						
+						state_centered_Rdens_norm = N_init_states[i] * (np.pi * (state_Rdens_edges[1:]**2 - state_Rdens_edges[:-1]**2))
+						state_centered_Rdens_total[i][k] = state_centered_Rdens_total[i][k] / state_centered_Rdens_norm
+						d_state_centered_Rdens[i][k] = d_state_centered_Rdens[i][k] / state_centered_Rdens_norm * np.sqrt(N_init_states[i])
+						
+				if(to_save_npz):
+					print('writing', npz_states_filepath)
+					np.savez(npz_states_filepath, \
+							OP_hist_centers=OP_hist_centers,\
+							OP_init_hist=OP_init_hist, \
+							d_OP_init_hist=d_OP_init_hist, \
+							OP_hist_lens=OP_hist_lens, \
+							cluster_Rdens_centers=cluster_Rdens_centers, \
+							cluster_centered_Rdens_total=cluster_centered_Rdens_total, \
+							d_cluster_centered_Rdens_total=d_cluster_centered_Rdens_total, \
+							cluster_centered_map_total=cluster_centered_map_total, \
+							cluster_map_centers=cluster_map_centers, \
+							state_Rdens_centers=state_Rdens_centers, \
+							state_centered_Rdens_total=state_centered_Rdens_total, \
+							d_state_centered_Rdens=d_state_centered_Rdens)
+					
+			else:
+				print(npz_states_filepath, 'loading')
+				npz_data = np.load(npz_states_filepath, allow_pickle=True)
+				
+				OP_hist_centers = npz_data['OP_hist_centers']
+				OP_init_hist = npz_data['OP_init_hist']
+				d_OP_init_hist = npz_data['d_OP_init_hist']
+				OP_hist_lens = npz_data['OP_hist_lens']
+				cluster_Rdens_centers = npz_data['cluster_Rdens_centers']
+				cluster_centered_Rdens_total = npz_data['cluster_centered_Rdens_total']
+				d_cluster_centered_Rdens_total = npz_data['d_cluster_centered_Rdens_total']
+				cluster_centered_map_total = npz_data['cluster_centered_map_total']
+				cluster_map_centers = npz_data['cluster_map_centers']
+				state_Rdens_centers = npz_data['state_Rdens_centers']
+				state_centered_Rdens_total = npz_data['state_centered_Rdens_total']
+				d_state_centered_Rdens = npz_data['d_state_centered_Rdens']
 			
-			ax_OPinit_hists.legend()
-			ax_cluster_Rdens.legend()
-			ax_cluster_Rdens_log.legend()
-			for k in range(N_species):
-				ax_state_Rdens[k].legend()
-				ax_state_Rdens_log[k].legend()
+			if(to_plot_hists):
+				# ============ plot ===========
+				ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
+				
+				# ==== cluster ====
+				fig_OPinit_hists, ax_OPinit_hists, _ = my.get_fig(y_lbl, r'$p_i(' + x_lbl + ')$', title=r'$p(' + x_lbl + ')$; ' + ThL_lbl, yscl='log')
+				fig_cluster_Rdens, ax_cluster_Rdens, _ = my.get_fig('r', r'$\rho$', title=r'$\rho(r)$; ' + ThL_lbl)
+				fig_cluster_Rdens_log, ax_cluster_Rdens_log, _ = my.get_fig('r', r'$\rho$', title=r'$\rho(r)$; ' + ThL_lbl, yscl='logit')
+				fig_cluster_map = [[]] * N_OP_interfaces
+				ax_cluster_map = [[]] * N_OP_interfaces
+				
+				# ==== state ====
+				fig_state_map = [[]] * N_species
+				ax_state_map = [[]] * N_species
+				fig_state_Rdens = [[]] * N_species
+				ax_state_Rdens = [[]] * N_species
+				fig_state_Rdens_log = [[]] * N_species
+				ax_state_Rdens_log = [[]] * N_species
+				for k in range(N_species):
+					fig_state_Rdens[k], ax_state_Rdens[k], _ = my.get_fig('r', r'$\rho_%d$' % k, title=(r'$\rho_%d(r)$; ' % k) + ThL_lbl)
+					fig_state_Rdens_log[k], ax_state_Rdens_log[k], _ = my.get_fig('r', r'$\rho_%d$' % k, title=(r'$\rho_%d(r)$; ' % k) + ThL_lbl, yscl='logit')
+					fig_state_map[k] = [[]] * N_OP_interfaces
+					ax_state_map[k] = [[]] * N_OP_interfaces
+				
+				for i in range(N_OP_interfaces):
+					ax_OPinit_hists.bar(OP_hist_centers, OP_init_hist[:, i], yerr=d_OP_init_hist[:, i], width=OP_hist_lens, align='center', label='OP = ' + str(OP_interfaces[i]), alpha=Ms_alpha)
+					
+					# ==== cluster ====
+					cluster_lbl = r'$OP[%d] = %d$; ' % (i, OP_interfaces[i])
+					ax_cluster_Rdens.errorbar(cluster_Rdens_centers, cluster_centered_Rdens_total[i], yerr=d_cluster_centered_Rdens_total[i], label=cluster_lbl)
+					ax_cluster_Rdens_log.errorbar(cluster_Rdens_centers, cluster_centered_Rdens_total[i], yerr=d_cluster_centered_Rdens_total[i], label=cluster_lbl)
+					
+					fig_cluster_map[i], ax_cluster_map[i], fig_id = my.get_fig('x', 'y', title=cluster_lbl + ThL_lbl)
+					im = ax_cluster_map[i].imshow(cluster_centered_map_total[i], \
+											extent = [min(cluster_map_centers[1]), max(cluster_map_centers[1]), \
+													  min(cluster_map_centers[0]), max(cluster_map_centers[0])], \
+											interpolation ='bilinear', origin ='lower', aspect='auto')
+					plt.figure(fig_id)
+					cbar = plt.colorbar(im)
+					
+					# ==== state ====
+					for k in range(N_species):
+						ax_state_Rdens[k].errorbar(state_Rdens_centers, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens[i][k], label=cluster_lbl)
+						ax_state_Rdens_log[k].errorbar(state_Rdens_centers, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens[i][k], label=cluster_lbl)
+				
+				ax_OPinit_hists.legend()
+				ax_cluster_Rdens.legend()
+				ax_cluster_Rdens_log.legend()
+				for k in range(N_species):
+					ax_state_Rdens[k].legend()
+					ax_state_Rdens_log[k].legend()
 		
 	rho = None
 	d_rho = None
@@ -774,7 +831,8 @@ def proc_order_parameter_FFS(L, e, mu, flux0, d_flux0, probs, \
 		F = F - F[0]
 		d_F = d_rho / rho
 		
-		ThL_lbl = '$\epsilon_{11, 22}/T = ' + my.f2s(e[1,1]) + ',' + my.f2s(e[2,2]) + '$; $\mu_{1,2}/T = ' + my.f2s(mu[1]) + ',' + my.f2s(mu[2]) + '$; L = ' + str(L)
+		ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
+		
 		if(to_plot_time_evol):
 			fig_OP, ax_OP, _ = my.get_fig('step', y_lbl, title=x_lbl + '(step); ' + ThL_lbl)
 			
@@ -836,31 +894,78 @@ def proc_order_parameter_FFS(L, e, mu, flux0, d_flux0, probs, \
 
 	return ln_k_AB, d_ln_k_AB, P_B, d_P_B, P_B_sigmoid, d_P_B_sigmoid, linfit, linfit_inds, OP0, \
 			rho, d_rho, OP_hist_centers, OP_hist_lens, \
+			state_Rdens_centers, state_centered_Rdens_total, d_state_centered_Rdens, \
 			ax_OP, ax_OPhists, ax_F, ax_PB_log, ax_PB, ax_PB_sgm, ax_fl, ax_fl_i
 
 def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_mode, \
 				stab_step=-5, verbose=None, to_get_timeevol=False, \
 				OP_sample_BF_to=None, OP_match_BF_to=None, 
-				to_plot_time_evol=False, to_plot_hists=False, timeevol_stride=-3000, \
+				to_plot_time_evol=False, to_plot_hists=False, to_do_hists=True, \
+				timeevol_stride=-3000, \
 				init_gen_mode=-2, Ms_alpha=0.5, OP_optim_minstep=8, \
-				init_composition=None):
+				init_composition=None, to_recomp=0, to_save_npz=True):
 	
-	init_state = get_fixed_composition_random_state(L, init_composition, N_main_min_warning=50) \
-					if(MC_move_mode in [move_modes["swap"], move_modes["long_swap"]]) else None
+	swap_type_move = MC_move_mode in [move_modes["swap"], move_modes["long_swap"]]
 	
-	# py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<double> mu,
-	#			  pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
-	#			  int to_remember_timeevol, int init_gen_mode, int interface_mode,
-	#			  std::optional<int> _verbose)
-	# return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M, biggest_cluster_sizes, time);
-	(_states, probs, d_probs, Nt, Nt_OP, flux0, d_flux0, _E, _M, _CS, times) = \
-		lattice_gas.run_FFS(MC_move_mode, L, e.flatten(), mu, N_init_states, \
-							OP_interfaces, stab_step=stab_step, \
-							verbose=verbose, \
-							to_remember_timeevol=to_get_timeevol, \
-							init_gen_mode=init_gen_mode, \
-							interface_mode=OP_C_id[interface_mode], \
-							init_state=None if(init_state is None) else init_state.flatten())
+	traj_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
+	traj_basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
+					'_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					(('_phi' + join_lbls(init_composition[1:], '_')) if(swap_type_move) \
+						else ('_muT' + join_lbls(mu[1:], '_'))) + \
+					'_NinitStates' + '_'.join([str(n) for n in N_init_states]) + \
+					'_OPs' + '_'.join([str(ops) for ops in OP_interfaces]) + \
+					'_stab' + str(stab_step) + \
+					'_OPbf' + str(OP_sample_BF_to) + '_' + str(OP_match_BF_to) + \
+					'_stride' + str(timeevol_stride) + \
+					'_initGenMode' + str(init_gen_mode) + \
+					'_timeData' + str(to_get_timeevol) + \
+					'_ID' + str(lattice_gas.get_seed())
+					
+	traj_filepath = os.path.join(traj_basepath, traj_basename + '_FFStraj.npz')
+	
+	#print(traj_filepath)
+	#print(os.path.isfile(traj_filepath))
+	#input('ok')
+	
+	if((not os.path.isfile(traj_filepath)) or to_recomp):
+		init_state = get_fixed_composition_random_state(L, init_composition, N_main_min_warning=50) \
+						if(swap_type_move) else None
+		
+		# py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<double> mu,
+		#			  pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
+		#			  int to_remember_timeevol, int init_gen_mode, int interface_mode,
+		#			  std::optional<int> _verbose)
+		# return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M, biggest_cluster_sizes, time);
+		(_states, probs, d_probs, Nt, Nt_OP, flux0, d_flux0, _E, _M, _CS, times) = \
+			lattice_gas.run_FFS(MC_move_mode, L, e.flatten(), mu, N_init_states, \
+								OP_interfaces, stab_step=stab_step, \
+								verbose=verbose, \
+								to_remember_timeevol=to_get_timeevol, \
+								init_gen_mode=init_gen_mode, \
+								interface_mode=OP_C_id[interface_mode], \
+								init_state=None if(init_state is None) else init_state.flatten())
+		
+		if(to_save_npz):
+			np.savez(traj_filepath, states=_states, probs=probs, \
+					d_probs=d_probs, Nt=Nt, Nt_OP=Nt_OP, \
+					flux0=flux0, d_flux0=d_flux0, \
+					E=_E, M=_M, CS=_CS, times=times)
+			
+			print(traj_filepath, 'written')
+	else:
+		npz_data = np.load(traj_filepath, allow_pickle=True)
+		
+		_states = npz_data['states']
+		probs = npz_data['probs']
+		d_probs = npz_data['d_probs']
+		Nt = npz_data['Nt']
+		Nt_OP = npz_data['Nt_OP']
+		flux0 = npz_data['flux0']
+		d_flux0 = npz_data['d_flux0']
+		_E = npz_data['E']
+		_M = npz_data['M']
+		_CS = npz_data['CS']
+		times = npz_data['times']
 	
 	L2 = L**2
 	N_OP_interfaces = len(OP_interfaces)
@@ -868,8 +973,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 		Nt_total = max(len(_M), len(_CS))
 		if(timeevol_stride < 0):
 			timeevol_stride = np.int_(- Nt_total / timeevol_stride)
-	#print('N_init_states:', N_init_states)
-	#input('goon')
+	
 	states = [_states[ : N_init_states[0] * L2].reshape((N_init_states[0], L, L))]
 	for i in range(1, N_OP_interfaces):
 		states.append(_states[np.sum(N_init_states[:i]) * L2 : np.sum(N_init_states[:(i+1)] * L2)].reshape((N_init_states[i], L, L)))
@@ -879,14 +983,11 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 	data['M'] = _M
 	data['CS'] = _CS
 	
-	#print('f:', flux0)
-	#print('p:', probs)
-	#input('goon')
-	
 	ln_k_AB, d_ln_k_AB, P_B, d_P_B, P_B_sigmoid, d_P_B_sigmoid, linfit, linfit_inds, OP0, \
 		rho, d_rho, OP_hist_centers, OP_hist_lens, \
+		state_Rdens_centers, state_centered_Rdens_total, d_state_centered_Rdens, \
 		ax_OP, ax_OPhists, ax_F, ax_PB_log, ax_PB, ax_PB_sgm, ax_fl, ax_fl_i = \
-			proc_order_parameter_FFS(L, e, mu, flux0, d_flux0, probs, d_probs, OP_interfaces, N_init_states, \
+			proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, d_probs, OP_interfaces, N_init_states, \
 						interface_mode, OP_match_BF_to=OP_match_BF_to, \
 						OP_data=(data[interface_mode] / OP_scale[interface_mode] if(to_get_timeevol) else None), \
 						time_data = times, Nt_OP=Nt_OP, Nt=Nt, \
@@ -894,10 +995,14 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 						memory_time=max(1, OP_std_overestimate[interface_mode] / OP_step[interface_mode]), 
 						to_plot_time_evol=to_plot_time_evol, to_plot_hists=to_plot_hists, stride=timeevol_stride, \
 						x_lbl=feature_label[interface_mode], y_lbl=title[interface_mode], Ms_alpha=Ms_alpha, \
-						states=states, OP_optim_minstep=OP_optim_minstep)
+						states=states, OP_optim_minstep=OP_optim_minstep, \
+						npz_basename=os.path.join(traj_basepath, traj_basename), \
+						to_save_npz=to_save_npz, to_recomp=to_recomp, \
+						init_composition=init_composition, to_do_hists=to_do_hists)
 	
 	return probs, d_probs, ln_k_AB, d_ln_k_AB, flux0, d_flux0, rho, d_rho, OP_hist_centers, OP_hist_lens, \
-			P_B, d_P_B, P_B_sigmoid, d_P_B_sigmoid, linfit, linfit_inds, OP0
+			P_B, d_P_B, P_B_sigmoid, d_P_B_sigmoid, linfit, linfit_inds, OP0, \
+			state_Rdens_centers, state_centered_Rdens_total, d_state_centered_Rdens
 
 def exp_integrate(x, f):
 	# integrates \int_{exp(f(x))dx}
@@ -937,7 +1042,8 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 							hA=None, OP_A=None, OP_B=None, to_save_npz=False, \
 							to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, \
 							stride=1, OP_jumps_hist_edges=None, init_composition=None, \
-							possible_jumps=None, means_only=False, to_recomp=False):
+							possible_jumps=None, means_only=False, to_recomp=0, \
+							npz_basename=None):
 	
 	k_AB, d_k_AB, k_BA, d_k_BA, k_bc_AB, k_bc_BA, ax_OP, ax_OP_hist, ax_F, \
 		F, d_F, OP_hist_centers, OP_hist_lens, rho_interp1d, d_rho_interp1d, \
@@ -953,14 +1059,19 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 	Nt_states = states.shape[0]
 	swap_type_move = (MC_move_mode in [move_modes['swap'], move_modes['long_swap']])
 	
-	npz_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
-	npz_basename = 'L' + str(L) + '_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + '_muT' + join_lbls(mu[1:], '_') + '_stride' + str(stride) + '_OP' + str(OP_A) + '_' + str(OP_B) + '_stab' + str(stab_step) + '_Nstates' + str(Nt_states)
+	# npz_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
+	# npz_basename = 'L' + str(L) + '_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					# (('_muT' + join_lbls(mu[1:], '_')) if(init_composition is None) \
+						# else ('_phi' + join_lbls(init_composition[1:], '_'))) + \
+					# '_stride' + str(stride) + \
+					# '_OP' + str(OP_A) + '_' + str(OP_B) + '_stab' + str(stab_step) + \
+					# '_Nstates' + str(Nt_states) + '_ID' + str(lattice_gas.get_seed())
 	
 	states_timesteps = np.arange(Nt_states) * stride
 	stab_states_inds = (states_timesteps > stab_step)
 	N_stab_states = np.sum(stab_states_inds)
 	
-	phi_filepath = os.path.join(npz_basepath, npz_basename + '_phi.npz')
+	phi_filepath = os.path.join(npz_basename + '_phi.npz')
 	if((not os.path.isfile(phi_filepath)) or to_recomp):
 		phi_Lmeans = np.zeros((N_species, Nt_states))
 		for i in range(N_species - 1):
@@ -968,11 +1079,11 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 			phi_Lmeans[i, :] = np.mean(states == i, axis=(1,2))
 		phi_Lmeans[N_species - 1, :] = 1 - np.sum(phi_Lmeans, axis=0)
 		if(to_save_npz):
+			print('writing', phi_filepath)
 			np.savez(phi_filepath, states_timesteps=states_timesteps, phi_Lmeans=phi_Lmeans, stab_step=stab_step)
-			print(phi_filepath, 'written')
 	else:
+		print('loading', phi_filepath)
 		npz_data = np.load(phi_filepath, allow_pickle=True)
-		print(phi_filepath, 'loaded')
 		
 		states_timesteps = npz_data['states_timesteps']
 		phi_Lmeans = npz_data['phi_Lmeans']
@@ -987,8 +1098,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 	phi_LTmeans = np.mean(phi_Lmeans_stab, axis=1)
 	d_phi_LTmeans = np.std(phi_Lmeans_stab, axis=1)
 	
-	ThL_lbl = '$\epsilon_{11,12,22}/T = ' + join_lbls([e[1,1], e[1,2], e[2,2]], ',') + \
-				'$;\n$' + ('\phi_{1,2}' if(swap_type_move) else '\mu_{1,2}/T') + ' = ' + join_lbls(mu[1:], ',') + '$; L = ' + str(L)
+	ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
 	
 	if(to_plot_time_evol):
 		fig_phi, ax_phi, _ = my.get_fig('step', r'$\varphi$', title=r'$\vec{\varphi}$(step); ' + ThL_lbl)
@@ -1005,7 +1115,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 		ax_phi.legend()
 	
 	if(not means_only):
-		F_filepath = os.path.join(npz_basepath, npz_basename + '_F.npz')
+		F_filepath = os.path.join(npz_basename + '_F.npz')
 		
 		if((not os.path.isfile(F_filepath)) or to_recomp):
 			OP_stab = m[stab_ind]
@@ -1047,6 +1157,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 			S = S - S[0] # S[m=+-1] = 0 because S = log(N), and N(m=+-1)=1
 			
 			if(to_save_npz):
+				print('writing', F_filepath)
 				np.savez(F_filepath, OP_hist_centers=OP_hist_centers, \
 						rho=rho, d_rho=d_rho, OP_hist_lens=OP_hist_lens, \
 						possible_jumps=possible_jumps, \
@@ -1055,10 +1166,9 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 						rho_interp1d=rho_interp1d, 
 						d_rho_interp1d=d_rho_interp1d, \
 						OP_mean=OP_mean, OP_std=OP_std, d_OP_mean=d_OP_mean)
-				print(F_filepath, 'written')
 		else:
+			print('loading', F_filepath)
 			npz_data = np.load(F_filepath, allow_pickle=True)
-			print(F_filepath, 'loaded')
 			
 			OP_hist_centers = npz_data['OP_hist_centers']
 			rho = npz_data['rho']
@@ -1077,7 +1187,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 			d_OP_mean = npz_data['d_OP_mean']
 		
 		if(to_estimate_k):
-			k_filepath = os.path.join(npz_basepath, npz_basename + '_kAB.npz')
+			k_filepath = os.path.join(npz_basename + '_kAB.npz')
 			if((not os.path.isfile(k_filepath)) or to_recomp):
 				assert(hA is not None), 'ERROR: k estimation is requested in BF, but no hA provided'
 				#k_AB_ratio = np.sum(hA > 0.5) / np.sum(hA < 0.5)
@@ -1099,14 +1209,14 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 					k_BA, d_k_BA = 0, 0
 				
 				if(to_save_npz):
+					print('writing', k_filepath)
 					np.savez(k_filepath, hA=hA, hA_jump=hA_jump, \
 							jump_inds=jump_inds, N_AB_jumps=N_AB_jumps, \
 							k_AB=k_AB, d_k_AB=d_k_AB, \
 							k_BA=k_BA, d_k_BA=d_k_BA)
-					print(k_filepath, 'written')
 			else:
+				print('loading', k_filepath)
 				npz_data = np.load(k_filepath, allow_pickle=True)
-				print(k_filepath, 'loaded')
 				
 				hA = npz_data['hA']
 				hA_jump = npz_data['hA_jump']
@@ -1247,7 +1357,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 			OP_min=None, OP_max=None, OP_A=None, OP_B=None, \
 			OP_min_save_state=None, OP_max_save_state=None, \
 			means_only=False, stab_step=-10, init_composition=None, \
-			to_save_npz=True, to_recomp=False):
+			to_save_npz=True, to_recomp=0):
 	L2 = L**2
 	if(verbose is None):
 		verbose = lattice_gas.get_verbose()
@@ -1275,14 +1385,16 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 	traj_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
 	traj_basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
 					'_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					'_muT' + join_lbls(mu[1:], '_') + '_Nt' + str(Nt) + \
+					(('_phi' + join_lbls(init_composition[1:], '_')) if(to_gen_init_state) \
+						else ('_muT' + join_lbls(mu[1:], '_'))) + \
+					'_Nt' + str(Nt) + \
 					'_NstatesMax' + str(N_saved_states_max) + \
 					'_stride' + str(timeevol_stride) + \
 					'_OPab' + str(OP_A) + '_' + str(OP_B) + \
 					'_OPminx' + str(OP_min) + '_' + str(OP_max) + \
 					'_OPminxSave' + str(OP_min_save_state) + '_' + str(OP_max_save_state) + \
 					'_timeData' + str(to_get_timeevol) + \
-					'_haveInitState' + str(to_gen_init_state)
+					'_ID' + str(lattice_gas.get_seed())
 	traj_filepath = os.path.join(traj_basepath, traj_basename + '_traj.npz')
 	
 	if((not os.path.isfile(traj_filepath)) or to_recomp):
@@ -1301,13 +1413,13 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 				verbose=verbose)
 		
 		if(to_save_npz):
+			print('writing', traj_filepath)
 			np.savez(traj_filepath, states=states, \
 					E=E, M=M, CS=CS, hA=hA, times=times, \
 					k_AB_launches=k_AB_launches, time_total=time_total)
-			print(traj_filepath, 'written')
 	else:
+		print('loading', traj_filepath)
 		npz_data = np.load(traj_filepath, allow_pickle=True)
-		print(traj_filepath, 'loaded')
 		
 		states = npz_data['states']
 		E = npz_data['E']
@@ -1373,7 +1485,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 									to_plot_time_evol=to_plot_timeevol, to_plot_F=to_plot_F, to_plot_ETS=to_plot_ETS, stride=timeevol_stride, \
 									OP_A=int(OP_A / OP_scale[interface_mode] + 0.1), OP_B=int(OP_B / OP_scale[interface_mode] + 0.1), OP_jumps_hist_edges=OP_jumps_hist_edges, \
 									possible_jumps=OP_possible_jumps[interface_mode], means_only=means_only, to_save_npz=to_save_npz, \
-									init_composition=init_composition, to_recomp=to_recomp)
+									init_composition=init_composition, to_recomp=to_recomp, npz_basename=os.path.join(traj_basepath, traj_basename))
 		
 		if(not means_only):
 			BC_cluster_size = L2 / np.pi
@@ -1407,7 +1519,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 def run_phi01_pair(MC_move_mode, L, e, mu, Nt, interface_mode, timeevol_stride, \
 					stab_step, to_plot_timeevol=False, to_save_npz=False, \
 					init_composition_0=None, init_composition_1=None, \
-					to_recomp=False, verbose=1):
+					to_recomp=0, verbose=1):
 	L2 = L**2
 	
 	restricted_MC_modes = [move_modes["swap"], move_modes["long_swap"]]
@@ -1481,7 +1593,7 @@ def map_phase_difference(MC_move_mode, L, e, mu_vecs, Nt, interface_mode, \
 									(resampled_mu1_grid, resampled_mu2_grid), \
 									method='linear')
 	
-	ThL_lbl = r'\epsilon_{11,12,22}/T = ' + my.f2s(e[1,1]) + ',' + my.f2s(e[1,2]) + ',' + my.f2s(e[2,2])
+	ThL_lbl = r'$\epsilon_{11,12,22}/T = ' + join_lbls([e[1,1], e[1,2], e[2,2]], ',')
 	fig_map, ax_map, fig_map_id = my.get_fig(r'$\mu_1/T$', r'$\mu_2/T$', title=r'$|\vec{\phi}_0 - \vec{\phi}_1| (\mu_1, \mu_2)$; $' + ThL_lbl + '$')
 	im_map = ax_map.imshow(resampled_dist.T, \
 						extent = [min(mu_vecs[0]), max(mu_vecs[0]), \
@@ -1498,7 +1610,7 @@ def phi_to_x(p, d_p):
 
 def cost_fnc(MC_move_mode, L, e, mu, Nt, interface_mode, phi0_target, phi1_target, \
 			timeevol_stride, N_runs, stab_step, verbose=0, stab_step_FFS=-5, \
-			to_plot_timeevol=False, to_plot_debug=False, cost_mode=0):
+			to_plot_timeevol=False, to_plot_debug=False, cost_mode=0, seeds=None):
 	L2 = L**2
 	if(len(mu) == 2):
 		mu_full = np.zeros(N_species)
@@ -1520,7 +1632,8 @@ def cost_fnc(MC_move_mode, L, e, mu, Nt, interface_mode, phi0_target, phi1_targe
 			run_many(MC_move_mode, L, e_full, mu_full, N_runs, interface_mode, \
 				Nt_per_BF_run=Nt, stab_step=stab_step_FFS, \
 				mode='BF_2sides', timeevol_stride=timeevol_stride, \
-				to_plot_time_evol=to_plot_timeevol, verbose=max(verbose - 1, 0))
+				to_plot_time_evol=to_plot_timeevol, seeds=seeds, \
+				verbose=max(verbose - 1, 0))
 	
 	Nt_states = phi_0_evol.shape[1]
 	d_phi_0[d_phi_0 == 0] = 1
@@ -1596,7 +1709,7 @@ def find_optimal_mu(MC_move_mode, L, e0, mu0, Temp0, phi0_target, phi1_target, N
 				interface_mode, N_runs, cost_mode, to_plot_timeevol=False, \
 				timeevol_stride=-3000, to_plot_debug=False, stab_step=-10, \
 				opt_mode=0, verbose=0, mu_step=None, Temp_step=0.02, \
-				stab_step_FFS=-5):
+				stab_step_FFS=-5, seeds=None):
 	L2 = L**2
 	
 	assert(phi0_target[0] > phi0_target[1]), 'ERROR: phi0_target is supposed to have 0-component majority, but phi0 = ' + str(phi0_target)
@@ -1622,7 +1735,8 @@ def find_optimal_mu(MC_move_mode, L, e0, mu0, Temp0, phi0_target, phi1_target, N
 							timeevol_stride, N_runs, \
 							stab_step, verbose=verbose, \
 							cost_mode=cost_mode, \
-							stab_step_FFS=stab_step_FFS), \
+							stab_step_FFS=stab_step_FFS, \
+							seeds=seeds), \
 				x0, method="Nelder-Mead", \
 				)  #, bounds=bounds, method='SLSQP'
 	elif(opt_mode == 1):
@@ -1634,7 +1748,8 @@ def find_optimal_mu(MC_move_mode, L, e0, mu0, Temp0, phi0_target, phi1_target, N
 							phi0_target, phi1_target, timeevol_stride, \
 							N_runs, stab_step, verbose=verbose, \
 							cost_mode=cost_mode, \
-							stab_step_FFS=stab_step_FFS), \
+							stab_step_FFS=stab_step_FFS, \
+							seeds=seeds), \
 				x0, \
 				bounds=((-3,-2), (-2,-1), (-2, -1), (5.1, 5.5), (4, 10)))  #, method='SLSQP'
 	elif(opt_mode == 2):
@@ -1646,7 +1761,7 @@ def find_optimal_mu(MC_move_mode, L, e0, mu0, Temp0, phi0_target, phi1_target, N
 				cost_fnc(MC_move_mode, L, e0 * Temp0 / x[0], x[1:] / x[0], Nt, interface_mode, \
 						phi0_target, phi1_target, timeevol_stride, N_runs, \
 						stab_step, verbose=verbose, cost_mode=cost_mode, \
-						stab_step_FFS=stab_step_FFS)
+						stab_step_FFS=stab_step_FFS, seeds=seeds)
 		if(mu_step is None):
 			x_opt = scipy.optimize.minimize(cost_lambda, x0, method="Nelder-Mead")
 		else:
@@ -1671,13 +1786,23 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			mode='BF', N_init_states_AB=None, N_init_states_BA=None, \
 			init_gen_mode=-2, to_plot_committer=None, to_get_timeevol=None, \
 			target_states0=None, target_states1=None, stab_step=-5, 
-			init_composition=None, to_save_npz=True, to_recomp=False):
+			init_composition=None, to_save_npz=True, to_recomp=0, seeds=None):
 	if(verbose is None):
 		verbose = lattice_gas.get_verbose()
 	L2 = L**2
+	
 	old_seed = lattice_gas.get_seed()
+	if(seeds is None):
+		seeds = [old_seed]
+	N_seeds = len(seeds)
+	if(N_seeds > 1):
+		assert(N_seeds == N_runs), 'ERROR: N_seeds = %d != N_runs = %d' % (N_seeds, N_runs)
+	else:
+		seeds = np.arange(N_runs) + seeds[0]
+	
 	if(to_get_timeevol is None):
 		to_get_timeevol = ('BF' == mode)
+	swap_type_move = (MC_move_mode in [move_modes['swap'], move_modes['long_swap']])
 	
 	if('BF' in mode):
 		assert(Nt_per_BF_run is not None), 'ERROR: BF mode but no Nt_per_run provided'
@@ -1692,6 +1817,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 	elif('FFS' in mode):
 		assert(N_init_states_AB is not None), 'ERROR: FFS_AB mode but no "N_init_states_AB" provided'
 		assert(OP_interfaces_AB is not None), 'ERROR: FFS_AB mode but no "OP_interfaces_AB" provided'
+		assert(timeevol_stride > 0), 'ERROR: timeevol_stride = %d <= 0 for FFS-style mode' % (timeevol_stride)
 		
 		N_OP_interfaces_AB = len(OP_interfaces_AB)
 		OP_AB = OP_interfaces_AB / OP_scale[interface_mode]
@@ -1724,58 +1850,212 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		d_PB_sigmoid_data = np.empty((N_OP_interfaces_AB - 1, N_runs))
 		PB_linfit_data = np.empty((2, N_runs))
 		PB_linfit_inds_data = np.empty((N_OP_interfaces_AB - 1, N_runs), dtype=bool)
-			
+	
+	npz_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
+	npz_basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
+					'_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					(('_phi' + join_lbls(init_composition[1:], '_')) if(swap_type_move) \
+						else ('_muT' + join_lbls(mu[1:], '_'))) + \
+					'_OPab' + str(OP_A) + '_' + str(OP_B)
+	
 	for i in range(N_runs):
-		lattice_gas.init_rand(i + old_seed)
+		lattice_gas.init_rand(seeds[i])
 		if(mode == 'BF'):
-			F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
-				rho_fncs[i], d_rho_fncs[i], k_bc_AB_BF, k_bc_BA_BF, \
-				k_AB_BF, _, k_BA_BF, _, _, _, _, _, _, _, k_AB_BFcount, _, _ = \
-					proc_T(MC_move_mode, L, e, mu, Nt_per_BF_run, interface_mode, \
-							OP_A=OP_A, OP_B=OP_B, N_spins_up_init=N_spins_up_init, \
-							verbose=verbose, to_plot_time_evol=to_plot_time_evol, \
-							to_plot_F=False, to_plot_correlations=False, to_plot_ETS=False, \
-							timeevol_stride=timeevol_stride, to_estimate_k=True, 
-							to_get_timeevol=True, N_saved_states_max=N_saved_states_max, 
-							init_composition=init_composition_0, \
-							to_save_npz=to_save_npz, to_recomp=to_recomp)
+			npz_BF_filename = npz_basename + '_stride' + str(timeevol_stride) + \
+								'_Nstates' + str(N_saved_states_max) + '_manyBF'
+			npz_BF_filepath = os.path.join(npz_basepath, npz_BF_filename + '.npz')
 			
+			if((not os.path.isfile(npz_BF_filepath)) or to_recomp):
+				F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
+					rho_fncs[i], d_rho_fncs[i], k_bc_AB_BF, k_bc_BA_BF, \
+					k_AB_BF, _, k_BA_BF, _, _, _, _, _, _, _, k_AB_BFcount, _, _ = \
+						proc_T(MC_move_mode, L, e, mu, Nt_per_BF_run, interface_mode, \
+								OP_A=OP_A, OP_B=OP_B, N_spins_up_init=N_spins_up_init, \
+								verbose=verbose, to_plot_time_evol=to_plot_time_evol, \
+								to_plot_F=False, to_plot_correlations=False, to_plot_ETS=False, \
+								timeevol_stride=timeevol_stride, to_estimate_k=True, 
+								to_get_timeevol=True, N_saved_states_max=N_saved_states_max, 
+								init_composition=init_composition, \
+								to_save_npz=to_save_npz, to_recomp=(to_recomp > 1))
+				
+				if(to_save_npz):
+					print('writing', npz_BF_filepath)
+					np.savez(npz_BF_filepath, F_new=F_new, d_F_new=d_F_new, \
+							OP_hist_centers_new=OP_hist_centers_new, \
+							OP_hist_lens_new=OP_hist_lens_new, \
+							rho_fncs=rho_fncs[i], \
+							d_rho_fncs=d_rho_fncs[i], \
+							k_bc_AB_BF=k_bc_AB_BF, k_bc_BA_BF=k_bc_BA_BF, \
+							k_AB_BF=k_AB_BF, k_BA_BF=k_BA_BF, \
+							k_AB_BFcount=k_AB_BFcount)
+					
+			else:
+				print('loading', npz_BF_filepath)
+				npz_data = np.load(npz_BF_filepath, allow_pickle=True)
+				
+				F_new = npz_data['F_new']
+				d_F_new = npz_data['d_F_new']
+				OP_hist_centers_new = npz_data['OP_hist_centers_new']
+				OP_hist_lens_new = npz_data['OP_hist_lens_new']
+				rho_fncs[i] = npz_data['rho_fncs']
+				d_rho_fncs[i] = npz_data['d_rho_fncs']
+				k_bc_AB_BF = npz_data['k_bc_AB_BF']
+				k_bc_BA_BF = npz_data['k_bc_BA_BF']
+				k_AB_BF = npz_data['k_AB_BF']
+				k_BA_BF = npz_data['k_BA_BF']
+				k_AB_BFcount = npz_data['k_AB_BFcount']
+				
 			ln_k_bc_AB_data[i] = np.log(k_bc_AB_BF * 1)   # proc_T returns 'k', not 'log(k)'; *1 for units [1/step]
 			ln_k_bc_BA_data[i] = np.log(k_bc_BA_BF * 1)
 			ln_k_AB_data[i] = np.log(k_AB_BF * 1)
 			ln_k_BA_data[i] = np.log(k_BA_BF * 1)
 		if(mode == 'BF_2sides'):
-			phi_0_data[:, i], _, phi_1_data[:, i], _, \
-				phi_0_evol_data[:, :, i], phi_1_evol_data[:, :, i], = \
-					run_phi01_pair(MC_move_mode, L, e, mu, Nt_per_BF_run, interface_mode, \
-								timeevol_stride, stab_step, verbose=verbose, \
-								to_plot_timeevol=to_plot_time_evol)
+			npz_BF2s_filename = npz_basename + '_stride' + str(timeevol_stride) + \
+								'_Nt' + str(Nt_per_BF_run) + '_BF2sides'
+			npz_BF2s_filepath = os.path.join(npz_basepath, npz_BF2s_filename + '.npz')
+			
+			if((not os.path.isfile(npz_BF2s_filepath)) or to_recomp):
+				phi_0_data[:, i], _, phi_1_data[:, i], _, \
+					phi_0_evol_data[:, :, i], phi_1_evol_data[:, :, i], = \
+						run_phi01_pair(MC_move_mode, L, e, mu, Nt_per_BF_run, interface_mode, \
+									timeevol_stride, stab_step, verbose=verbose, \
+									to_plot_timeevol=to_plot_time_evol)
+				
+				if(to_save_npz):
+					print('writing', npz_BF2s_filepath)
+					np.savez(npz_BF2s_filepath, \
+							phi_0_data=phi_0_data[:, i], \
+							phi_1_data=phi_1_data[:, i], \
+							phi_0_evol_data=phi_0_evol_data[:, :, i], \
+							phi_1_evol_data=phi_1_evol_data[:, :, i])
+			else:
+				print('loading', npz_BF2s_filepath)
+				npz_data = np.load(npz_BF2s_filepath, allow_pickle=True)
+				
+				phi_0_data[:, i] = npz_data['phi_0_data']
+				phi_1_data[:, i] = npz_data['phi_1_data']
+				phi_0_evol_data[:, :, i] = npz_data['phi_0_evol_data']
+				phi_1_evol_data[:, :, i] = npz_data['phi_1_evol_data']
 			
 		elif(mode  == 'BF_AB'):
-			F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
-				rho_fncs[i], d_rho_fncs[i], _, _, _, _, _, _, _, _, _, _, _, \
-					_, k_AB_BFcount, _, k_AB_BFcount_N_data[i] = \
-						proc_T(MC_move_mode, L, e, mu, Nt_per_BF_run, interface_mode, \
-							OP_A=OP_A, OP_B=OP_B, N_spins_up_init=N_spins_up_init, \
-							verbose=verbose, to_plot_time_evol=to_plot_time_evol, \
-							timeevol_stride=timeevol_stride, to_estimate_k=False,
-							to_get_timeevol=to_get_timeevol, OP_max=OP_B, \
-							N_saved_states_max=N_saved_states_max, \
-							init_composition=init_composition_0, \
-							to_save_npz=to_save_npz, to_recomp=to_recomp)
+			npz_BFAB_filename = npz_basename + '_stride' + str(timeevol_stride) + \
+								'_Nt' + str(Nt_per_BF_run) + \
+								'_NtSavedStates' + str(N_saved_states_max) + \
+								'_BFAB'
+			npz_BFAB_filepath = os.path.join(npz_basepath, npz_BFAB_filename + '.npz')
+			
+			if((not os.path.isfile(npz_BFAB_filepath)) or to_recomp):
+				F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
+					rho_fncs[i], d_rho_fncs[i], _, _, _, _, _, _, _, _, _, _, _, \
+						_, k_AB_BFcount, _, k_AB_BFcount_N_data[i] = \
+							proc_T(MC_move_mode, L, e, mu, Nt_per_BF_run, interface_mode, \
+								OP_A=OP_A, OP_B=OP_B, N_spins_up_init=N_spins_up_init, \
+								verbose=verbose, to_plot_time_evol=to_plot_time_evol, \
+								timeevol_stride=timeevol_stride, to_estimate_k=False,
+								to_get_timeevol=to_get_timeevol, OP_max=OP_B, \
+								N_saved_states_max=N_saved_states_max, \
+								init_composition=init_composition, \
+								to_save_npz=to_save_npz, to_recomp=(to_recomp > 1))
+				
+				if(to_save_npz):
+					print('writing', npz_BFAB_filepath)
+					np.savez(npz_BFAB_filepath, \
+							F_new=F_new, d_F_new=d_F_new, \
+							OP_hist_centers_new=OP_hist_centers_new, \
+							OP_hist_lens_new=OP_hist_lens_new, \
+							rho_fncs=rho_fncs[i], \
+							d_rho_fncs=d_rho_fncs[i], \
+							k_AB_BFcount=k_AB_BFcount, \
+							k_AB_BFcount_N_data=k_AB_BFcount_N_data[i])
+			else:
+				print('loading', npz_BFAB_filepath)
+				npz_data = np.load(npz_BFAB_filepath, allow_pickle=True)
+				
+				F_new = npz_data['F_new']
+				d_F_new = npz_data['d_F_new']
+				OP_hist_centers_new = npz_data['OP_hist_centers_new']
+				OP_hist_lens_new = npz_data['OP_hist_lens_new']
+				rho_fncs[i] = npz_data['rho_fncs']
+				d_rho_fncs[i] = npz_data['d_rho_fncs']
+				k_AB_BFcount = npz_data['k_AB_BFcount']
+				k_AB_BFcount_N_data[i] = npz_data['k_AB_BFcount_N_data']
 			
 			ln_k_AB_data[i] = np.log(k_AB_BFcount * 1)
 		elif(mode == 'FFS_AB'):
-			probs_AB_data[:, i], _, ln_k_AB_data[i], _, flux0_AB_data[i], _, rho_new, d_rho_new, OP_hist_centers_new, OP_hist_lens_new, \
-			PB_AB_data[:, i], d_PB_AB_data[:, i], PB_sigmoid_data[:, i], d_PB_sigmoid_data[:, i], PB_linfit_data[:, i], PB_linfit_inds_data[:, i], OP0_AB_data[i] = \
-				proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states_AB, \
-							OP_interfaces_AB, interface_mode, \
-							stab_step=stab_step, \
-							OP_sample_BF_to=OP_sample_BF_A_to, \
-							OP_match_BF_to=OP_match_BF_A_to, \
-							init_gen_mode=init_gen_mode, \
-							to_get_timeevol=to_get_timeevol, \
-							init_composition=init_composition)
+			npz_FFSAB_filename = npz_basename + '_stride' + str(timeevol_stride) + \
+								'_Ninit' + '_'.join([str(n) for n in N_init_states]) + \
+								'_OPs' + '_'.join([str(p) for p in OP_interfaces_AB]) + \
+								'_FFSAB'
+			npz_FFSAB_filepath = os.path.join(npz_basepath, npz_FFSAB_filename + '.npz')
+			
+			if((not os.path.isfile(npz_FFSAB_filepath)) or to_recomp):
+				probs_AB_data[:, i], _, ln_k_AB_data[i], _, flux0_AB_data[i], _, rho_new, d_rho_new, OP_hist_centers_new, OP_hist_lens_new, \
+				PB_AB_data[:, i], d_PB_AB_data[:, i], PB_sigmoid_data[:, i], d_PB_sigmoid_data[:, i], PB_linfit_data[:, i], PB_linfit_inds_data[:, i], OP0_AB_data[i], \
+				state_Rdens_centers_new, state_centered_Rdens_total_new, d_state_centered_Rdens_new = \
+					proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states_AB, \
+								OP_interfaces_AB, interface_mode, \
+								stab_step=stab_step, timeevol_stride=timeevol_stride, \
+								OP_sample_BF_to=OP_sample_BF_A_to, \
+								OP_match_BF_to=OP_match_BF_A_to, \
+								init_gen_mode=init_gen_mode, \
+								to_get_timeevol=to_get_timeevol, \
+								init_composition=init_composition, \
+								to_recomp=(to_recomp > 1), \
+								to_save_npz=to_save_npz, \
+								to_do_hists=True)
+				
+				if(to_save_npz):
+					print('writing', npz_FFSAB_filepath)
+					np.savez(npz_FFSAB_filepath, \
+							probs_AB_data=probs_AB_data[:, i], \
+							ln_k_AB_data=ln_k_AB_data[i], \
+							flux0_AB_data=flux0_AB_data[i], \
+							rho_new=rho_new, d_rho_new=d_rho_new, \
+							OP_hist_centers_new=OP_hist_centers_new, \
+							OP_hist_lens_new=OP_hist_lens_new, \
+							PB_AB_data=PB_AB_data[:, i], \
+							d_PB_AB_data=d_PB_AB_data[:, i], \
+							PB_sigmoid_data=PB_sigmoid_data[:, i], \
+							d_PB_sigmoid_data=d_PB_sigmoid_data[:, i], \
+							PB_linfit_data=PB_linfit_data[:, i], \
+							PB_linfit_inds_data=PB_linfit_inds_data[:, i], \
+							OP0_AB_data=OP0_AB_data[i], \
+							state_Rdens_centers_new=state_Rdens_centers_new, \
+							state_centered_Rdens_total_new=state_centered_Rdens_total_new, \
+							d_state_centered_Rdens_new=d_state_centered_Rdens_new)
+			else:
+				print('loading', npz_FFSAB_filepath)
+				npz_data = np.load(npz_FFSAB_filepath, allow_pickle=True)
+				
+				probs_AB_data[:, i] = npz_data['probs_AB_data']
+				ln_k_AB_data[i] = npz_data['ln_k_AB_data']
+				flux0_AB_data[i] = npz_data['flux0_AB_data']
+				rho_new = npz_data['rho_new']
+				d_rho_new = npz_data['d_rho_new']
+				OP_hist_centers_new = npz_data['OP_hist_centers_new']
+				OP_hist_lens_new = npz_data['OP_hist_lens_new']
+				PB_AB_data[:, i] = npz_data['PB_AB_data']
+				d_PB_AB_data[:, i] = npz_data['d_PB_AB_data']
+				PB_sigmoid_data[:, i] = npz_data['PB_sigmoid_data']
+				d_PB_sigmoid_data[:, i] = npz_data['d_PB_sigmoid_data']
+				PB_linfit_data[:, i] = npz_data['PB_linfit_data']
+				PB_linfit_inds_data[:, i] = npz_data['PB_linfit_inds_data']
+				OP0_AB_data[i] = npz_data['OP0_AB_data']
+				state_Rdens_centers_new = npz_data['state_Rdens_centers_new']
+				state_centered_Rdens_total_new = npz_data['state_centered_Rdens_total_new']
+				d_state_centered_Rdens_new = npz_data['d_state_centered_Rdens_new']
+			
+			if(i == 0):
+				state_centered_Rdens_total_data = [[]] * N_OP_interfaces_AB
+				for j in range(N_OP_interfaces_AB):
+					state_centered_Rdens_total_data[j] = [[]] * N_species
+					for k in range(N_species):
+						state_centered_Rdens_total_data[j][k] = \
+							np.empty((len(state_centered_Rdens_total_new[j][k]), N_runs))
+			for j in range(N_OP_interfaces_AB):
+				for k in range(N_species):
+					state_centered_Rdens_total_data[j][k][:, i] = state_centered_Rdens_total_new[j][k]
+			
 			if(to_get_timeevol):
 				rho_fncs[i] = scipy.interpolate.interp1d(OP_hist_centers_new, rho_new, fill_value='extrapolate')
 				d_rho_fncs[i] = scipy.interpolate.interp1d(OP_hist_centers_new, d_rho_new, fill_value='extrapolate')
@@ -1844,6 +2124,38 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		#Nc_0 = table_data.Nc_reference_data[str(Temp)] if(str(Temp) in table_data.Nc_reference_data) else None
 		PB_sigmoid, d_PB_sigmoid, linfit_AB, linfit_AB_inds, m0_AB_fit = \
 			get_sigmoid_fit(PB_AB[:-1], d_PB_AB[:-1], OP_AB[:-1])
+		
+		if(state_Rdens_centers_new is not None):
+			state_centered_Rdens_total = [[]] * N_OP_interfaces_AB
+			d_state_centered_Rdens_total = [[]] * N_OP_interfaces_AB
+			for j in range(N_OP_interfaces_AB):
+				state_centered_Rdens_total[j] = [[]] * N_species
+				d_state_centered_Rdens_total[j] = [[]] * N_species
+				for k in range(N_species):
+					state_centered_Rdens_total[j][k], d_state_centered_Rdens_total[j][k] = \
+						get_average(state_centered_Rdens_total_data[j][k], axis=1)
+
+	if(state_Rdens_centers_new is not None):
+		# =============== Rdens ================
+		fig_state_Rdens = [[]] * N_species
+		ax_state_Rdens = [[]] * N_species
+		fig_state_Rdens_log = [[]] * N_species
+		ax_state_Rdens_log = [[]] * N_species
+		ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
+		for k in range(N_species):
+			fig_state_Rdens[k], ax_state_Rdens[k], _ = my.get_fig('r', r'$\rho_%d$' % k, title=(r'$\rho_%d(r)$; ' % k) + ThL_lbl)
+			fig_state_Rdens_log[k], ax_state_Rdens_log[k], _ = my.get_fig('r', r'$\rho_%d$' % k, title=(r'$\rho_%d(r)$; ' % k) + ThL_lbl, yscl='logit')
+		
+		for i in range(N_OP_interfaces_AB):
+			cluster_lbl = r'$OP[%d] = %d$; ' % (i, OP_interfaces_AB[i])
+			for k in range(N_species):
+				ax_state_Rdens[k].errorbar(state_Rdens_centers_new, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens_total[i][k], label=cluster_lbl)
+				ax_state_Rdens_log[k].errorbar(state_Rdens_centers_new, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens_total[i][k], label=cluster_lbl)
+		
+		for k in range(N_species):
+			ax_state_Rdens[k].legend()
+			ax_state_Rdens_log[k].legend()
+
 
 	if(to_plot_k_distr):
 		plot_k_distr(np.exp(ln_k_AB_data) / 1, N_k_bins, 'k_{AB}', units='step')
@@ -1863,7 +2175,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		assert(not (('BF' in mode) and to_plot_committer)), 'ERROR: BF mode used but commiter requested'
 	
 	if(to_plot_committer):
-		ThL_lbl = '$\epsilon_{11, 22}/T = ' + my.f2s(e[1,1]) + ',' + my.f2s(e[2,2]) + '$; $\mu_{1,2}/T = ' + my.f2s(mu[1]) + ',' + my.f2s(mu[2]) + '$; L = ' + str(L)
+		ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
 		fig_PB_log, ax_PB_log, _ = my.get_fig(title[interface_mode], r'$P_B(' + feature_label[interface_mode] + ') = P(i|0)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; ' + ThL_lbl, yscl='log')
 		fig_PB, ax_PB, _ = my.get_fig(title[interface_mode], r'$P_B(' + feature_label[interface_mode] + ') = P(i|0)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
 		fig_PB_sigmoid, ax_PB_sigmoid, _ = my.get_fig(title[interface_mode], r'$-\ln(1/P_B - 1)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
@@ -1896,7 +2208,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 						N_init_states, OP_interfaces, init_gen_mode=-3, \
 						init_composition=None, stab_step=-5, \
-						to_plot=False, to_save_npy=True, to_recomp=False):
+						to_plot=False, to_save_npy=True, to_recomp=0, \
+						seeds=None):
 	L2 = L**2
 	N_mu = mu_arr.shape[0]
 	
@@ -1948,7 +2261,9 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 						OP_interfaces_AB=OP_interfaces[i_mu], \
 						mode='FFS_AB', init_gen_mode=init_gen_mode, \
 						init_composition=init_composition, \
-						to_get_timeevol=False, to_plot_committer=False)
+						to_get_timeevol=False, to_plot_committer=False, \
+						to_recomp=max([0, to_recom - 1]), \
+						to_save_npz=to_save_npy, seeds=seeds)
 			prob_AB.append(prob_AB_new)
 			d_prob_AB.append(d_prob_AB_new)
 			PB_AB.append(PB_AB_new)
@@ -2099,6 +2414,9 @@ def main():
 	# python run.py -mode BF_1 -Nt 150000 -L 128 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.97 0.02 0.01 -OP_interfaces_set_IDs nvt10 -e -2.68010292 -1.34005146 -1.71526587
 	# python run.py -mode BF_1 -Nt 800000000 -L 128 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt-1 -e -2.68010292 -1.34005146 -1.71526587 -OP_min_BF -1 -OP_max_BF 0 -timeevol_stride 16000
 	# python run.py -mode FFS_AB -L 256 -to_get_timeevol 0 -N_states_FFS 5 -N_init_states_FFS 10 -N_runs 2 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -init_composition 0.977 0.013 0.01 -OP_interfaces_set_IDs nvt16
+	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt16 -my_seeds 1 -N_runs 10
+	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 250 -N_init_states_FFS 500 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt16 -N_runs 87 -my_seeds 1 2 3 4 6 7 8 9 10 11 13 14 15 16 17 18 19 20 21 24 25 26 27 28 30 31 32 33 34 36 37 38 39 40 41 42 43 44 45 46 47 48 49 51 52 53 54 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 80 81 82 84 85 86 87 89 90 92 94 95 96 97 98 99 100
+	# 12 22 23 29 35 50 55 5 79 83 88 91 93; 13
 	
 	################################ Ising ############################
 	# python run.py -mode BF_AB_L -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 35000000 -N_runs 5 -h 0.15 -interface_set_mode spaced -L 100 71 56 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
@@ -2125,11 +2443,10 @@ def main():
 	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.09 0.08 0.07 0.06 0.05 0.04 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 300 350 400 450 500 600 -Temp 2.0
 	#
 	# TODO: remove outdated inputs
-	[                                           L,    potential_filenames,      mode,           Nt,    N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seed,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz], _ = \
-		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt', '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seed',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz'], \
-					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],          [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],      [0, 1],              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1]], \
-					  default_values=      [ None,                 [None],      None, ['-1000000'],       ['-5000'],              ['5000'],  [my.no_flags[0]],               ['1'],       ['1'],      ['23'],              [None],      ['3'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]]])
-	
+	[                                           L,    potential_filenames,      mode,           Nt,    N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz], _ = \
+		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt', '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz'], \
+					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],          [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1]], \
+					  default_values=      [ None,                 [None],      None, ['-1000000'],       ['-5000'],              ['5000'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],      ['3'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]]])
 	
 	Ls = np.array([int(l) for l in L], dtype=int)
 	N_L = len(Ls)
@@ -2138,6 +2455,7 @@ def main():
 	
 	MC_move_mode = move_modes[MC_move_mode[0]]
 	init_composition = np.array([float(ic) for ic in init_composition])
+	swap_type_move = (MC_move_mode in [move_modes['swap'], move_modes['long_swap']])
 	
 	# ================ interaction setup ==============
 	e_inputs = ~np.array([J[0] is None, chi[0] is None, potential_filenames[0] is None, e[0] is None])
@@ -2208,8 +2526,9 @@ def main():
 	# ================ other params ==============
 	set_OP_defaults(L2)
 
-	my_seed = int(my_seed[0])
-	to_recomp = (to_recomp[0] in my.yes_flags)
+	my_seeds = np.array(my_seeds, dtype=int)
+	my_seed = my_seeds[0]
+	to_recomp = int(to_recomp[0])
 	#mode = mode[0]
 	to_get_timeevol = (to_get_timeevol[0] in my.yes_flags)
 	verbose = int(verbose[0])
@@ -2261,13 +2580,15 @@ def main():
 		OP_0 = OP_0 - L2
 		OP_max = OP_max - L2
 	
-	#assert(interface_mode == 'CS'), 'ERROR: interface_mode==M is temporary not supported'
+	assert(interface_mode == 'CS'), 'ERROR: interface_mode==M is temporary not supported'
 	
-	print('Ls=%s, mode=%s, Nt=%d, N_runs=%d, init_gen_mode=%d, OP_0=%s, OP_max=%s, N_spins_up_init=%s, OP_min_BF=%d, OP_max_BF=%d, to_get_timeevol=%r, verbose=%d, my_seed=%d, to_recomp=%r, N_param_points=%d\ne: %s\nmu: %s\n' % \
+	print('Ls=%s, mode=%s, Nt=%d, N_runs=%d, init_gen_mode=%d, OP_0=%s, OP_max=%s, N_spins_up_init=%s, OP_min_BF=%d, OP_max_BF=%d, to_get_timeevol=%r, verbose=%d, my_seed=%d, to_recomp=%d, N_param_points=%d\ne: %s\nmu: %s\n' % \
 		(str(Ls), mode, Nt, N_runs, init_gen_mode, str(OP_0), str(OP_max), str(N_spins_up_init), OP_min_BF, OP_max_BF, to_get_timeevol, verbose, my_seed, to_recomp, N_param_points, str(e), str(mu)))
 	
 	lattice_gas.init_rand(my_seed)
 	lattice_gas.set_verbose(verbose)
+	
+	#input(str(lattice_gas.get_seed()))
 
 	dE_avg = ((np.sqrt(abs(e[1,1])) + np.sqrt(abs(e[2,2]))) / 2)**2
 	Nt, N_states_FFS = \
@@ -2282,6 +2603,8 @@ def main():
 		stab_step = int(min(L2, Nt / 2) * (-stab_step))
 	if(timeevol_stride < 0):
 		timeevol_stride = np.int_(- Nt / timeevol_stride)
+	#print(Nt, timeevol_stride)
+	#input(str(timeevol_stride))
 	
 	if('2sides' in mode):
 		target_states0_all = load_Q_target_phase_data('bc').T
@@ -2401,7 +2724,7 @@ def main():
 		err = cost_fnc(MC_move_mode, Ls[0], e, mu[0, :], Nt, interface_mode, 
 					target_states0[target_phase_id0, :], target_states1[target_phase_id1, :], \
 					timeevol_stride, stab_step, verbose=verbose, \
-					to_plot_timeevol=True)
+					to_plot_timeevol=True, seeds=my_seeds)
 		
 	elif(mode == 'BF_2sides_many'):
 		phi_0, d_phi_0, phi_1, d_phi_1, \
@@ -2409,7 +2732,8 @@ def main():
 				run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, \
 					Nt_per_BF_run=Nt, stab_step=stab_step, \
 					mode='BF_2sides', timeevol_stride=timeevol_stride, \
-					to_plot_time_evol=False, verbose=verbose)
+					to_plot_time_evol=False, to_recomp=to_recomp, \
+					to_save_npz=to_save_npz, verbose=verbose, seeds=my_seeds)
 		
 		if(to_plot_timeevol):
 			plot_avg_phi_evol(phi_0, d_phi_0, phi_0_evol, d_phi_0_evol, phi_0, stab_step, timeevol_stride, r'$\vec{\varphi}_0$', time_scl='linear')    #  * np.sqrt(N_runs - 1)
@@ -2437,7 +2761,7 @@ def main():
 			x_opt = find_optimal_mu(MC_move_mode, Ls[0], e, mu[0, :], Temp, \
 						target_states0[i, :], target_states1[i, :], \
 						Nt, interface_mode, N_runs, cost_mode, \
-						stab_step_FFS=stab_step, 
+						stab_step_FFS=stab_step, seeds=my_seeds, 
 						opt_mode=opt_mode, verbose=verbose)
 			
 			if(opt_mode == 0):
@@ -2458,7 +2782,9 @@ def main():
 					run_many(MC_move_mode, L, e_opt, mu_opt, N_runs * 10, interface_mode, \
 						Nt_per_BF_run=Nt_states * timeevol_stride, stab_step=stab_step, \
 						mode='BF_2sides', timeevol_stride=timeevol_stride, \
-						to_plot_time_evol=False, verbose=max(verbose - 1, 0))
+						to_save_npz=to_save_npz, to_recomp=to_recomp, \
+						to_plot_time_evol=False, verbose=max(verbose - 1, 0), \
+						seeds=my_seeds)
 		
 			if(to_plot_timeevol):
 				states_timesteps = np.arange(Nt_states) * timeevol_stride
@@ -2497,7 +2823,9 @@ def main():
 				OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
 				to_plot_k_distr=True, N_k_bins=N_k_bins, \
 				mode='BF', N_saved_states_max=N_saved_states_max, 
-				init_composition=init_composition)
+				init_composition=init_composition, \
+				to_save_npz=to_save_npz, to_recomp=to_recomp, \
+				seeds=my_seeds)
 	
 	elif(mode == 'BF_AB_many'):
 		run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, 
@@ -2505,7 +2833,9 @@ def main():
 				OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
 				to_plot_k_distr=True, N_k_bins=N_k_bins, \
 				mode='BF_AB', N_saved_states_max=N_saved_states_max, \
-				init_composition=init_composition)
+				init_composition=init_composition, \
+				to_save_npz=to_save_npz, to_recomp=to_recomp, \
+				seeds=my_seeds)
 	
 	elif(mode == 'FFS_AB'):
 		proc_FFS_AB(MC_move_mode, Ls[0], e, mu[0, :], N_init_states_AB, \
@@ -2517,7 +2847,10 @@ def main():
 					to_get_timeevol=to_get_timeevol, \
 					init_gen_mode=init_gen_mode, \
 					init_composition=init_composition, \
-					to_plot_time_evol=to_plot_timeevol, to_plot_hists=True)
+					to_recomp=to_recomp, \
+					to_save_npz=to_save_npz, \
+					to_plot_time_evol=to_plot_timeevol, \
+					to_plot_hists=True)
 		
 	elif(mode == 'FFS_AB_many'):
 		F_FFS, d_F_FFS, M_hist_centers_FFS, OP_hist_lens_FFS, ln_k_AB_FFS, d_ln_k_AB_FFS, \
@@ -2531,8 +2864,11 @@ def main():
 					mode='FFS_AB', init_gen_mode=init_gen_mode, \
 					OP_sample_BF_A_to=OP_sample_BF_A_to[0], \
 					OP_match_BF_A_to=OP_match_BF_A_to[0], \
+					timeevol_stride=timeevol_stride, \
 					to_get_timeevol=to_get_timeevol, \
-					init_composition=init_composition)
+					init_composition=init_composition, \
+					to_save_npz=to_save_npz, to_recomp=to_recomp, \
+					seeds=my_seeds)
 		
 		get_log_errors(np.log(flux0_AB_FFS), d_flux0_AB_FFS / flux0_AB_FFS, lbl='flux0_AB', print_scale=print_scale_flux)
 		k_AB_FFS_mean, k_AB_FFS_min, k_AB_FFS_max, d_k_AB_FFS = get_log_errors(ln_k_AB_FFS, d_ln_k_AB_FFS, lbl='k_AB_FFS', print_scale=print_scale_k)
@@ -2541,8 +2877,8 @@ def main():
 	elif('mu' in mode):
 		get_mu_dependence(MC_move_mode, mu, Ls[0], e, N_runs, interface_mode, \
 						N_init_states_AB, OP_interfaces_AB, init_gen_mode=init_gen_mode, \
-						stab_step=stab_step, \
-						to_plot=True, to_save_npy=True, to_recomp=to_recomp)
+						stab_step=stab_step, to_recomp=to_recomp, \
+						to_plot=True, to_save_npy=True, seeds=my_seeds)
 	
 	elif('L' in mode):
 		ln_k_AB = np.empty(N_L)
@@ -2585,7 +2921,9 @@ def main():
 								N_spins_up_init=N_spins_up_init, \
 								to_get_timeevol=to_get_timeevol, mode='BF_AB', \
 								N_saved_states_max=N_saved_states_max, \
-								init_composition=init_composition)
+								init_composition=init_composition, \
+								to_save_npz=to_save_npz, to_recomp=to_recomp, \
+								seeds=my_seeds)
 			elif('FFS' in mode):
 				F_FFS_new, d_F_FFS_new, OP_hist_centers_FFS_new, OP_hist_lens_FFS_new, \
 					ln_k_AB[i_l], d_ln_k_AB[i_l], \
@@ -2601,7 +2939,9 @@ def main():
 							OP_sample_BF_A_to=OP_sample_BF_A_to[i_l], \
 							OP_match_BF_A_to=OP_match_BF_A_to[i_l], \
 							init_composition=init_composition, \
-							to_get_timeevol=to_get_timeevol, to_plot_committer=False)
+							to_get_timeevol=to_get_timeevol, \
+							to_save_npz=to_save_npz, to_recomp=to_recomp, \
+							to_plot_committer=False, seeds=my_seeds)
 				F_FFS.append(F_FFS_new)
 				d_F_FFS.append(d_F_FFS_new)
 				OP_hist_centers_FFS.append(OP_hist_centers_FFS_new)
@@ -2685,7 +3025,9 @@ def main():
 					OP_sample_BF_A_to=OP_sample_BF_A_to[0], \
 					OP_match_BF_A_to=OP_match_BF_A_to[0], \
 					init_composition=init_composition, \
-					to_get_timeevol=to_get_timeevol)
+					to_get_timeevol=to_get_timeevol, \
+					to_save_npz=to_save_npz, to_recomp=to_recomp, \
+					seeds=my_seeds)
 
 		F_BF, d_F_BF, M_hist_centers_BF, M_hist_lens_BF, ln_k_AB_BF, d_ln_k_AB_BF, ln_k_BA_BF, d_ln_k_BA_BF, \
 			ln_k_bc_AB_BF, d_ln_k_bc_AB_BF, ln_k_bc_BA_BF, d_ln_k_bc_BA_BF = \
@@ -2695,7 +3037,9 @@ def main():
 						Nt_per_BF_run=Nt, mode='BF', \
 						to_plot_k_distr=False, N_k_bins=N_k_bins, \
 						N_saved_states_max=N_saved_states_max, \
-						init_composition=init_composition)
+						init_composition=init_composition, \
+						to_save_npz=to_save_npz, to_recomp=to_recomp, \
+						seeds=my_seeds)
 		#F_BF = F_BF - min(F_BF)
 		F_BF = F_BF - F_BF[0]
 		
@@ -2713,7 +3057,7 @@ def main():
 			get_log_errors(np.log(flux0_BA_FFS), d_flux0_BA_FFS / flux0_BA_FFS, lbl='flux0_BA', print_scale=print_scale_flux)
 			k_BA_FFS_mean, k_BA_FFS_min, k_BA_FFS_max, d_k_BA_FFS = get_log_errors(ln_k_BA_FFS, d_ln_k_BA_FFS, lbl='k_BA_FFS', print_scale=print_scale_k)
 		
-		ThL_lbl = '$\epsilon_{11, 22}/T = ' + my.f2s(e[1,1]) + ',' + my.f2s(e[2,2]) + '$; $\mu_{1,2}/T = ' + my.f2s(mu[1]) + ',' + my.f2s(mu[2]) + '$; L = ' + str(L)
+		ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
 		fig_F, ax_F, _ = my.get_fig(title[interface_mode], r'$F / J$', title=r'$F(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
 		ax_F.errorbar(M_hist_centers_BF, F_BF, yerr=d_F_BF, label='BF')
 		if(to_get_timeevol):
