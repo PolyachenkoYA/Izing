@@ -1703,6 +1703,7 @@ namespace lattice_gas
 			*ix_new = (*ix + (direction == 0)) % L;
 			*iy_new = (*iy + (direction == 1)) % L;
 
+//			if(state[*ix * L + *iy] == state[ix_new * L + iy_new])
 			*dE = swap_mode_dE(state, L, e, mu, *ix, *iy, *ix_new, *iy_new);
 			++N_flip_tries;
 		}while(!(*dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- *dE))));
