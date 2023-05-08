@@ -28,6 +28,7 @@ PYBIND11_MODULE(lattice_gas, m)
 		  py::arg("interface_mode")=mode_ID_CS,
 		  py::arg("stab_step")=-5,
 		  py::arg("init_state")=py::none(),
+		  py::arg("to_use_smart_swap")=0,
 		  py::arg("verbose")=py::none()
     );
 
@@ -60,6 +61,7 @@ PYBIND11_MODULE(lattice_gas, m)
 		  py::arg("OP_max")=py::none(),
 		  py::arg("interface_mode")=py::none(),
 		  py::arg("init_state")=py::none(),
+		  py::arg("to_use_smart_swap")=0,
 		  py::arg("verbose")=py::none()
 	);
 

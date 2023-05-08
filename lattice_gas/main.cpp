@@ -28,6 +28,7 @@ void test_BF()
 	int L = 64;
 	int i, j;
 	int L2 = L*L;
+	int to_use_smart_swap = 1;
 
 	lattice_gas::init_rand_C(my_seed);
 
@@ -97,7 +98,8 @@ void test_BF()
 	N_states_saved = 0;
 
 	lattice_gas::get_equilibrated_state(move_mode, L, e_ptr, mu_ptr, states_ptr, &N_states_saved,
-										interface_mode, OP_A, OP_B, stab_step, _init_state_ptr, verbose);
+										interface_mode, OP_A, OP_B, stab_step, _init_state_ptr, to_use_smart_swap,
+										verbose);
 	++N_states_saved;
 	// N_states_saved is set to its initial values by default, so the equilibrated state is not saved
 	// ++N prevents further processes from overwriting the initial state so it will be returned as states[0]
@@ -110,7 +112,8 @@ void test_BF()
 								  OP_min, OP_max, &N_states_saved,
 								  OP_min_save_state, OP_max_save_state,save_state_mode_Inside,
 								  N_spins_up_init, verbose, Nt_max, &N_launches, 0,
-								  (OP_A <= 1) && (!bool(_init_state_ptr)), save_states_stride);
+								  (OP_A <= 1) && (!bool(_init_state_ptr)), save_states_stride,
+								  to_use_smart_swap);
 
 	if(to_remember_timeevol){
 		free(_E);
@@ -151,13 +154,16 @@ void test_BF()
 
 void test_FFS_C()
 {
-	int verbose = 2;
+	int verbose = 1;
 	int my_seed = 2;
 
-	int L = 256;
+	double phi0[] = {0, 0.02, 0.01};
+	phi0[0] = 1.0 - phi0[1] - phi0[2];
+	int L = 64;
+//	L = 32;
 	int N_init_states_default = 1000;
-	int N_init_states_A = 100000;
-	int N_OP_interfaces = 3;
+	int N_init_states_A = 1000000;
+	int N_OP_interfaces = 5;
 	int init_gen_mode = -3;
 	int to_remember_timeevol = 1;
 	int interface_mode = mode_ID_CS;
@@ -165,12 +171,14 @@ void test_FFS_C()
 	int OP_max;
 	int move_mode = move_mode_flip;
 	int stab_step = -10;
+	int to_use_smart_swap = 0;
 
 	move_mode = move_mode_long_swap;
+	move_mode = move_mode_swap;
 
 	// for valgrind
-	N_init_states_default = 10;
-	N_init_states_A = 10;
+	N_init_states_default = 3;
+	N_init_states_A = 3;
 
 	int L2 = L*L;
 
@@ -182,6 +190,8 @@ void test_FFS_C()
 		case mode_ID_CS:
 			OP_0 = 24;
 			OP_max = 500;
+			OP_0 = 6;
+			OP_max = 14;
 			break;
 	}
 
@@ -279,10 +289,21 @@ void test_FFS_C()
 	double flux0;
 	double d_flux0;
 
+	if(verbose){
+		printf("OP interfaces :\n");
+		for(i = 0; i < N_OP_interfaces; ++i){
+			printf("%d ", OP_interfaces[i]);
+		}
+		printf("\n");
+	}
+
+	int *_init_state_ptr = (int*)malloc(state_size_in_bytes);
+	lattice_gas::generate_state(_init_state_ptr, L, lround(phi0[main_specie_id] * L2) + 1, mode_ID_M, verbose);
+
 	lattice_gas::run_FFS_C(move_mode, &flux0, &d_flux0, L, e, mu, states, N_init_states,
 						   Nt, Nt_OP_saved, stab_step, to_remember_timeevol ? &OP_arr_len : nullptr, OP_interfaces, N_OP_interfaces,
 						   probs, d_probs, &E, &M, &biggest_cluster_sizes, &time,
-						   verbose, init_gen_mode, interface_mode, nullptr);
+						   verbose, init_gen_mode, interface_mode, _init_state_ptr, to_use_smart_swap);
 
 	if(to_remember_timeevol){
 		free(E);   // the pointer to the array
@@ -298,4 +319,5 @@ void test_FFS_C()
 	free(Nt_OP_saved);
 	free(OP_interfaces);
 	free(N_init_states);
+	free(_init_state_ptr);
 }

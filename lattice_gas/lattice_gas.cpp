@@ -12,6 +12,9 @@
 #include <Python.h>
 
 #include <vector>
+#include <random>
+#include <set>
+#include <algorithm>
 
 namespace py = pybind11;
 using namespace pybind11::literals;
@@ -136,6 +139,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
 						 std::optional<int> _interface_mode,
 						 std::optional< pybind11::array_t<int> > _init_state,
+						 int to_use_smart_swap,
 						 std::optional<int> _verbose)
 /**
  *
@@ -234,7 +238,8 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 
 	N_states_saved = 0;
 	lattice_gas::get_equilibrated_state(move_mode, L, e_ptr, mu_ptr, states_ptr, &N_states_saved,
-										interface_mode, OP_A, OP_B, stab_step, _init_state_ptr, verbose);
+										interface_mode, OP_A, OP_B, stab_step, _init_state_ptr, to_use_smart_swap,
+										verbose);
 	++N_states_saved;
 	// N_states_saved is set to its initial values by default, so the equilibrated state is not saved
 	// ++N prevents further processes from overwriting the initial state so it will be returned as states[0]
@@ -247,7 +252,8 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 								  OP_min, OP_max, &N_states_saved,
 								  OP_min_save_state, OP_max_save_state,save_state_mode_Inside,
 								  N_spins_up_init, verbose, Nt_max, &N_launches, 0,
-								  (OP_A <= 1) && (!bool(_init_state_ptr)), save_states_stride);
+								  (OP_A <= 1) && (!bool(_init_state_ptr)), save_states_stride,
+								  to_use_smart_swap);
 
 	int N_last_elements_to_print = std::min(Nt_OP_saved, (long)10);
 
@@ -308,13 +314,15 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 	return py::make_tuple(states, E, M, biggest_cluster_sizes, h_A, time, N_launches, time_total);
 }
 
-// int run_FFS_C(double *flux0, double *d_flux0, int L, double Temp, double h, int *states, int *N_init_states, long *Nt,
-// 				long *Nt_OP_saved, int *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs,
-// 				double **E, int **M, int to_remember_timeevol, int verbose)
+//int run_FFS_C(int move_mode, double *flux0, double *d_flux0, int L, const double *e, const double *mu, int *states,
+//			  int *N_init_states, long *Nt, long *Nt_OP_saved, long stab_step,
+//			  long *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
+//			  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode,
+//			  const int *init_state, int to_use_smart_swap);
 py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<double> mu,
 				  pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
 				  int to_remember_timeevol, int init_gen_mode, int interface_mode,  long stab_step,
-				  std::optional< pybind11::array_t<int> > _init_state,
+				  std::optional< pybind11::array_t<int> > _init_state, int to_use_smart_swap,
 				  std::optional<int> _verbose)
 /**
  *
@@ -371,6 +379,7 @@ py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<doubl
 	if(verbose) {
 		printf("C module:\nL=%d, to_remember_timeevol=%d, init_gen_mode=%d, interface_mode=%d, verbose=%d\n",
 			   L, to_remember_timeevol, init_gen_mode, interface_mode, verbose);
+
 		lattice_gas::print_e_matrix(e_ptr);
 		lattice_gas::print_mu_vector(mu_ptr);
 	}
@@ -462,7 +471,7 @@ py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<doubl
 						   to_remember_timeevol ? &_M : nullptr,
 						   to_remember_timeevol ? &_biggest_cluster_sizes : nullptr,
 						   to_remember_timeevol ? &_time : nullptr,
-						   verbose, init_gen_mode, interface_mode, _init_state_ptr);
+						   verbose, init_gen_mode, interface_mode, _init_state_ptr, to_use_smart_swap);
 
 	if(verbose >= 2){
 		printf("FFS core done\nNt: ");
@@ -529,6 +538,7 @@ py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<doubl
 
 namespace lattice_gas
 {
+	std::mt19937 *gen_mt19937;
     gsl_rng *rng;
     int seed;
     int verbose_dafault;
@@ -550,7 +560,8 @@ namespace lattice_gas
 	int run_FFS_C(int move_mode, double *flux0, double *d_flux0, int L, const double *e, const double *mu, int *states,
 				  int *N_init_states, long *Nt, long *Nt_OP_saved, long stab_step,
 				  long *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
-				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode, const int *init_state)
+				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode,
+				  const int *init_state, int to_use_smart_swap)
 	/**
 	 *
 	 * @param flux0 - the flux from l_A
@@ -592,7 +603,7 @@ namespace lattice_gas
 						  OP_interfaces[0], stab_step, interface_mode,
 						  OP_interfaces[0], OP_interfaces[N_OP_interfaces - 1],
 						  E, M, biggest_cluster_sizes, nullptr, time,
-						  &Nt_total, &Nt_OP_saved_total, OP_arr_len, init_state,
+						  &Nt_total, &Nt_OP_saved_total, OP_arr_len, init_state, to_use_smart_swap,
 						  verbose);
 		Nt[0] = Nt_total;
 		Nt_OP_saved[0] = Nt_OP_saved_total;
@@ -619,7 +630,7 @@ namespace lattice_gas
 									E, M, biggest_cluster_sizes, time, &Nt_total, &Nt_OP_saved_total,
 									OP_arr_len, N_init_states[i - 1], N_init_states[i],
 									L, e, mu, OP_interfaces[0], OP_interfaces[i],
-									interface_mode, verbose); // OP_interfaces[0] - (i == 1 ? 1 : 0)
+									interface_mode, to_use_smart_swap, verbose); // OP_interfaces[0] - (i == 1 ? 1 : 0)
 			//d_probs[i] = (i == 0 ? 0 : probs[i] / sqrt(N_init_states[i] / probs[i]));
 			d_probs[i - 1] = probs[i - 1] / sqrt(N_init_states[i - 1] * (1 - probs[i - 1]));
 
@@ -672,7 +683,7 @@ namespace lattice_gas
 	double process_step(int move_mode, int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int **time,
 						long *Nt, long *Nt_OP_saved, long *OP_arr_len, int N_init_states, int N_next_states,
 						int L, const double *e, const double *mu, int OP_0, int OP_next,
-						int interfaces_mode, int verbose)
+						int interfaces_mode, int to_use_smart_swap, int verbose)
 	/**
 	 *
 	 * @param init_states - are assumed to contain 'N_init_states * state_size_in_bytes' ints representing states to start simulations from
@@ -730,7 +741,7 @@ namespace lattice_gas
 			run_status = run_state(move_mode, state_under_process, &OP_current, L, e, mu, &time_of_step_total, OP_0, OP_next,
 								   E, M, biggest_cluster_sizes, nullptr, time,
 								   cluster_element_inds, cluster_sizes, cluster_types, is_checked,
-								   Nt, Nt_OP_saved, OP_arr_len, interfaces_mode, verbose);
+								   Nt, Nt_OP_saved, OP_arr_len, interfaces_mode, to_use_smart_swap, verbose);
 
 			switch (run_status) {
 				case 0:  // reached <=OP_A  => unsuccessful run
@@ -780,11 +791,64 @@ namespace lattice_gas
 		return (double)N_succ / N_runs;   // the probability P(i+1 | i) to go from i to i+1
 	}
 
+	bool is_potential_swap_position(int *state, int L, int ix, int iy)
+	{
+		int s_group[2 * dim + 1];
+		get_spin_with_neibs(state, L, ix, iy, s_group);
+		for(int j = 1; j <= 2 * dim; ++j){
+			if(s_group[0] != s_group[j]){
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	void update_potential_position(int *state, int L, int pos, std::set< int > *positions){
+		auto pos_pos = positions->find(pos);
+		if(pos_pos == positions->end()){
+			if(is_potential_swap_position(state, L, pos / L, pos % L)){
+				positions->insert(pos);
+			}
+		} else {
+			if(!is_potential_swap_position(state, L, pos / L, pos % L)){
+				positions->erase(pos_pos);
+			}
+		}
+
+	}
+
+	void update_neib_potpos(int *state, int L, int ix, int iy, std::set< int > *positions)
+	{
+		int L2 = L*L;
+		int pos = ix * L + iy;
+		update_potential_position(state, L, md(pos + 1, L2), positions);
+		update_potential_position(state, L, md(pos - 1, L2), positions);
+		update_potential_position(state, L, md(pos + L, L2), positions);
+		update_potential_position(state, L, md(pos - L, L2), positions);
+	}
+
+	void find_potential_swaps(int *state, int L, std::set< int > *positions)
+	/*
+	 * This algorithm is not optimal
+	 * A more optimal way would be to cluster the state with a criterion "g_0 != g_neig"
+	 */
+	{
+		int L2 = L*L;
+		int i, j;
+		int s_group[2 * dim + 1];
+		for(i = 0; i < L2; ++i){
+			if(is_potential_swap_position(state, L, i / L, i % L)){
+				positions->insert(i);
+			}
+		}
+	}
+
 	int run_state(int move_mode, int *s, int *OP_current, int L, const double *e, const double *mu, long *time_total,
 				  int OP_0, int OP_next, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 				  int *cluster_element_inds, int *cluster_sizes, int *cluster_types, int *is_checked, long *Nt, long *Nt_OP_saved,
-				  long *OP_arr_len, int interfaces_mode, int verbose, int to_cluster, long Nt_max, int* states_to_save,
-				  int *N_states_saved, int N_states_to_save, int OP_min_save_state, int OP_max_save_state,
+				  long *OP_arr_len, int interfaces_mode, int to_use_smart_swap, int verbose, int to_cluster, long Nt_max,
+				  int* states_to_save, int *N_states_saved, int N_states_to_save, int OP_min_save_state, int OP_max_save_state,
 				  int save_state_mode, int OP_A, int OP_B, long save_states_stride)
 	/**
 	 *	Run state saving states in (OP_min_save_state, OP_max_save_state) and saving OPs for the whole (OP_0; OP_next)
@@ -860,6 +924,10 @@ namespace lattice_gas
 		double dE;
 		int time_the_flip_took;
 		*time_total = 0;
+		std::set< int > potential_swap_positions;
+		if(to_use_smart_swap){
+			find_potential_swaps(s, L, &potential_swap_positions);
+		}
 
 //		double Emin = -(2 + abs(h)) * L2;
 //		double Emax = 2 * L2;
@@ -879,8 +947,13 @@ namespace lattice_gas
 					s[ix * L + iy] = s_new;
 					break;
 				case move_mode_swap:
-					time_the_flip_took = swap_move(s, L, e, mu, &ix, &iy, &ix_new, &iy_new, &dE);
+					time_the_flip_took = swap_move(s, L, e, mu, &ix, &iy, &ix_new, &iy_new, &dE,
+												   to_use_smart_swap ? &potential_swap_positions : nullptr);
 					std::swap(s[ix * L + iy], s[ix_new * L + iy_new]);
+					if(to_use_smart_swap){
+						update_neib_potpos(s, L, ix, iy, &potential_swap_positions);
+						update_neib_potpos(s, L, ix_new, iy_new, &potential_swap_positions);
+					}
 					break;
 				case move_mode_long_swap:
 					time_the_flip_took = long_swap_move(s, L, e, mu, &ix, &iy, &ix_new, &iy_new, &dE);
@@ -891,7 +964,6 @@ namespace lattice_gas
 			*time_total += time_the_flip_took;
 			E_current += dE;
 
-//			printf("moved Nt = %ld\n", *Nt);
 			if(to_cluster){
 				clear_clusters(cluster_element_inds, cluster_sizes, &N_clusters_current);
 				uncheck_state(is_checked, L2);
@@ -905,6 +977,13 @@ namespace lattice_gas
 //				h_A_prev = h_A_current;
 				h_A_current = (*Nt == 0 ? (*OP_current - OP_A > OP_B - *OP_current ? 0 : 1) : (h_A_current == 1 ? (*OP_current < OP_B ? 1 : 0) : (*OP_current >= OP_A ? 0 : 1)));
 			}
+
+//			if(!(*Nt % (8192000 / L2))) {
+//				printf("moved Nt = %ld\n", *Nt);
+//				printf("CS = %ld\n", biggest_cluster_sizes_current);
+//				print_S(s, L, 't');
+//				getchar();
+//			}
 
 			++(*Nt);
 
@@ -1094,7 +1173,7 @@ namespace lattice_gas
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
 						 int N_spins_up_init, int verbose, long Nt_max, int *N_tries, int to_save_final_state,
-						 int to_regenerate_init_state, long save_states_stride)
+						 int to_regenerate_init_state, long save_states_stride, int to_use_smart_swap)
 	/**
 	 *
 	 * @param L - see run_FFS
@@ -1161,8 +1240,8 @@ namespace lattice_gas
 		int restart_state_ID;
 
 		if(verbose){
-			printf("running brute-force:\nL=%d  to_cluster=%d  OP_mode=%d  OP\\in[%d;%d), [OP_min_save_state; OP_max_save_state) = [%d; %d)  N_spins_up_init=%d  N_states_to_gen=%d  Nt_max=%ld  stride=%ld  verbose=%d\n",
-				   L, to_cluster, interface_mode, OP_min_stop_state, OP_max_stop_state, OP_min_save_state, OP_max_save_state, N_spins_up_init, N_states, Nt_max, save_states_stride, verbose);
+			printf("running brute-force:\nL=%d  to_cluster=%d  OP_mode=%d  OP\\in[%d;%d), [OP_min_save_state; OP_max_save_state) = [%d; %d)  N_spins_up_init=%d  N_states_to_gen=%d  Nt_max=%ld  stride=%ld  smart_swap=%d  verbose=%d\n",
+				   L, to_cluster, interface_mode, OP_min_stop_state, OP_max_stop_state, OP_min_save_state, OP_max_save_state, N_spins_up_init, N_states, Nt_max, save_states_stride, to_use_smart_swap, verbose);
 			print_e_matrix(e);
 			print_mu_vector(mu);
 			switch (save_state_mode) {
@@ -1195,7 +1274,7 @@ namespace lattice_gas
 			run_state(move_mode, state_under_process, &OP_current, L, e, mu, &time_the_try_took,
 					  OP_min_stop_state, OP_max_stop_state,
 					  E, M, biggest_cluster_sizes, h_A, time, cluster_element_inds, cluster_sizes, cluster_types,
-					  is_checked, Nt, Nt_OP_saved, OP_arr_len, interface_mode,
+					  is_checked, Nt, Nt_OP_saved, OP_arr_len, interface_mode, to_use_smart_swap,
 					  -verbose, to_cluster, Nt_max, states, N_states_done, N_states,
 					  OP_min_save_state, OP_max_save_state, save_state_mode, OP_A, OP_B, save_states_stride);
 
@@ -1245,7 +1324,8 @@ namespace lattice_gas
 	}
 
 	int get_equilibrated_state(int move_mode, int L, const double *e, const double *mu, int *state, int *N_states_done,
-							   int interface_mode, int OP_A, int OP_B, long stab_step, const int *init_state, int verbose)
+							   int interface_mode, int OP_A, int OP_B, long stab_step, const int *init_state,
+							   int to_use_smart_swap, int verbose)
 	{
 		int L2 = L*L;
 		int state_size_in_bytes = sizeof(int) * L2;
@@ -1270,7 +1350,8 @@ namespace lattice_gas
 						 OP_min_default[interface_mode], OP_A,
 						 &N_states_done_local, OP_A,
 						 OP_A, save_state_mode_Influx, -1,
-						 verbose, -1, &N_tries, 0, ! bool(init_state), 1);
+						 verbose, -1, &N_tries, 0, ! bool(init_state),
+						 1, to_use_smart_swap);
 		if(verbose > 0){
 			printf("reached OP >= OP_A = %d in Nt = %ld MC steps\n", OP_A, Nt_to_reach_OP_A);
 		}
@@ -1303,7 +1384,8 @@ namespace lattice_gas
 							 OP_min_default[interface_mode], OP_B,
 							 N_states_done, -1,
 							 -1, -1, -1,
-							 0, N_steps_to_equil, &N_tries, 1, 0, 1);
+							 0, N_steps_to_equil, &N_tries, 1, 0,
+							 1, to_use_smart_swap);
 			if(N_tries == 0){
 				if(get_max_CS(&(state[(*N_states_done - 1) * L2]), L) < OP_A){
 					memcpy(&(state[(N_states_done_local - 1) * L2]), &(state[(*N_states_done - 1) * L2]), state_size_in_bytes);
@@ -1334,7 +1416,8 @@ namespace lattice_gas
 						  int *init_states, int mode, int OP_thr_save_state, long stab_step,
 						  int interface_mode, int OP_A, int OP_B,
 						  double **E, int **M, int **biggest_cluster_size, int **h_A, int **time,
-						  long *Nt, long *Nt_OP_saved, long *OP_arr_len, const int *init_state, int verbose)
+						  long *Nt, long *Nt_OP_saved, long *OP_arr_len, const int *init_state, int to_use_smart_swap,
+						  int verbose)
 	/**
 	 *
 	 * @param L - see run_FFS
@@ -1387,13 +1470,14 @@ namespace lattice_gas
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, OP_min_default[interface_mode],
 							 OP_thr_save_state, save_state_mode_Inside, -1,
-							 verbose, -1, &N_tries, 0, ! bool(init_state), 1);
+							 verbose, -1, &N_tries, 0, ! bool(init_state),
+							 1, to_use_smart_swap);
 		} else if(mode == gen_init_state_mode_Influx){
 			int N_states_done = 0;
 			int N_tries = 0;
 
 			get_equilibrated_state(move_mode, L, e, mu, init_states, &N_states_done, interface_mode,
-								   OP_thr_save_state, OP_B, stab_step, init_state, verbose);
+								   OP_thr_save_state, OP_B, stab_step, init_state, to_use_smart_swap, verbose);
 
 			*Nt = 0;   // forget anything we might have had
 			*Nt_OP_saved = 0;
@@ -1411,7 +1495,8 @@ namespace lattice_gas
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, OP_thr_save_state,
 							 OP_thr_save_state, save_state_mode_Influx, -1,
-							 verbose, -1, &N_tries, 0, 0, 1);
+							 verbose, -1, &N_tries, 0, 0, 1,
+							 to_use_smart_swap);
 			if(verbose > 0){
 				if(N_tries > 0){
 					printf("=================== WARNING ===============\nNumber of MC steps made for initial flux estimation: %ld\nNumber of times going to the B state (OP_B = %d): %d\n", *Nt, OP_B, N_tries);
@@ -1640,17 +1725,13 @@ namespace lattice_gas
 
 	double swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new)
 	{
-		if(state[ix * L + iy] == state[ix_new * L + iy_new]){
-			return 0;
-		} else {
-			int s1[2 * dim + 1];
-			int s2[2 * dim + 1];
-			get_spin_with_neibs(state, L, ix, iy, s1);
-			get_spin_with_neibs(state, L, ix_new, iy_new, s2);
+		int s1[2 * dim + 1];
+		int s2[2 * dim + 1];
+		get_spin_with_neibs(state, L, ix, iy, s1);
+		get_spin_with_neibs(state, L, ix_new, iy_new, s2);
 
-			return (new_spin_energy(L, e, mu, s1, s2[0]) + new_spin_energy(L, e, mu, s2, s1[0])) -
-				   (new_spin_energy(L, e, mu, s1, s1[0]) + new_spin_energy(L, e, mu, s2, s2[0]));
-		}
+		return (new_spin_energy(L, e, mu, s1, s2[0]) + new_spin_energy(L, e, mu, s2, s1[0])) -
+			   (new_spin_energy(L, e, mu, s1, s1[0]) + new_spin_energy(L, e, mu, s2, s2[0]));
 	}
 
 	double flip_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int s_new)
@@ -1686,27 +1767,59 @@ namespace lattice_gas
 		return N_flip_tries;
 	}
 
-	int swap_move(const int *state, int L, const double *e, const double *mu, int *ix, int *iy, int *ix_new, int *iy_new, double *dE)
+	int swap_move(const int *state, int L, const double *e, const double *mu, int *ix, int *iy, int *ix_new, int *iy_new,
+				  double *dE, const std::set< int > *swap_positions)
 	{
 		int N_flip_tries = 0;
 		int L2 = L * L;
-		int total_range = L2 * dim;
-		int rnd, pos, direction;
-		do{
-			rnd = gsl_rng_uniform_int(rng, total_range);
-			direction = rnd / L2;   // we try only x+1 and y+1 flips (and not x-1, y-1), since it covers all the possible flips
+		int total_range;
+		int rnd, pos, direction, sgn;
+		bool to_swap = false;
 
-			pos = rnd % L2;
-			*iy = pos % L;
-			*ix = pos / L;
+		if(swap_positions){
+			total_range = dim * 2;
+			do{
+				std::sample( swap_positions->begin(), swap_positions->end(), &pos, 1, *gen_mt19937);
+				direction = gsl_rng_uniform_int(rng, total_range);
+				sgn = (direction % 2) * 2 - 1;
+				direction = direction % dim;
 
-			*ix_new = (*ix + (direction == 0)) % L;
-			*iy_new = (*iy + (direction == 1)) % L;
+				*iy = pos % L;
+				*ix = pos / L;
 
-//			if(state[*ix * L + *iy] == state[ix_new * L + iy_new])
-			*dE = swap_mode_dE(state, L, e, mu, *ix, *iy, *ix_new, *iy_new);
-			++N_flip_tries;
-		}while(!(*dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- *dE))));
+				*ix_new = md(*ix + sgn * (direction == 0), L);
+				*iy_new = md(*iy + sgn * (direction == 1), L);
+
+				to_swap = (state[*ix * L + *iy] != state[*ix_new * L + *iy_new]);
+				if(to_swap){
+					*dE = swap_mode_dE(state, L, e, mu, *ix, *iy, *ix_new, *iy_new);
+					to_swap = (*dE <= 0 ? true : (gsl_rng_uniform(rng) < exp(- *dE)));
+				}
+
+				++N_flip_tries;
+			}while(!to_swap);
+		} else {
+			total_range = L2 * dim;
+			do{
+				rnd = gsl_rng_uniform_int(rng, total_range);
+				direction = rnd / L2;   // we try only x+1 and y+1 flips (and not x-1, y-1), since it covers all the possible flips
+				pos = rnd % L2;
+
+				*iy = pos % L;
+				*ix = pos / L;
+
+				*ix_new = (*ix + (direction == 0)) % L;
+				*iy_new = (*iy + (direction == 1)) % L;
+
+				to_swap = (state[*ix * L + *iy] != state[*ix_new * L + *iy_new]);
+				if(to_swap){
+					*dE = swap_mode_dE(state, L, e, mu, *ix, *iy, *ix_new, *iy_new);
+					to_swap = (*dE <= 0 ? true : (gsl_rng_uniform(rng) < exp(- *dE)));
+				}
+
+				++N_flip_tries;
+			}while(!to_swap);
+		}
 
 		return N_flip_tries;
 	}
@@ -1793,6 +1906,8 @@ namespace lattice_gas
 		rng = gsl_rng_alloc(T);
 		gsl_rng_set(rng, my_seed);
 //		srand(my_seed);
+
+		gen_mt19937 = new std::mt19937( std::random_device{}() );
 
 		seed = my_seed;
 		return 0;
