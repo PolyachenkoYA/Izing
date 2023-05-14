@@ -119,7 +119,7 @@ namespace lattice_gas
 	double comp_E(const int* state, int L, const double *e, const double *mu);
 	int comp_M(const int *s, int L);
 	int generate_state(int *s, int L, int mode, int interface_mode, int verbose);
-	double new_spin_energy(int L, const double *e, const double *mu, const int *s_neibs, int s_new);
+	double new_spin_energy(const double *e, const double *mu, const int *s_neibs, int s_new);
 	void get_spin_with_neibs(const int *state, int L, int ix, int iy, int *s_group);
 	int swap_move(const int *state, int L, const double *e, const double *mu, int *ix, int *iy, int *ix_new, int *iy_new,
 				  double *dE, const std::set< int > *swap_positions);
@@ -127,6 +127,8 @@ namespace lattice_gas
 	int long_swap_move(const int *state, uint L, const double *e, const double *mu, int *ix, int *iy, int *ix_new, int *iy_new, double *dE);
 	int flip_move(const int *state, int L, const double *e, const double *mu, int *ix, int *iy, int *s_new, double *dE);
 	double swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new);
+	double long_swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new);
+	double short_swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new);
 	double flip_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int s_new);
 	void set_OP_default(int L2);
 	int get_OP_from_spinsup(int N_spins_up, int L2, int interface_mode);

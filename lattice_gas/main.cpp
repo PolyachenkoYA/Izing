@@ -22,13 +22,13 @@ int main(int argc, char** argv) {
 
 void test_BF()
 {
-	double phi0[] = {0, 0.02, 0.01};
+	double phi0[] = {0, 0.05, 0.02};
 	phi0[0] = 1.0 - phi0[1] - phi0[2];
 	int my_seed = 23;
 	int L = 16;
 	int i, j;
 	int L2 = L*L;
-	int to_use_smart_swap = 1;
+	int to_use_smart_swap = 0;
 
 	lattice_gas::init_rand_C(my_seed);
 
@@ -36,7 +36,7 @@ void test_BF()
 
 	long N_saved_states_max = -1;
 	int stab_step = -10;
-	int Nt_max = 10000;
+	int Nt_max = 100000;
 	int save_states_stride = 1;
 	int move_mode = move_mode_long_swap;
 	move_mode = move_mode_swap;

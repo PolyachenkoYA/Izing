@@ -8,7 +8,7 @@
 
 #include <pybind11/pytypes.h>
 #include <pybind11/cast.h>
-#include <pybind11/stl.h>
+//#include <pybind11/stl.h>
 #include <Python.h>
 
 #include <vector>
@@ -21,17 +21,17 @@ using namespace pybind11::literals;
 
 #include "lattice_gas.h"
 
-void test_my(int k, py::array_t<long> *_Nt, py::array_t<double> *_probs, py::array_t<double> *_d_probs, int l)
-// A function for DEBUG purposes
-{
-	printf("checking  step %d\n", k);
-	py::buffer_info Nt_info = (*_Nt).request();
-	py::buffer_info probs_info = (*_probs).request();
-	py::buffer_info d_probs_info = (*_d_probs).request();
-	printf("n%d: %ld\n", k, Nt_info.shape[0]);
-	printf("p%d: %ld\n", k, probs_info.shape[0]);
-	printf("d%d: %ld\n", k, d_probs_info.shape[0]);
-}
+//void test_my(int k, py::array_t<long> *_Nt, py::array_t<double> *_probs, py::array_t<double> *_d_probs, int l)
+//// A function for DEBUG purposes
+//{
+//	printf("checking  step %d\n", k);
+//	py::buffer_info Nt_info = (*_Nt).request();
+//	py::buffer_info probs_info = (*_probs).request();
+//	py::buffer_info d_probs_info = (*_d_probs).request();
+//	printf("n%d: %ld\n", k, Nt_info.shape[0]);
+//	printf("p%d: %ld\n", k, probs_info.shape[0]);
+//	printf("d%d: %ld\n", k, d_probs_info.shape[0]);
+//}
 
 void print_possible_move_modes()
 {
@@ -65,18 +65,18 @@ py::dict get_move_modes()
 	return py::dict("flip"_a=move_mode_flip, "swap"_a=move_mode_swap, "long_swap"_a=move_mode_long_swap);
 }
 
-int compute_hA(py::array_t<int> *h_A, int *OP, long Nt, int OP_A, int OP_B)
-{
-	py::buffer_info h_A_info = (*h_A).request();
-	int *h_A_ptr = static_cast<int *>(h_A_info.ptr);
-	h_A_ptr[0] = OP[0] - OP_A <= OP_B - OP[0] ? 1 : 0;   // if closer to A at t=0, then 1, else 0
-	int i;
-	for(i = 1; i < Nt; ++i){
-		h_A_ptr[i] = h_A_ptr[i-1] == 1 ? (OP[i] <= OP_B ? 1 : 0) : (OP[i] > OP_A ? 0 : 1);
-	}
-
-	return 0;
-}
+//int compute_hA(py::array_t<int> *h_A, int *OP, long Nt, int OP_A, int OP_B)
+//{
+//	py::buffer_info h_A_info = (*h_A).request();
+//	int *h_A_ptr = static_cast<int *>(h_A_info.ptr);
+//	h_A_ptr[0] = OP[0] - OP_A <= OP_B - OP[0] ? 1 : 0;   // if closer to A at t=0, then 1, else 0
+//	int i;
+//	for(i = 1; i < Nt; ++i){
+//		h_A_ptr[i] = h_A_ptr[i-1] == 1 ? (OP[i] <= OP_B ? 1 : 0) : (OP[i] > OP_A ? 0 : 1);
+//	}
+//
+//	return 0;
+//}
 
 void print_state(py::array_t<int> state)
 {
@@ -1015,7 +1015,7 @@ namespace lattice_gas
 					qsort(cluster_sizes, N_clusters_current, sizeof(int), cmpfunc_decr<int>);
 					printf(";       CSs:");
 					for(int j = 0; j < std::min(10, N_clusters_current); ++j){
-						printf(" %ld,", cluster_sizes[j]);
+						printf(" %d,", cluster_sizes[j]);
 					}
 					printf("               \r");
 
@@ -1040,6 +1040,8 @@ namespace lattice_gas
 				case mode_ID_CS:
 					*OP_current = biggest_cluster_sizes_current;
 					break;
+				default:
+					printf("ERROR\n");
 			}
 
 //			print_S(s, L, 't');
@@ -1230,6 +1232,8 @@ namespace lattice_gas
 				case mode_ID_CS:
 					N_spins_up_init = OP_min_stop_state + 1;
 					break;
+				default:
+					printf("ERROR\n");
 			}
 		}
 
@@ -1417,7 +1421,7 @@ namespace lattice_gas
 					// Such N_steps_to_equil is ~N_tries smaller than current N_steps_to_equil
 					//// but *1.5 go not get always down but looks for a maximum possible time
 				}
-			}while(1);
+			}while(true);
 
 			printf("Equilibrated state generated                                                \n");
 			// N_tries = 0 in the beginning of BF. If we went over the N_c, I want to restart because we might not have obtained enough statistic back around the optimum.
@@ -1723,7 +1727,7 @@ namespace lattice_gas
 		return 0;
 	}
 
-	double new_spin_energy(int L, const double *e, const double *mu, const int *s_neibs, int s_new)
+	double new_spin_energy(const double *e, const double *mu, const int *s_neibs, int s_new)
 	{
 		int s_ix = s_new * N_species;
 		return mu[s_new] + (e[s_ix + s_neibs[1]] + e[s_ix + s_neibs[2]] + e[s_ix + s_neibs[3]] + e[s_ix + s_neibs[4]]);
@@ -1745,26 +1749,27 @@ namespace lattice_gas
 		get_spin_with_neibs(state, L, ix, iy, s1);
 		get_spin_with_neibs(state, L, ix_new, iy_new, s2);
 
-		return (new_spin_energy(L, e, mu, s1, s2[0]) + new_spin_energy(L, e, mu, s2, s1[0])) -
-			   (new_spin_energy(L, e, mu, s1, s1[0]) + new_spin_energy(L, e, mu, s2, s2[0]));
+		return (new_spin_energy(e, mu, s1, s2[0]) + new_spin_energy(e, mu, s2, s1[0])) -
+			   (new_spin_energy(e, mu, s1, s1[0]) + new_spin_energy(e, mu, s2, s2[0]));
 	}
 
 	double short_swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new)
 	{
+		assert(state);
 		int L2 = L*L;
 		int R = L/2;
 		int dx = mds(ix_new - ix, R);
 		int dy = mds(iy_new - iy, R);
-		printf("O: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
+//		printf("O: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
 //		int pos = ix * L + iy;
 //		int pos_new = ix_new * L + iy_new;
 		double dE;
 		int s_ix = state[ix * L + iy] * N_species;
-		printf("O1: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
+//		printf("O1: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
 		int snew_ix = state[ix_new * L + iy_new] * N_species;
-		printf("O2: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
+//		printf("O2: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
 		int s_neibs[4 * dim - 2];
-		printf("O3: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
+//		printf("O3: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
 
 		if(dx != 0){
 			s_neibs[0] = state[md(ix_new + dx, L) * L + iy_new];
@@ -1797,27 +1802,10 @@ namespace lattice_gas
 	double swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new)
 	{
 		if(abs(ix - ix_new) + abs(iy - iy_new) > 1){
-			long_swap_mode_dE(state, L, e, mu, ix, iy, ix_new, iy_new);
+			return long_swap_mode_dE(state, L, e, mu, ix, iy, ix_new, iy_new);
 		} else {
-			short_swap_mode_dE(state, L, e, mu, ix, iy, ix_new, iy_new);
+			return short_swap_mode_dE(state, L, e, mu, ix, iy, ix_new, iy_new);
 		}
-
-//		int s1[2 * dim + 1];
-//		int s2[2 * dim + 1];
-//		get_spin_with_neibs(state, L, ix, iy, s1);
-//		get_spin_with_neibs(state, L, ix_new, iy_new, s2);
-//
-//		double E_11 = new_spin_energy(L, e, mu, s1, s1[0]);
-//		double E_22 = new_spin_energy(L, e, mu, s2, s2[0]);
-//
-//		printf("E12 = %lf, E21 = %lf, E11 = %lf, E22 = %lf\n",
-//			   new_spin_energy(L, e, mu, s1, s2[0]),
-//			   new_spin_energy(L, e, mu, s2, s1[0]),
-//			   new_spin_energy(L, e, mu, s1, s1[0]),
-//			   new_spin_energy(L, e, mu, s2, s2[0]));
-//
-//		return (new_spin_energy(L, e, mu, s1, s2[0]) + new_spin_energy(L, e, mu, s2, s1[0])) -
-//			   (E_11 + E_22);
 	}
 
 	double flip_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int s_new)
@@ -1825,7 +1813,7 @@ namespace lattice_gas
 		int s[2 * dim + 1];
 		get_spin_with_neibs(state, L, ix, iy, s);
 
-		return new_spin_energy(L, e, mu, s, s_new) - new_spin_energy(L, e, mu, s, s[0]);
+		return new_spin_energy(e, mu, s, s_new) - new_spin_energy(e, mu, s, s[0]);
 	}
 
 	int long_swap_move(const int *state, uint L, const double *e, const double *mu, int *ix, int *iy, int *ix_new, int *iy_new, double *dE)
@@ -1869,6 +1857,8 @@ namespace lattice_gas
 		int rnd, pos, direction;
 		bool to_swap = false;
 
+		assert(!swap_positions);
+
 		if(swap_positions){
 			int sgn;
 			total_range = dim * 2;
@@ -1895,6 +1885,7 @@ namespace lattice_gas
 		} else {
 			total_range = L2 * dim;
 			do{
+				assert(L>0);
 				rnd = gsl_rng_uniform_int(rng, total_range);
 				direction = rnd / L2;   // we try only x+1 and y+1 flips (and not x-1, y-1), since it covers all the possible flips
 				pos = rnd % L2;
