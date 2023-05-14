@@ -822,10 +822,10 @@ namespace lattice_gas
 	{
 		int L2 = L*L;
 		int pos = ix * L + iy;
-		update_potential_position(state, L, md(pos + 1, L2), positions);
-		update_potential_position(state, L, md(pos - 1, L2), positions);
-		update_potential_position(state, L, md(pos + L, L2), positions);
-		update_potential_position(state, L, md(pos - L, L2), positions);
+		update_potential_position(state, L, md(ix + 1, L) * L + iy, positions);
+		update_potential_position(state, L, md(ix - 1, L) * L + iy, positions);
+		update_potential_position(state, L, ix * L + md(iy + 1, L), positions);
+		update_potential_position(state, L, ix * L + md(iy - 1, L), positions);
 	}
 
 	void find_potential_swaps(int *state, int L, std::set< int > *positions)
@@ -949,6 +949,18 @@ namespace lattice_gas
 				case move_mode_swap:
 					time_the_flip_took = swap_move(s, L, e, mu, &ix, &iy, &ix_new, &iy_new, &dE,
 												   to_use_smart_swap ? &potential_swap_positions : nullptr);
+
+
+					if(dE > 0){
+						printf("DEBUG\n");
+						double de1, de2;
+						de1 = swap_mode_dE(s, L, e, mu, ix, iy, ix_new, iy_new);
+						de2 = swap_mode_dE(s, L, e, mu, ix_new, iy_new, ix, iy);
+						print_env2(s, L, ix, iy, ix_new, iy_new);
+						printf("dE = %lf, de1=%lf, de2=%lf, s = %d, s_new = %d\n", dE, de1, de2, s[ix * L + iy], s[ix_new * L + iy_new]);
+						STP
+					}
+
 					std::swap(s[ix * L + iy], s[ix_new * L + iy_new]);
 					if(to_use_smart_swap){
 						update_neib_potpos(s, L, ix, iy, &potential_swap_positions);
@@ -1725,7 +1737,7 @@ namespace lattice_gas
 		s_group[4] = state[ix*L + md(iy - 1, L)];
 	}
 
-	double swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new)
+	double long_swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new)
 	{
 		int s1[2 * dim + 1];
 		int s2[2 * dim + 1];
@@ -1734,6 +1746,76 @@ namespace lattice_gas
 
 		return (new_spin_energy(L, e, mu, s1, s2[0]) + new_spin_energy(L, e, mu, s2, s1[0])) -
 			   (new_spin_energy(L, e, mu, s1, s1[0]) + new_spin_energy(L, e, mu, s2, s2[0]));
+	}
+
+	double short_swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new)
+	{
+		int L2 = L*L;
+		int R = L/2;
+		int dx = mds(ix_new - ix, R);
+		int dy = mds(iy_new - iy, R);
+		printf("O: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
+//		int pos = ix * L + iy;
+//		int pos_new = ix_new * L + iy_new;
+		double dE;
+		int s_ix = state[ix * L + iy] * N_species;
+		int snew_ix = state[ix_new * L + iy_new] * N_species;
+		int s_neibs[4 * dim - 2];
+
+		if(dx != 0){
+			s_neibs[0] = state[md(ix_new + dx, L) * L + iy_new];
+			s_neibs[1] = state[ix_new * L + md(iy_new + 1, L)];
+			s_neibs[2] = state[ix_new * L + md(iy_new - 1, L)];
+			s_neibs[3] = state[md(ix - dx, L) * L + iy];
+			s_neibs[4] = state[ix * L + md(iy + 1, L)];
+			s_neibs[5] = state[ix * L + md(iy - 1, L)];
+		} else if(dy != 0) {
+			s_neibs[0] = state[md(ix_new + 1, L) * L + iy_new];
+			s_neibs[1] = state[md(ix_new - 1, L) * L + iy_new];
+			s_neibs[2] = state[ix_new * L + md(iy_new + dy, L)];
+			s_neibs[3] = state[md(ix + 1, L) * L + iy];
+			s_neibs[4] = state[md(ix - 1, L) * L + iy];
+			s_neibs[5] = state[ix * L + md(iy - dy, L)];
+		} else {
+			printf("R=%d\n", R);
+			printf("%d, %d, %d, %d, %d, %d\n", mds(-2, R), mds(3, R), mds(R+2, R), mds(-1, R), mds(1, R), mds(0, R));
+			fprintf(stderr, "ERROR: dx = %d, dy = %d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\nFor short_swap_dE\nAborting\n",
+					dx, dy, ix, iy, ix_new, iy_new);
+			assert(false);
+		}
+
+		dE = (e[s_ix + s_neibs[0]] + e[s_ix + s_neibs[1]] + e[s_ix + s_neibs[2]] +
+			  e[snew_ix + s_neibs[3]] + e[snew_ix + s_neibs[4]] + e[snew_ix + s_neibs[5]]) -
+			 (e[snew_ix + s_neibs[0]] + e[snew_ix + s_neibs[1]] + e[snew_ix + s_neibs[2]] +
+			  e[s_ix + s_neibs[3]] + e[s_ix + s_neibs[4]] + e[s_ix + s_neibs[5]]);
+
+		return dE;
+	}
+
+	double swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new)
+	{
+		if(abs(ix - ix_new) + abs(iy - iy_new) > 1){
+			long_swap_mode_dE(state, L, e, mu, ix, iy, ix_new, iy_new);
+		} else {
+			short_swap_mode_dE(state, L, e, mu, ix, iy, ix_new, iy_new);
+		}
+
+//		int s1[2 * dim + 1];
+//		int s2[2 * dim + 1];
+//		get_spin_with_neibs(state, L, ix, iy, s1);
+//		get_spin_with_neibs(state, L, ix_new, iy_new, s2);
+//
+//		double E_11 = new_spin_energy(L, e, mu, s1, s1[0]);
+//		double E_22 = new_spin_energy(L, e, mu, s2, s2[0]);
+//
+//		printf("E12 = %lf, E21 = %lf, E11 = %lf, E22 = %lf\n",
+//			   new_spin_energy(L, e, mu, s1, s2[0]),
+//			   new_spin_energy(L, e, mu, s2, s1[0]),
+//			   new_spin_energy(L, e, mu, s1, s1[0]),
+//			   new_spin_energy(L, e, mu, s2, s2[0]));
+//
+//		return (new_spin_energy(L, e, mu, s1, s2[0]) + new_spin_energy(L, e, mu, s2, s1[0])) -
+//			   (E_11 + E_22);
 	}
 
 	double flip_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int s_new)
@@ -1751,6 +1833,8 @@ namespace lattice_gas
 		ulong total_range = L2 * (L2 - 1);
 		ulong rnd;
 		uint pos, shift;
+		bool to_swap = false;
+
 		do{
 			rnd = gsl_rng_uniform_int(rng, total_range);
 
@@ -1759,12 +1843,17 @@ namespace lattice_gas
 			*ix = pos / L;
 
 			pos = (pos + rnd / L2 + 1) % L2;
-			*ix_new = pos % L;
-			*iy_new = pos / L;
+			*iy_new = pos % L;
+			*ix_new = pos / L;
 
-			*dE = swap_mode_dE(state, L, e, mu, *ix, *iy, *ix_new, *iy_new);
+			to_swap = (state[*ix * L + *iy] != state[pos]);
+			if(to_swap){
+				*dE = swap_mode_dE(state, L, e, mu, *ix, *iy, *ix_new, *iy_new);
+				to_swap = (*dE <= 0 ? true : (gsl_rng_uniform(rng) < exp(- *dE)));
+			}
+
 			++N_flip_tries;
-		}while(!(*dE <= 0 ? 1 : (gsl_rng_uniform(rng) < exp(- *dE))));
+		}while(!to_swap);
 
 		return N_flip_tries;
 	}
@@ -1775,10 +1864,11 @@ namespace lattice_gas
 		int N_flip_tries = 0;
 		int L2 = L * L;
 		int total_range;
-		int rnd, pos, direction, sgn;
+		int rnd, pos, direction;
 		bool to_swap = false;
 
 		if(swap_positions){
+			int sgn;
 			total_range = dim * 2;
 			do{
 				std::sample( swap_positions->begin(), swap_positions->end(), &pos, 1, *gen_mt19937);
@@ -1792,7 +1882,7 @@ namespace lattice_gas
 				*ix_new = md(*ix + sgn * (direction == 0), L);
 				*iy_new = md(*iy + sgn * (direction == 1), L);
 
-				to_swap = (state[*ix * L + *iy] != state[*ix_new * L + *iy_new]);
+				to_swap = (state[pos] != state[*ix_new * L + *iy_new]);
 				if(to_swap){
 					*dE = swap_mode_dE(state, L, e, mu, *ix, *iy, *ix_new, *iy_new);
 					to_swap = (*dE <= 0 ? true : (gsl_rng_uniform(rng) < exp(- *dE)));
@@ -1820,8 +1910,18 @@ namespace lattice_gas
 				}
 
 				++N_flip_tries;
+
+//				printf("swap_old = %d, dE = %lf, s = %d, s_new = %d\n", state[pos] != state[*ix_new * L + *iy_new],
+//					   *dE, state[*ix * L + *iy], state[*ix_new * L + *iy_new]);
 			}while(!to_swap);
 		}
+
+//		if(state[*ix * L + *iy] == state[*ix_new * L + *iy_new]){
+//			printf("ERR:\n");
+//			printf("to_swap: %d; s = %d, s_new = %d, \n", to_swap, state[*ix * L + *iy], state[*ix_new * L + *iy_new]);
+//			printf("to_swap_old: %d; s = %d, s_new = %d, \n", state[*ix * L + *iy] != state[pos], state[*ix * L + *iy], state[pos]);
+//			assert(getchar() != 'e');
+//		}
 
 		return N_flip_tries;
 	}
@@ -1991,6 +2091,203 @@ namespace lattice_gas
 		printf(")\n");
 	}
 
-	int md(int i, int L){ return i >= 0 ? (i < L ? i : i - L) : (L + i); }   // i mod L for i \in [-1; L]
+	int is_neib_x(int L, int i, int j)
+	{
+		int d = abs(i - j);
+		return std::min(d, L-d) <= 1;
+	}
+
+	int is_neib(int L, int ix1, int iy1, int ix2, int iy2, int mode=1)
+	{
+		if(mode == 1){
+			/*
+			 * visual neibrs:
+			 * ***
+			 * *o*
+			 * ***
+			 */
+			return is_neib_x(L, ix1, ix2) && is_neib_x(L, iy1, iy2);
+		}
+	}
+
+	int *copy_state(const int *state, int L2)
+	{
+		int state_size_in_bytes = L2 * sizeof (int);
+
+		int *new_state = (int*) malloc(state_size_in_bytes);
+		memcpy(new_state, state, state_size_in_bytes);
+		return new_state;
+	}
+
+	void shift_state(int *state, int L, int dx, int dy)
+	{
+		int L2 = L*L;
+
+		int *old_state = copy_state(state, L2);
+
+		int i,j;
+		for(i = 0; i < L; ++i){
+			for(j = 0; j < L; ++j){
+				state[i * L + j] = old_state[L * md(i - dx, L) + md(j - dy, L)];
+			}
+		}
+
+		free(old_state);
+	}
+
+	void print_env2(const int *state, int L, int ix1, int iy1, int ix2, int iy2)
+	{
+		int L2 = L*L;
+		int *state_to_print = copy_state(state, L2);
+
+		if(abs(ix1 - ix2) > 1){
+			shift_state(state_to_print, L, 1, 0);
+			ix1 = md(ix1 + 1, L);
+			ix2 = md(ix2 + 1, L);
+		}
+		if(abs(iy1 - iy2) > 1){
+			shift_state(state_to_print, L, 0, 1);
+			iy1 = md(iy1 + 1, L);
+			iy2 = md(iy2 + 1, L);
+		}
+
+		if(ix2 < ix1) std::swap(ix1, ix2);
+		if(iy2 < iy1) std::swap(iy1, iy2);
+		int dx = ix2 - ix1;
+		int dy = iy2 - iy1;
+
+		assert((dx >= 0) && (dx <= 1));
+		assert((dy >= 0) && (dy <= 1));
+
+		int group1[2 * dim + 1];
+		int group2[2 * dim + 1];
+
+		get_spin_with_neibs(state_to_print, L, ix1, iy1, group1);
+		get_spin_with_neibs(state_to_print, L, ix2, iy2, group2);
+
+		if(dx > 0){
+			printf("  %d  \n%d %d %d\n%d %d %d\n  %d  \n", group1[3], group1[4], group1[0], group1[2], group2[4], group2[0], group2[2], group2[1]);
+		} else if(dy > 0){
+			printf("  %d %d  \n%d %d %d %d\n  %d %d  \n", group1[3], group2[3], group1[4], group1[0], group2[0], group2[2], group1[1], group2[1]);
+		}
+
+	}
+
+	int md(int i, int L){ return i >= 0 ? (i < L ? i : i - L) : (L + i); }   // i mod L for i \in [-L; 2L-1]
+//	int mds(int i, int R){ return i < R ? (i > -R ? i : i + 2*R) : (i - 2*R); }
+	int mds(int i, int R){ return md(i + R, 2 * R) - R; };
 }
 
+/*
+ * //					if((s[L2-L] != s[L2-L + 1]) || (s[L2-L] != s[L2-L + L-1]) || (s[L2-L] != s[L2-L + L]) || (s[L2-L] != s[L2-L - L])){
+					if((s[L2-3*L+2] != s[L2-3*L+2 + 1]) || (s[L2-3*L+2] != s[L2-3*L+2 - 1]) || (s[L2-3*L+2] != s[L2-3*L+2 + L]) || (s[L2-3*L+2] != s[L2-3*L+2 - L])){
+						print_S(s, L, 't');
+						print_env2(s, L, L-3,2, L-2,2);
+						print_env2(s, L, L-3,2, L-3,3);
+						print_env2(s, L, L-3,2, L-4, 2);
+						print_env2(s, L, L-3,2, L-3,1);
+
+						int *bfr = copy_state(s, L2);
+						shift_state(bfr, L, 5, 0);
+						print_S(bfr, L, 'b');
+						print_env2(bfr, L, 2,2, 3,2);
+						print_env2(bfr, L, 2,2, 2,3);
+						print_env2(bfr, L, 2,2, 1, 2);
+						print_env2(bfr, L, 2,2, 2,1);
+						free(bfr);
+
+						bfr = copy_state(s, L2);
+						shift_state(bfr, L, 2, -2);
+						print_S(bfr, L, '1');
+						print_env2(bfr, L, L-1,0, 0,0);
+						print_env2(bfr, L, L-1,0, L-1,1);
+						print_env2(bfr, L, L-1,0, L-2, 0);
+						print_env2(bfr, L, L-1,0, L-1,L-1);
+						free(bfr);
+
+						bfr = copy_state(s, L2);
+						shift_state(bfr, L, 3, -2);
+						print_S(bfr, L, '2');
+						print_env2(bfr, L, 0,0, 1,0);
+						print_env2(bfr, L, 0,0, 0,1);
+						print_env2(bfr, L, 0,0, L-1, 0);
+						print_env2(bfr, L, 0,0, 0,L-1);
+						free(bfr);
+
+						bfr = copy_state(s, L2);
+						shift_state(bfr, L, 3, -3);
+						print_S(bfr, L, '3');
+						print_env2(bfr, L, 0,L-1, 1,L-1);
+						print_env2(bfr, L, 0,L-1, 0,0);
+						print_env2(bfr, L, 0,L-1, L-1, L-1);
+						print_env2(bfr, L, 0,L-1, 0,L-2);
+						free(bfr);
+
+						bfr = copy_state(s, L2);
+						shift_state(bfr, L, 2, -3);
+						print_S(bfr, L, '4');
+						print_env2(bfr, L, L-1,L-1, 0,L-1);
+						print_env2(bfr, L, L-1,L-1, L-1,0);
+						print_env2(bfr, L, L-1,L-1, L-2, L-1);
+						print_env2(bfr, L, L-1,L-1, L-1,L-2);
+						free(bfr);
+						STP
+					}
+
+ */
+
+/*
+ * 		if(dx == 1){
+			dE = (e[snew_ix + state[md(ix_new + 1, L) * L + iy_new]] +
+				  e[snew_ix + state[ix_new * L + md(iy_new + 1, L)]] +
+				  e[snew_ix + state[ix_new * L + md(iy_new - 1, L)]] +
+				  e[s_ix + state[md(ix - 1, L) * L + iy]] +
+				  e[s_ix + state[ix * L + md(iy + 1, L)]] +
+				  e[s_ix + state[ix * L + md(iy - 1, L)]]) -
+				 (e[s_ix + state[md(ix_new + 1, L) * L + iy_new]] +
+				  e[s_ix + state[ix_new * L + md(iy_new + 1, L)]] +
+				  e[s_ix + state[ix_new * L + md(iy_new - 1, L)]] +
+				  e[snew_ix + state[md(ix - 1, L) * L + iy]] +
+				  e[snew_ix + state[ix * L + md(iy + 1, L)]] +
+				  e[snew_ix + state[ix * L + md(iy - 1, L)]]);
+		} else if(dx == -1) {
+			dE = (e[snew_ix + state[md(ix_new - 1, L) * L + iy_new]] +
+				  e[snew_ix + state[ix_new * L + md(iy_new + 1, L)]] +
+				  e[snew_ix + state[ix_new * L + md(iy_new - 1, L)]] +
+				  e[s_ix + state[md(ix + 1, L) * L + iy]] +
+				  e[s_ix + state[ix * L + md(iy + 1, L)]] +
+				  e[s_ix + state[ix * L + md(iy - 1, L)]]) -
+				 (e[s_ix + state[md(ix_new - 1, L) * L + iy_new]] +
+				  e[s_ix + state[ix_new * L + md(iy_new + 1, L)]] +
+				  e[s_ix + state[ix_new * L + md(iy_new - 1, L)]] +
+				  e[snew_ix + state[md(ix + 1, L) * L + iy]] +
+				  e[snew_ix + state[ix * L + md(iy + 1, L)]] +
+				  e[snew_ix + state[ix * L + md(iy - 1, L)]]);
+		} else if(dy == 1){
+			dE = (e[snew_ix + state[md(ix_new + 1, L) * L + iy_new]] +
+				  e[snew_ix + state[md(ix_new - 1, L) * L + iy_new]] +
+				  e[snew_ix + state[ix_new * L + md(iy_new + 1, L)]] +
+				  e[s_ix + state[md(ix + 1, L) * L + iy]] +
+				  e[s_ix + state[md(ix - 1, L) * L + iy]] +
+				  e[s_ix + state[ix * L + md(iy - 1, L)]]) -
+				 (e[s_ix + state[md(ix_new + 1, L) * L + iy_new]] +
+				  e[s_ix + state[md(ix_new - 1, L) * L + iy_new]] +
+				  e[s_ix + state[ix_new * L + md(iy_new + 1, L)]] +
+				  e[snew_ix + state[md(ix + 1, L) * L + iy]] +
+				  e[snew_ix + state[md(ix - 1, L) * L + iy]] +
+				  e[snew_ix + state[ix * L + md(iy - 1, L)]]);
+		} else if(dy == -1){
+			dE = (e[snew_ix + state[md(ix_new + 1, L) * L + iy_new]] +
+				  e[snew_ix + state[md(ix_new - 1, L) * L + iy_new]] +
+				  e[snew_ix + state[ix_new * L + md(iy_new - 1, L)]] +
+				  e[s_ix + state[md(ix + 1, L) * L + iy]] +
+				  e[s_ix + state[md(ix - 1, L) * L + iy]] +
+				  e[s_ix + state[ix * L + md(iy + 1, L)]]) -
+				 (e[s_ix + state[md(ix_new + 1, L) * L + iy_new]] +
+				  e[s_ix + state[md(ix_new - 1, L) * L + iy_new]] +
+				  e[s_ix + state[ix_new * L + md(iy_new - 1, L)]] +
+				  e[snew_ix + state[md(ix + 1, L) * L + iy]] +
+				  e[snew_ix + state[md(ix - 1, L) * L + iy]] +
+				  e[snew_ix + state[ix * L + md(iy + 1, L)]]);
+
+ */
