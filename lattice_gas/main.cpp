@@ -12,8 +12,8 @@ int main(int argc, char** argv) {
 //	py::module_ sys = py::module_::import("sys");
 //	py::print(sys.attr("path"));
 
-//	test_BF();
-	test_FFS_C();
+	test_BF();
+//	test_FFS_C();
 
 	printf("DONE\n");
 
@@ -59,6 +59,8 @@ void test_BF()
 	int OP_max = L2 + 1;
 	int N_spins_up_init = -1;
 	if(stab_step < 0) stab_step *= (-L2);
+	int to_equilibrate = 1;
+
 
 	int *_init_state_ptr = (int*)malloc(state_size_in_bytes);
 	lattice_gas::generate_state(_init_state_ptr, L, lround(phi0[main_specie_id] * L2), mode_ID_M, verbose);
@@ -99,7 +101,7 @@ void test_BF()
 
 	lattice_gas::get_equilibrated_state(move_mode, L, e_ptr, mu_ptr, states_ptr, &N_states_saved,
 										interface_mode, OP_A, OP_B, stab_step, _init_state_ptr, to_use_smart_swap,
-										verbose);
+										to_equilibrate, verbose);
 	++N_states_saved;
 	// N_states_saved is set to its initial values by default, so the equilibrated state is not saved
 	// ++N prevents further processes from overwriting the initial state so it will be returned as states[0]
