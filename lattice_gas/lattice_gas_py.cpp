@@ -62,6 +62,7 @@ PYBIND11_MODULE(lattice_gas, m)
 		  py::arg("interface_mode")=py::none(),
 		  py::arg("init_state")=py::none(),
 		  py::arg("to_use_smart_swap")=0,
+		  py::arg("to_equilibrate")=1,
 		  py::arg("verbose")=py::none()
 	);
 

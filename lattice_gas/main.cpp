@@ -165,7 +165,7 @@ void test_FFS_C()
 	int N_init_states_A = 1000000;
 	int N_OP_interfaces = 5;
 	int init_gen_mode = -3;
-	int to_remember_timeevol = 1;
+	int to_remember_timeevol = 0;
 	int interface_mode = mode_ID_CS;
 	int OP_0;
 	int OP_max;
@@ -177,8 +177,8 @@ void test_FFS_C()
 	move_mode = move_mode_swap;
 
 	// for valgrind
-	N_init_states_default = 3;
-	N_init_states_A = 3;
+	N_init_states_default = 30;
+	N_init_states_A = 30;
 
 	int L2 = L*L;
 

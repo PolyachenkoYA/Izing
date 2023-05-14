@@ -139,7 +139,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
 						 std::optional<int> _interface_mode,
 						 std::optional< pybind11::array_t<int> > _init_state,
-						 int to_use_smart_swap,
+						 int to_use_smart_swap, int to_equilibrate,
 						 std::optional<int> _verbose)
 /**
  *
@@ -239,7 +239,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 	N_states_saved = 0;
 	lattice_gas::get_equilibrated_state(move_mode, L, e_ptr, mu_ptr, states_ptr, &N_states_saved,
 										interface_mode, OP_A, OP_B, stab_step, _init_state_ptr, to_use_smart_swap,
-										verbose);
+										to_equilibrate, verbose);
 	++N_states_saved;
 	// N_states_saved is set to its initial values by default, so the equilibrated state is not saved
 	// ++N prevents further processes from overwriting the initial state so it will be returned as states[0]
@@ -931,10 +931,10 @@ namespace lattice_gas
 
 //		double Emin = -(2 + abs(h)) * L2;
 //		double Emax = 2 * L2;
-		double E_tolerance = 1e-3;   // J=1
-		long Nt_for_numerical_error = lround(1e13 * E_tolerance / L2);
+		double E_tolerance = 1e-5;   // J=1
+		unsigned long long Nt_for_numerical_error = sqr(lround(1e13 * E_tolerance / L2));
 		// the error accumulates, so we need to recompute form scratch time to time
-//      |E| ~ L2 => |dE_numerical| ~ L2 * 1e-13 => |dE_num_total| ~ sqrt(Nt * L2 * 1e-13) << E_tolerance => Nt << 1e13 * E_tolerance / L2
+//      |E| ~ L2 => |dE_numerical| ~ L2 * 1e-13 => |dE_num_total| ~ sqrt(Nt) * L2 * 1e-13 << E_tolerance => Nt << (1e13 * E_tolerance / L2)^2
 
 //		print_S(s, L, 't');
 
@@ -1325,7 +1325,7 @@ namespace lattice_gas
 
 	int get_equilibrated_state(int move_mode, int L, const double *e, const double *mu, int *state, int *N_states_done,
 							   int interface_mode, int OP_A, int OP_B, long stab_step, const int *init_state,
-							   int to_use_smart_swap, int verbose)
+							   int to_use_smart_swap, int to_equilibrate, int verbose)
 	{
 		int L2 = L*L;
 		int state_size_in_bytes = sizeof(int) * L2;
@@ -1343,19 +1343,19 @@ namespace lattice_gas
 //		print_S(&(state[0 * L2]), L, 'q');
 //		getchar();
 
-		// run "all spins down"/init_state until it reaches OP_A_thr
-		run_bruteforce_C(move_mode, L, e, mu, &time_total, 1, state,
-						 nullptr, &Nt_to_reach_OP_A, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-						 interface_mode, -1, -1, 1,
-						 OP_min_default[interface_mode], OP_A,
-						 &N_states_done_local, OP_A,
-						 OP_A, save_state_mode_Influx, -1,
-						 verbose, -1, &N_tries, 0, ! bool(init_state),
-						 1, to_use_smart_swap);
-		if(verbose > 0){
-			printf("reached OP >= OP_A = %d in Nt = %ld MC steps\n", OP_A, Nt_to_reach_OP_A);
-		}
-		// replace the "all down" init state with the "at OP_A_thr" state
+		if(to_equilibrate){
+			run_bruteforce_C(move_mode, L, e, mu, &time_total, 1, state,
+							 nullptr, &Nt_to_reach_OP_A, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+							 interface_mode, -1, -1, 1,
+							 OP_min_default[interface_mode], OP_A,
+							 &N_states_done_local, OP_A,
+							 OP_A, save_state_mode_Influx, -1,
+							 verbose, -1, &N_tries, 0, ! bool(init_state),
+							 1, to_use_smart_swap);
+			if(verbose > 0){
+				printf("reached OP >= OP_A = %d in Nt = %ld MC steps\n", OP_A, Nt_to_reach_OP_A);
+			}
+			// replace the "all down" init state with the "at OP_A_thr" state
 //			memcpy(init_states, &(init_states[L2]), sizeof(int) * L2);
 
 //		printf("N_states_done = %d", N_states_done);
@@ -1363,52 +1363,53 @@ namespace lattice_gas
 //		getchar();
 
 //		long N_steps_to_equil = 2 * Nt_to_reach_OP_A + stab_step;   // * 2 because we already have Nt = Nt_reach, and we want to run Nt_reach+stab_step new steps
-		long N_steps_to_equil = Nt_to_reach_OP_A + stab_step;
-		long Nt;
-		N_tries = 0;
-		do{
-			*N_states_done = N_states_done_local;
-			Nt = Nt_to_reach_OP_A;
-			if(verbose > 0){
+			long N_steps_to_equil = Nt_to_reach_OP_A + stab_step;
+			long Nt;
+			N_tries = 0;
+			do{
+				*N_states_done = N_states_done_local;
+				Nt = Nt_to_reach_OP_A;
+				if(verbose > 0){
 //				printf("Proc N_states_done = %d\n", N_states_done);
-				printf("Attempting to simulate Nt = %ld MC steps towards the local optimum            \r", N_steps_to_equil);
-				if(N_tries > 0){
-					printf("Previous attempt results in %d reaches of state B (OP_B = %d), so restating from the initial ~OP_A\n", N_tries, OP_B);
+					printf("Attempting to simulate Nt = %ld MC steps towards the local optimum            \r", N_steps_to_equil);
+					if(N_tries > 0){
+						printf("Previous attempt results in %d reaches of state B (OP_B = %d), so restating from the initial ~OP_A\n", N_tries, OP_B);
+					}
 				}
-			}
 
-			// run it for the same amount of time it took to get to OP_A_thr the first time + 10 sweeps
-			run_bruteforce_C(move_mode, L, e, mu, &time_total, -1, state,
-							 nullptr, &Nt, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-							 interface_mode, -1, -1, 1,
-							 OP_min_default[interface_mode], OP_B,
-							 N_states_done, -1,
-							 -1, -1, -1,
-							 0, N_steps_to_equil, &N_tries, 1, 0,
-							 1, to_use_smart_swap);
-			if(N_tries == 0){
-				if(get_max_CS(&(state[(*N_states_done - 1) * L2]), L) < OP_A){
-					memcpy(&(state[(N_states_done_local - 1) * L2]), &(state[(*N_states_done - 1) * L2]), state_size_in_bytes);
-					*N_states_done = N_states_done_local;
-					break;
+				// run it for the same amount of time it took to get to OP_A_thr the first time + 10 sweeps
+				run_bruteforce_C(move_mode, L, e, mu, &time_total, -1, state,
+								 nullptr, &Nt, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+								 interface_mode, -1, -1, 1,
+								 OP_min_default[interface_mode], OP_B,
+								 N_states_done, -1,
+								 -1, -1, -1,
+								 0, N_steps_to_equil, &N_tries, 1, 0,
+								 1, to_use_smart_swap);
+				if(N_tries == 0){
+					if(get_max_CS(&(state[(*N_states_done - 1) * L2]), L) < OP_A){
+						memcpy(&(state[(N_states_done_local - 1) * L2]), &(state[(*N_states_done - 1) * L2]), state_size_in_bytes);
+						*N_states_done = N_states_done_local;
+						break;
+					} else {
+						N_steps_to_equil = std::max(lround(N_steps_to_equil * 0.5), (long)(L2 * 1));
+					}
 				} else {
-					N_steps_to_equil = std::max(lround(N_steps_to_equil * 0.5), (long)(L2 * 1));
+					N_steps_to_equil = lround(N_steps_to_equil * 0.9 / N_tries);
+					// The fact that N_tries>0 means that system nucleated
+					// Nucleations after Nt_to_reach_OP_A is unlikely if OP_A < N*
+					// Thus if stab_step << Nt_to_reach_OP_A, then most likely N_tries = 0
+					// So N_tries > 0 ==> stab_step >~ Nt_to_reach_OP_A
+					// We need to find maximum N_steps_to_equil for which there is a good chance to get N_tries=0
+					// Such N_steps_to_equil is ~N_tries smaller than current N_steps_to_equil
+					//// but *1.5 go not get always down but looks for a maximum possible time
 				}
-			} else {
-				N_steps_to_equil = lround(N_steps_to_equil * 0.9 / N_tries);
-				// The fact that N_tries>0 means that system nucleated
-				// Nucleations after Nt_to_reach_OP_A is unlikely if OP_A < N*
-				// Thus if stab_step << Nt_to_reach_OP_A, then most likely N_tries = 0
-				// So N_tries > 0 ==> stab_step >~ Nt_to_reach_OP_A
-				// We need to find maximum N_steps_to_equil for which there is a good chance to get N_tries=0
-				// Such N_steps_to_equil is ~N_tries smaller than current N_steps_to_equil
-				//// but *1.5 go not get always down but looks for a maximum possible time
-			}
-		}while(1);
-		
-		printf("Equilibrated state generated                                                \n");
-		// N_tries = 0 in the beginning of BF. If we went over the N_c, I want to restart because we might not have obtained enough statistic back around the optimum.
-		
+			}while(1);
+
+			printf("Equilibrated state generated                                                \n");
+			// N_tries = 0 in the beginning of BF. If we went over the N_c, I want to restart because we might not have obtained enough statistic back around the optimum.
+		}
+
 		return 0;
 	}
 
@@ -1477,7 +1478,8 @@ namespace lattice_gas
 			int N_tries = 0;
 
 			get_equilibrated_state(move_mode, L, e, mu, init_states, &N_states_done, interface_mode,
-								   OP_thr_save_state, OP_B, stab_step, init_state, to_use_smart_swap, verbose);
+								   OP_thr_save_state, OP_B, stab_step, init_state, to_use_smart_swap,
+								   1, verbose);
 
 			*Nt = 0;   // forget anything we might have had
 			*Nt_OP_saved = 0;
