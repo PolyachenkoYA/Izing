@@ -951,7 +951,8 @@ namespace lattice_gas
 												   to_use_smart_swap ? &potential_swap_positions : nullptr);
 
 
-					if(dE > 0){
+//					if(dE > 0){
+					if(false){
 						printf("DEBUG\n");
 						double de1, de2;
 						de1 = swap_mode_dE(s, L, e, mu, ix, iy, ix_new, iy_new);
@@ -1754,7 +1755,7 @@ namespace lattice_gas
 		int R = L/2;
 		int dx = mds(ix_new - ix, R);
 		int dy = mds(iy_new - iy, R);
-		printf("O: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
+//		printf("O: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
 //		int pos = ix * L + iy;
 //		int pos_new = ix_new * L + iy_new;
 		double dE;

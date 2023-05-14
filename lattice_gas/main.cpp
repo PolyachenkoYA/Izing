@@ -25,7 +25,7 @@ void test_BF()
 	double phi0[] = {0, 0.02, 0.01};
 	phi0[0] = 1.0 - phi0[1] - phi0[2];
 	int my_seed = 23;
-	int L = 64;
+	int L = 16;
 	int i, j;
 	int L2 = L*L;
 	int to_use_smart_swap = 1;
@@ -36,9 +36,10 @@ void test_BF()
 
 	long N_saved_states_max = -1;
 	int stab_step = -10;
-	int Nt_max = 100000;
+	int Nt_max = 10000;
 	int save_states_stride = 1;
 	int move_mode = move_mode_long_swap;
+	move_mode = move_mode_swap;
 
 	int state_size_in_bytes = L2 * sizeof(int);
 
@@ -59,7 +60,7 @@ void test_BF()
 	int OP_max = L2 + 1;
 	int N_spins_up_init = -1;
 	if(stab_step < 0) stab_step *= (-L2);
-	int to_equilibrate = 1;
+	int to_equilibrate = 0;
 
 
 	int *_init_state_ptr = (int*)malloc(state_size_in_bytes);
