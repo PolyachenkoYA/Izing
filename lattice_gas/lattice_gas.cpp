@@ -1755,13 +1755,16 @@ namespace lattice_gas
 		int R = L/2;
 		int dx = mds(ix_new - ix, R);
 		int dy = mds(iy_new - iy, R);
-//		printf("O: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
+		printf("O: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
 //		int pos = ix * L + iy;
 //		int pos_new = ix_new * L + iy_new;
 		double dE;
 		int s_ix = state[ix * L + iy] * N_species;
+		printf("O1: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
 		int snew_ix = state[ix_new * L + iy_new] * N_species;
+		printf("O2: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
 		int s_neibs[4 * dim - 2];
+		printf("O3: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
 
 		if(dx != 0){
 			s_neibs[0] = state[md(ix_new + dx, L) * L + iy_new];
@@ -1778,8 +1781,6 @@ namespace lattice_gas
 			s_neibs[4] = state[md(ix - 1, L) * L + iy];
 			s_neibs[5] = state[ix * L + md(iy - dy, L)];
 		} else {
-			printf("R=%d\n", R);
-			printf("%d, %d, %d, %d, %d, %d\n", mds(-2, R), mds(3, R), mds(R+2, R), mds(-1, R), mds(1, R), mds(0, R));
 			fprintf(stderr, "ERROR: dx = %d, dy = %d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\nFor short_swap_dE\nAborting\n",
 					dx, dy, ix, iy, ix_new, iy_new);
 			assert(false);
