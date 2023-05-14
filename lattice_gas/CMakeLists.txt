@@ -28,3 +28,5 @@ target_link_libraries(lattice_gas ${MATH_LIBS} ${PY_LIBS} pybind11::embed)
 find_package(pybind11 REQUIRED)
 pybind11_add_module(lattice_gas.so lattice_gas.h lattice_gas.cpp lattice_gas_py.cpp)
 target_link_libraries(lattice_gas.so PRIVATE ${MATH_LIBS} ${PY_LIBS})
+
+#execute_process(COMMAND chmod 666 .idea/workspace.xml)

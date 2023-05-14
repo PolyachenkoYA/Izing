@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 import os
 import scipy
 import sys
@@ -1043,7 +1044,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 							to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, \
 							stride=1, OP_jumps_hist_edges=None, init_composition=None, \
 							possible_jumps=None, means_only=False, to_recomp=0, \
-							npz_basename=None):
+							npz_basename=None, to_animate=True):
 	
 	k_AB, d_k_AB, k_BA, d_k_BA, k_bc_AB, k_bc_BA, ax_OP, ax_OP_hist, ax_F, \
 		F, d_F, OP_hist_centers, OP_hist_lens, rho_interp1d, d_rho_interp1d, \
@@ -1099,6 +1100,11 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 	d_phi_LTmeans = np.std(phi_Lmeans_stab, axis=1)
 	
 	ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
+	
+	if(to_animate):
+		my.animate_2D(states, 'x', 'y', 's(x, y)', yx_lims = [0, L-1, 0, L-1], fps=100)
+		# for it in range(Nt_states):
+			# draw_state(states[it, :, :], to_show=True)
 	
 	if(to_plot_time_evol):
 		fig_phi, ax_phi, _ = my.get_fig('step', r'$\varphi$', title=r'$\vec{\varphi}$(step); ' + ThL_lbl)
@@ -1418,6 +1424,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 				to_remember_timeevol=to_get_timeevol, \
 				interface_mode=OP_C_id[interface_mode], \
 				init_state=None if(init_state is None) else init_state.flatten(), \
+				to_equilibrate = (R_clust_init is None), \
 				verbose=verbose)
 		
 		if(to_save_npz):

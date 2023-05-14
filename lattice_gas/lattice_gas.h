@@ -22,6 +22,8 @@
 namespace py = pybind11;
 using namespace py::literals;
 
+#define STP assert(getchar() != 'e');
+
 #define dim 2
 
 #define mode_ID_M 0
@@ -56,6 +58,7 @@ namespace lattice_gas
 	extern int OP_step[N_interface_modes];
 
 	int md(int i, int L);
+	int mds(int i, int R);
 	template <typename T> T sqr(T x) { return x * x; }
 	template <typename T> void zero_array(T* v, long N, T v0=0) { for(long i = 0; i < N; ++i) v[i] = v0; }
 	template <typename T> T sum_array(T* v, long N) { T s = 0; for(long i = 0; i < N; ++i) s += v[i]; return s; }
@@ -72,6 +75,9 @@ namespace lattice_gas
 	int E_is_valid(const double *E, const double E1, const double E2, int N, int k=0, char prefix=0);
 	void print_e_matrix(const double *e);
 	void print_mu_vector(const double *mu);
+	void print_env2(const int *state, int L, int ix1, int iy1, int ix2, int iy2);
+	int *copy_state(const int *state, int L2);
+	void shift_state(int *state, int L, int dx, int dy);
 	int state_is_valid(const int *s, int L, int k=0, char prefix=0);
 
 	int run_FFS_C(int move_mode, double *flux0, double *d_flux0, int L, const double *e, const double *mu, int *states,
