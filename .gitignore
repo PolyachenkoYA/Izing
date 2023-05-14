@@ -3,6 +3,7 @@
 *__pycache__*
 *__MACOSX*
 *.npz
+FFS*.slurm
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
