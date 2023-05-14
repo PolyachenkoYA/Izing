@@ -1810,10 +1810,10 @@ namespace lattice_gas
 				*iy = pos % L;
 				*ix = pos / L;
 
-				*ix_new = (*ix + (direction == 0)) % L;
-				*iy_new = (*iy + (direction == 1)) % L;
+				*ix_new = md(*ix + (direction == 0), L);
+				*iy_new = md(*iy + (direction == 1), L);
 
-				to_swap = (state[*ix * L + *iy] != state[*ix_new * L + *iy_new]);
+				to_swap = (state[pos] != state[*ix_new * L + *iy_new]);
 				if(to_swap){
 					*dE = swap_mode_dE(state, L, e, mu, *ix, *iy, *ix_new, *iy_new);
 					to_swap = (*dE <= 0 ? true : (gsl_rng_uniform(rng) < exp(- *dE)));
