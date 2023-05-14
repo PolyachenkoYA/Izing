@@ -105,7 +105,7 @@ namespace lattice_gas
 						  int verbose);
 	int get_equilibrated_state(int move_mode, int L, const double *e, const double *mu, int *state, int *N_states_done,
 							   int interface_mode, int OP_A, int OP_B, long stab_step, const int *init_state,
-							   int to_use_smart_swap, int verbose);
+							   int to_use_smart_swap, int to_equilibrate, int verbose);
 
 
 	int init_rand_C(int my_seed);
@@ -152,7 +152,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
 						 std::optional<int> _interface_mode,
 						 std::optional< pybind11::array_t<int> > _init_state,
-						 int to_use_smart_swap,
+						 int to_use_smart_swap, int to_equilibrate,
 						 std::optional<int> _verbose);
 int compute_hA(py::array_t<int> *h_A, int *OP, long Nt, int OP_A, int OP_B);
 py::tuple cluster_state(py::array_t<int> state, std::optional<int> _verbose);
