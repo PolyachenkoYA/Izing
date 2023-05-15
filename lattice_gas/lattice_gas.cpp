@@ -8,7 +8,7 @@
 
 #include <pybind11/pytypes.h>
 #include <pybind11/cast.h>
-//#include <pybind11/stl.h>
+#include <pybind11/stl.h>
 #include <Python.h>
 
 #include <vector>
@@ -949,18 +949,17 @@ namespace lattice_gas
 				case move_mode_swap:
 					time_the_flip_took = swap_move(s, L, e, mu, &ix, &iy, &ix_new, &iy_new, &dE,
 												   to_use_smart_swap ? &potential_swap_positions : nullptr);
-
-
+					
 //					if(dE > 0){
-					if(false){
-						printf("DEBUG\n");
-						double de1, de2;
-						de1 = swap_mode_dE(s, L, e, mu, ix, iy, ix_new, iy_new);
-						de2 = swap_mode_dE(s, L, e, mu, ix_new, iy_new, ix, iy);
-						print_env2(s, L, ix, iy, ix_new, iy_new);
-						printf("dE = %lf, de1=%lf, de2=%lf, s = %d, s_new = %d\n", dE, de1, de2, s[ix * L + iy], s[ix_new * L + iy_new]);
-						STP
-					}
+//					if(false){
+//						printf("DEBUG\n");
+//						double de1, de2;
+//						de1 = swap_mode_dE(s, L, e, mu, ix, iy, ix_new, iy_new);
+//						de2 = swap_mode_dE(s, L, e, mu, ix_new, iy_new, ix, iy);
+//						print_env2(s, L, ix, iy, ix_new, iy_new);
+//						printf("dE = %lf, de1=%lf, de2=%lf, s = %d, s_new = %d\n", dE, de1, de2, s[ix * L + iy], s[ix_new * L + iy_new]);
+//						STP
+//					}
 
 					std::swap(s[ix * L + iy], s[ix_new * L + iy_new]);
 					if(to_use_smart_swap){
@@ -1760,16 +1759,12 @@ namespace lattice_gas
 		int R = L/2;
 		int dx = mds(ix_new - ix, R);
 		int dy = mds(iy_new - iy, R);
-//		printf("O: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
 //		int pos = ix * L + iy;
 //		int pos_new = ix_new * L + iy_new;
-		double dE;
+//		double dE;
 		int s_ix = state[ix * L + iy] * N_species;
-//		printf("O1: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
 		int snew_ix = state[ix_new * L + iy_new] * N_species;
-//		printf("O2: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
 		int s_neibs[4 * dim - 2];
-//		printf("O3: dx=%d, dy=%d\n(ix, iy) = (%d, %d); (ix, iy)_new = (%d, %d)\n", dx, dy, ix, iy, ix_new, iy_new);
 
 		if(dx != 0){
 			s_neibs[0] = state[md(ix_new + dx, L) * L + iy_new];
@@ -1791,12 +1786,16 @@ namespace lattice_gas
 			assert(false);
 		}
 
-		dE = (e[s_ix + s_neibs[0]] + e[s_ix + s_neibs[1]] + e[s_ix + s_neibs[2]] +
+//		printf("%lf, %lf, %lf, %lf\n",
+//			   e[s_ix + s_neibs[0]] + e[s_ix + s_neibs[1]] + e[s_ix + s_neibs[2]],
+//			   e[snew_ix + s_neibs[3]] + e[snew_ix + s_neibs[4]] + e[snew_ix + s_neibs[5]],
+//			   e[snew_ix + s_neibs[0]] + e[snew_ix + s_neibs[1]] + e[snew_ix + s_neibs[2]],
+//			   e[s_ix + s_neibs[3]] + e[s_ix + s_neibs[4]] + e[s_ix + s_neibs[5]]);
+
+		return (e[s_ix + s_neibs[0]] + e[s_ix + s_neibs[1]] + e[s_ix + s_neibs[2]] +
 			  e[snew_ix + s_neibs[3]] + e[snew_ix + s_neibs[4]] + e[snew_ix + s_neibs[5]]) -
 			 (e[snew_ix + s_neibs[0]] + e[snew_ix + s_neibs[1]] + e[snew_ix + s_neibs[2]] +
 			  e[s_ix + s_neibs[3]] + e[s_ix + s_neibs[4]] + e[s_ix + s_neibs[5]]);
-
-		return dE;
 	}
 
 	double swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new)
