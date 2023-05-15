@@ -1044,7 +1044,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 							to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, \
 							stride=1, OP_jumps_hist_edges=None, init_composition=None, \
 							possible_jumps=None, means_only=False, to_recomp=0, \
-							npz_basename=None, to_animate=True):
+							npz_basename=None, to_animate=False):
 	
 	k_AB, d_k_AB, k_BA, d_k_BA, k_bc_AB, k_bc_BA, ax_OP, ax_OP_hist, ax_F, \
 		F, d_F, OP_hist_centers, OP_hist_lens, rho_interp1d, d_rho_interp1d, \
@@ -1363,7 +1363,8 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 			OP_min=None, OP_max=None, OP_A=None, OP_B=None, \
 			OP_min_save_state=None, OP_max_save_state=None, \
 			means_only=False, stab_step=-10, init_composition=None, \
-			to_save_npz=True, to_recomp=0, R_clust_init=None):
+			to_save_npz=True, to_recomp=0, R_clust_init=None, \
+			to_animate=False):
 	L2 = L**2
 	if(verbose is None):
 		verbose = lattice_gas.get_verbose()
@@ -1500,7 +1501,8 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 									to_plot_time_evol=to_plot_timeevol, to_plot_F=to_plot_F, to_plot_ETS=to_plot_ETS, stride=timeevol_stride, \
 									OP_A=int(OP_A / OP_scale[interface_mode] + 0.1), OP_B=int(OP_B / OP_scale[interface_mode] + 0.1), OP_jumps_hist_edges=OP_jumps_hist_edges, \
 									possible_jumps=OP_possible_jumps[interface_mode], means_only=means_only, to_save_npz=to_save_npz, \
-									init_composition=init_composition, to_recomp=to_recomp, npz_basename=os.path.join(traj_basepath, traj_basename))
+									init_composition=init_composition, to_recomp=to_recomp, npz_basename=os.path.join(traj_basepath, traj_basename), \
+									to_animate=to_animate)
 		
 		if(not means_only):
 			BC_cluster_size = L2 / np.pi
@@ -2464,10 +2466,10 @@ def main():
 	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.09 0.08 0.07 0.06 0.05 0.04 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 300 350 400 450 500 600 -Temp 2.0
 	#
 	# TODO: remove outdated inputs
-	[                                           L,    potential_filenames,      mode,           Nt,    N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init], _ = \
-		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt', '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init'], \
-					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],          [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1]], \
-					  default_values=      [ None,                 [None],      None, ['-1000000'],       ['-5000'],              ['5000'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],      ['3'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None]])
+	[                                           L,    potential_filenames,      mode,           Nt,    N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate], _ = \
+		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt', '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate'], \
+					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],          [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1]], \
+					  default_values=      [ None,                 [None],      None, ['-1000000'],       ['-5000'],              ['5000'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],      ['3'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]]])
 	
 	Ls = np.array([int(l) for l in L], dtype=int)
 	N_L = len(Ls)
@@ -2575,6 +2577,7 @@ def main():
 	to_show_on_screen = (to_show_on_screen[0] in my.yes_flags)
 	to_save_npz = (to_save_npz[0] in my.yes_flags)
 	R_clust_init = None if(R_clust_init[0] is None) else float(R_clust_init[0])
+	to_animate = (to_animate[0] in my.yes_flags)
 	
 	assert(interface_mode == 'CS'), 'ERROR: only CS (not M) mode is supported'
 	
@@ -2693,7 +2696,7 @@ def main():
 				OP_min=OP_min_BF, OP_max=OP_max_BF, to_estimate_k=True, \
 				timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max, \
 				stab_step=stab_step, init_composition=init_composition, \
-				R_clust_init=R_clust_init, \
+				R_clust_init=R_clust_init, to_animate=to_animate, \
 				to_save_npz=to_save_npz, to_recomp=to_recomp)
 		
 	elif(mode == 'BF_mu_grid'):
