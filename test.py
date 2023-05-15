@@ -51,7 +51,8 @@ def main():
 	#find_finished_runs('slurm-FFS_MC2_30_15_L64_ID%d_phi0.09_OPsnvt18.out', np.arange(100, 200), verbose=True)
 	#find_finished_runs('slurm-FFS_MC2_500_250_L64_ID%d_phi0.07_OPsnvt18.out', np.arange(100, 200), verbose=True)
 	#find_finished_runs('/scratch/gpfs/yp1065/Izing/logs/slurm-FFS_MC2_500_250_L128_ID%d_phi0.05_OPsnvt18.out', np.arange(100, 500), verbose=True)
-	find_finished_runs('/scratch/gpfs/yp1065/Izing/logs/slurm-FFS_MC2_500_250_L64_ID%d_phi0.07_OPsnvt18.out', np.arange(100, 500), verbose=True)
+	#find_finished_runs('/scratch/gpfs/yp1065/Izing/logs/slurm-FFS_MC2_500_250_L64_ID%d_phi0.07_OPsnvt18.out', np.arange(100, 500), verbose=True)
+	find_finished_runs('/scratch/gpfs/yp1065/Izing/logs/FFS_MC2_60_30_L128_ID%d_phi0.015_OPsnvt16.out', np.arange(100, 500), verbose=True)
 
 if(__name__ == "__main__"):
 	main()

@@ -694,12 +694,12 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 						ax_state_Rdens[k].errorbar(state_Rdens_centers, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens[i][k], label=cluster_lbl)
 						ax_state_Rdens_log[k].errorbar(state_Rdens_centers, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens[i][k], label=cluster_lbl)
 				
-				ax_OPinit_hists.legend()
-				ax_cluster_Rdens.legend()
-				ax_cluster_Rdens_log.legend()
+				my.add_legend(fig_OPinit_hists, ax_OPinit_hists)
+				my.add_legend(fig_cluster_Rdens, ax_cluster_Rdens)
+				my.add_legend(fig_cluster_Rdens_log, ax_cluster_Rdens_log)
 				for k in range(N_species):
-					ax_state_Rdens[k].legend()
-					ax_state_Rdens_log[k].legend()
+					my.add_legend(fig_state_Rdens[k], ax_state_Rdens[k])
+					my.add_legend(fig_state_Rdens_log[k], ax_state_Rdens_log[k])
 		
 	rho = None
 	d_rho = None
@@ -840,7 +840,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			for i in range(N_OP_interfaces):
 				ax_OP.plot(timesteps[i][::stride], OP[i][::stride], label='data, i=%d' % (i))
 				
-			ax_OP.legend()
+			my.add_legend(fig_OP, ax_OP)
 		
 		if(to_plot_hists):
 			fig_OPhists, ax_OPhists, _ = my.get_fig(y_lbl, r'$\rho_i(' + x_lbl + ') \cdot P(i | A)$', title=r'$\rho(' + x_lbl + ')$; ' + ThL_lbl, yscl='log')
@@ -849,19 +849,19 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			
 			for i in range(N_OP_interfaces):
 				ax_OPhists.plot([OP_interfaces_scaled[i]] * 2, [min(rho), max(rho)], '--', label=('interfaces' if(i == 0) else None), color=my.get_my_color(0))
-			ax_OPhists.legend()
+			my.add_legend(fig_OPhists, ax_OPhists)
 			
 			fig_OPjumps_hists, ax_OPjumps_hists, _ = my.get_fig('d' + x_lbl, 'probability', title=x_lbl + ' jumps distribution; ' + ThL_lbl, yscl='log')
 			for i in range(N_OP_interfaces):
 				ax_OPjumps_hists.plot(OP_possible_jumps[interface_mode], OP_jumps_hists[:, i], label='$' + x_lbl + ' \in (' + str((OP_min_default[interface_mode]) if(i == 0) else OP_interfaces_scaled[i-1]) + ';' + str(OP_interfaces_scaled[i]) + ']$')
-			ax_OPjumps_hists.legend()
+			my.add_legend(fig_OPjumps_hists, ax_OPjumps_hists)
 			
 			fig_F, ax_F, _ = my.get_fig(y_lbl, r'$F(' + x_lbl + r') = -T \ln(\rho(%s) \cdot d%s(%s))$' % (x_lbl, x_lbl, x_lbl), title=r'$F(' + x_lbl + ')$; ' + ThL_lbl)
 			ax_F.errorbar(OP_hist_centers[BF_inds], F_BF, yerr=d_F_BF, fmt='.', label='$F_{BF}$')
 			ax_F.errorbar(OP_hist_centers, F, yerr=d_F, fmt='.', label='$F_{total}$')
 			for i in range(N_OP_interfaces):
 				ax_F.plot([OP_interfaces_scaled[i]] * 2, [min(F), max(F)], '--', label=('interfaces' if(i == 0) else None), color=my.get_my_color(0))
-			ax_F.legend()
+			my.add_legend(fig_F, ax_F)
 		
 	if(to_plot_hists):
 		fig_PB_log, ax_PB_log, _ = my.get_fig(y_lbl, r'$P_B(' + x_lbl + ') = P(i|0)$', title=r'$P_B(' + x_lbl + ')$; ' + ThL_lbl, yscl='log')
@@ -872,9 +872,9 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		plot_PB_AB(ax_PB, ax_PB_log, ax_PB_sgm, 'P_B', x_lbl, OP_interfaces_scaled[:-1], P_B[:-1], d_PB=d_P_B[:-1], \
 					PB_sgm=P_B_sigmoid, d_PB_sgm=d_P_B_sigmoid, linfit=linfit, linfit_inds=linfit_inds, OP0=OP0, \
 					clr=my.get_my_color(1))
-		ax_PB_log.legend()
-		ax_PB.legend()
-		ax_PB_sgm.legend()
+		my.add_legend(fig_PB_log, ax_PB_log)
+		my.add_legend(fig_PB, ax_PB)
+		my.add_legend(fig_PB_sgm, ax_PB_sgm)
 		
 		fig_fl, ax_fl, _ = my.get_fig(y_lbl, r'$1 - \ln[P_B(' + x_lbl + ')] / \ln[P_B(0)] = f(\lambda_i)$', title=r'$f(\lambda_i)$; ' + ThL_lbl)
 		fig_fl_i, ax_fl_i, _ = my.get_fig(r'$index(' + x_lbl + '_i)$', r'$1 - \ln[P_B(' + x_lbl + '_i)] / \ln[P_B(0)] = f(\lambda_i)$', title=r'$f(\lambda_i)$; ' + ThL_lbl)
@@ -890,8 +890,8 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		#ax_fl.plot([min(OP_interfaces_scaled), max(OP_interfaces_scaled)], [0, 1], '--', label=r'$interpolation$')
 		ax_fl_i.plot([0, N_OP_interfaces - 1], [0, 1], '--', label=r'$ideal$')
 		
-		ax_fl.legend()
-		ax_fl_i.legend()
+		my.add_legend(fig_fl, ax_fl)
+		my.add_legend(fig_fl_i, ax_fl_i)
 
 	return ln_k_AB, d_ln_k_AB, P_B, d_P_B, P_B_sigmoid, d_P_B_sigmoid, linfit, linfit_inds, OP0, \
 			rho, d_rho, OP_hist_centers, OP_hist_lens, \
@@ -908,7 +908,11 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 	
 	swap_type_move = MC_move_mode in [move_modes["swap"], move_modes["long_swap"]]
 	
-	traj_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
+	#traj_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
+	# TODO: make this global
+	traj_basepath = '/scratch/gpfs/yp1065/Izing/npzs'
+	traj_basepath = '/scratch/gpfs/yp1065/Izing/nvt'
+	
 	traj_basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
 					'_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
 					(('_phi' + join_lbls(init_composition[1:], '_')) if(swap_type_move) \
@@ -921,11 +925,13 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 					'_initGenMode' + str(init_gen_mode) + \
 					'_timeData' + str(to_get_timeevol) + \
 					'_ID' + str(lattice_gas.get_seed())
-					
+	
+	# TODO: change name for this
+	# N_init_states[:2]
+	
 	traj_filepath = os.path.join(traj_basepath, traj_basename + '_FFStraj.npz')
 	
-	#print(traj_filepath)
-	#print(os.path.isfile(traj_filepath))
+	#print(traj_filepath, os.path.isfile(traj_filepath))
 	#input('ok')
 	
 	if((not os.path.isfile(traj_filepath)) or to_recomp):
@@ -1118,7 +1124,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 					label=None, color=my.get_my_color(i))
 		ax_phi.plot([stab_step] * 2, [0, 1], '--', label='equilibr')
 		
-		ax_phi.legend()
+		my.add_legend(fig_phi, ax_phi)
 	
 	if(not means_only):
 		F_filepath = os.path.join(npz_basename + '_F.npz')
@@ -1276,13 +1282,13 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 			if(to_estimate_k):
 				ax_OP.plot([0, max(steps)], [OP_A] * 2, '--', label='state A, B', color=my.get_my_color(1))
 				ax_OP.plot([0, max(steps)], [OP_B] * 2, '--', label=None, color=my.get_my_color(1))
-			ax_OP.legend()
+			my.add_legend(fig_OP, ax_OP)
 			
 			if(to_estimate_k):
 				fig_hA, ax_hA, _ = my.get_fig('step', '$h_A$', title='$h_{A, ' + x_lbl + '}$(step); ' + ThL_lbl)
 				ax_hA.plot(steps, hA, label='$h_A$')
 				ax_hA.plot(steps[jump_inds+1], hA_jump[jump_inds], '.', label='$h_A$ jumps')
-				ax_hA.legend()
+				my.add_legend(fig_hA, ax_hA)
 
 			#print('k_' + x_lbl + '_AB    =    (' + my.errorbar_str(k_AB, d_k_AB) + ')    (1/step);    dk/k =', my.f2s(d_k_AB / k_AB))
 			#print('k_' + x_lbl + '_BA    =    (' + my.errorbar_str(k_BA, d_k_BA) + ')    (1/step);    dk/k =', my.f2s(d_k_BA / k_BA))
@@ -1293,7 +1299,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 			if(to_estimate_k):
 				ax_OP_hist.plot([OP_A] * 2, [0, max(rho)], '--', label='state A,B', color=my.get_my_color(1))
 				ax_OP_hist.plot([OP_B] * 2, [0, max(rho)], '--', label=None, color=my.get_my_color(1))
-			ax_OP_hist.legend()
+			my.add_legend(fig_OP_hist, ax_OP_hist)
 			
 			fig_OP_jumps_hist, ax_OP_jumps_hist, _ = my.get_fig('d' + x_lbl, 'probability', title=x_lbl + ' jumps distribution; ' + ThL_lbl, yscl='log')
 			ax_OP_jumps_hist.plot(possible_jumps, OP_jumps_hist, '.')
@@ -1309,7 +1315,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 			if(to_plot_ETS):
 				ax_F.plot(OP_hist_centers, E_avg, '.', label='<E>(' + x_lbl + ')/T')
 				ax_F.plot(OP_hist_centers, S, '.', label='$T \cdot S(' + x_lbl + ')$')
-			ax_F.legend()
+			my.add_legend(fig_F, ax_F)
 			
 			if(to_estimate_k):
 				print('k_' + x_lbl + '_bc_AB   =   ' + my.f2s(k_bc_AB * print_scale_k) + '   (%e/step);' % (1/print_scale_k))
@@ -1325,7 +1331,7 @@ def plot_correlation(x, y, x_lbl, y_lbl):
 	fig, ax, _ = my.get_fig(x_lbl, y_lbl)
 	R = scipy.stats.pearsonr(x, y)[0]
 	ax.plot(x, y, '.', label='R = ' + my.f2s(R))
-	ax.legend()
+	my.add_legend(fig, ax)
 	
 	return ax, R
 
@@ -1515,9 +1521,9 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 				ax_hist.plot([OP_init / OP_scale[interface_mode]] * 2, hist_limits, '--', label='init state')
 				if(interface_mode == 'CS'):
 					ax_hist.plot([BC_cluster_size] * 2, hist_limits, '--', label='$L_{BC} = L^2 / \pi$')
-					ax_hist.legend()
+					my.add_legend(fig_hist, ax_hist)
 					ax_F.plot([BC_cluster_size] * 2, F_limits, '--', label='$S_{BC} = L^2 / \pi$')
-				ax_F.legend()
+				my.add_legend(fig_F, ax_F)
 			
 			# if(to_plot_correlations):
 				# feature_labels_ordered = list(hist_edges.keys())
@@ -1804,7 +1810,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			init_gen_mode=-2, to_plot_committer=None, to_get_timeevol=None, \
 			target_states0=None, target_states1=None, stab_step=-5, 
 			init_composition=None, to_save_npz=True, to_recomp=0, \
-			R_clust_init=None, seeds=None):
+			R_clust_init=None, seeds=None, interfacesIDs_to_plot_dens='main'):
 	if(verbose is None):
 		verbose = lattice_gas.get_verbose()
 	L2 = L**2
@@ -2139,7 +2145,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		OP0_AB, d_OP0_AB = get_average(OP0_AB_data)
 		probs_AB, d_probs_AB = get_average(probs_AB_data, mode='log', axis=1)
 		PB_AB, d_PB_AB = get_average(PB_AB_data, mode='log', axis=1)
-
+		
 		#Temp = 4 / e[1,1]
 		#Nc_0 = table_data.Nc_reference_data[str(Temp)] if(str(Temp) in table_data.Nc_reference_data) else None
 		PB_sigmoid, d_PB_sigmoid, linfit_AB, linfit_AB_inds, m0_AB_fit = \
@@ -2154,6 +2160,36 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				for k in range(N_species):
 					state_centered_Rdens_total[j][k], d_state_centered_Rdens_total[j][k] = \
 						get_average(state_centered_Rdens_total_data[j][k], axis=1)
+			
+			rho0_fit_params = np.empty((3, N_OP_interfaces_AB))
+			d_rho0_fit_params = np.empty((3, N_OP_interfaces_AB))
+			#rho0_fits = []
+			sgmfit_species_id = 0
+			rho0_fit_fnc = lambda r, prm: prm[0] + (init_composition[sgmfit_species_id] - prm[0]) / (1 + np.exp(-((r - prm[2]) / prm[1])))
+			for j in range(N_OP_interfaces_AB):
+				#rho0_fit_params[0, j] = state_Rdens_centers_new[np.argmin(np.abs(state_centered_Rdens_total[j][sgmfit_species_id] - 1/2))]
+				rho0_fit_params[0, j] = state_centered_Rdens_total[j][sgmfit_species_id][0]   # argmin(r)
+				rho0_linsgm_inds = (state_centered_Rdens_total[j][sgmfit_species_id] > 0.1) & (state_centered_Rdens_total[j][sgmfit_species_id] < 0.9)
+				rho0_linsgmfit = np.polyfit(state_Rdens_centers_new[rho0_linsgm_inds], \
+											-np.log(init_composition[sgmfit_species_id]/state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds] - 1), \
+											1, \
+											w = abs((1 - state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds] / init_composition[sgmfit_species_id]) * \
+												(state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds] / d_state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds]))\
+											)
+				rho0_fit_params[1, j] = 1 / rho0_linsgmfit[0]
+				rho0_fit_params[2, j] = -rho0_linsgmfit[1] * rho0_fit_params[1, j]
+				
+				rho0_fit_optim_res = scipy.optimize.minimize(lambda prm: np.sum(((rho0_fit_fnc(state_Rdens_centers_new, prm) - state_centered_Rdens_total[j][sgmfit_species_id]) / d_state_centered_Rdens_total[j][sgmfit_species_id])**2), rho0_fit_params[:, j])
+				rho0_fit_params[:, j] = rho0_fit_optim_res.x
+				d_rho0_fit_params[:, j] = np.sqrt(rho0_fit_optim_res.hess_inv.diagonal())
+			
+			sgm_logfit_Nmin = OP0_AB
+			sgm_logfit_inds = (OP_interfaces_AB > sgm_logfit_Nmin)
+			sgm_logfit, sgm_logfit_cov = \
+				np.polyfit(np.log(OP_interfaces_AB[sgm_logfit_inds]), \
+							np.log(rho0_fit_params[1, sgm_logfit_inds]), \
+							1, cov=True, w=1 / (d_rho0_fit_params[1, sgm_logfit_inds] / rho0_fit_params[1, sgm_logfit_inds]))
+		
 
 	if(state_Rdens_centers_new is not None):
 		# =============== Rdens ================
@@ -2163,18 +2199,51 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		ax_state_Rdens_log = [[]] * N_species
 		ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
 		for k in range(N_species):
-			fig_state_Rdens[k], ax_state_Rdens[k], _ = my.get_fig('r', r'$\rho_%d$' % k, title=(r'$\rho_%d(r)$; ' % k) + ThL_lbl)
-			fig_state_Rdens_log[k], ax_state_Rdens_log[k], _ = my.get_fig('r', r'$\rho_%d$' % k, title=(r'$\rho_%d(r)$; ' % k) + ThL_lbl, yscl='logit')
+			fig_state_Rdens[k], ax_state_Rdens[k], _ = my.get_fig('r', r'$\phi_%d$' % k, title=(r'$\phi_%d(r)$; ' % k) + ThL_lbl)
+			fig_state_Rdens_log[k], ax_state_Rdens_log[k], _ = my.get_fig('r', r'$\phi_%d$' % k, title=(r'$\phi_%d(r)$; ' % k) + ThL_lbl, yscl='logit')
 		
-		for i in range(N_OP_interfaces_AB):
+		if(interfacesIDs_to_plot_dens == 'main'):
+			interfacesIDs_to_plot_dens = np.array([0, np.argmin(np.abs(OP_interfaces_AB - OP0_AB)), len(OP_interfaces_AB) - 1], dtype=int)
+		elif(interfacesIDs_to_plot_dens == 'all'):
+			interfacesIDs_to_plot_dens = np.arange(len(N_OP_interfaces_AB))
+			
+		for i in interfacesIDs_to_plot_dens:
 			cluster_lbl = r'$OP[%d] = %d$; ' % (i, OP_interfaces_AB[i])
 			for k in range(N_species):
-				ax_state_Rdens[k].errorbar(state_Rdens_centers_new, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens_total[i][k], label=cluster_lbl)
-				ax_state_Rdens_log[k].errorbar(state_Rdens_centers_new, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens_total[i][k], label=cluster_lbl)
+				ax_state_Rdens[k].errorbar(state_Rdens_centers_new, \
+										state_centered_Rdens_total[i][k], \
+										yerr=d_state_centered_Rdens_total[i][k], \
+										label=cluster_lbl, color=my.get_my_color(i))
+				ax_state_Rdens_log[k].errorbar(state_Rdens_centers_new, \
+										state_centered_Rdens_total[i][k], \
+										yerr=d_state_centered_Rdens_total[i][k], 
+										label=cluster_lbl, color=my.get_my_color(i))
+				
+			ax_state_Rdens[sgmfit_species_id].plot(state_Rdens_centers_new, \
+								rho0_fit_fnc(state_Rdens_centers_new, rho0_fit_params[:, i]), \
+								'--', color=my.get_my_color(i))
+		for k in range(N_species):
+			Rdens_lims = [min(state_Rdens_centers_new), max(state_Rdens_centers_new)]
+			ax_state_Rdens[k].plot(Rdens_lims, [init_composition[k]] * 2, '--', \
+									label='$\phi_{bulk} = %s$' % (my.f2s(init_composition[k], n=4)))
+			ax_state_Rdens_log[k].plot(Rdens_lims, [init_composition[k]] * 2, '--', \
+									label='$\phi_{bulk} = %s$' % (my.f2s(init_composition[k], n=4)))
+		
+		#fig_rhoW, ax_rhoW, _ = my.get_fig(r'$N_{clust}$', r'$w_{\rho_{%d}}$' % (sgmfit_species_id), xscl='log', yscl='log')
+		fig_rhoW, ax_rhoW, _ = my.get_fig(r'$N_{clust}$', r'$w_{\rho_{%d}}$' % (sgmfit_species_id), xscl='log')
+		ax_rhoW.errorbar(OP_interfaces_AB, rho0_fit_params[1, :],  yerr=d_rho0_fit_params[1, :], fmt='.', label='data')
+		ax_rhoW.plot(OP_interfaces_AB, np.exp(np.polyval(sgm_logfit, np.log(OP_interfaces_AB))), \
+					'--', label=r'$k = %s$' % (my.errorbar_str(sgm_logfit[0], np.sqrt(sgm_logfit_cov[0,0]))))
+		ax_rhoW.plot([sgm_logfit_Nmin] * 2, [min(rho0_fit_params[1, :]), max(rho0_fit_params[1, :])], \
+					'--', label=r'$N^* = %s$' % (my.f2s(sgm_logfit_Nmin)))
+		
+		my.add_legend(fig_rhoW, ax_rhoW)
 		
 		for k in range(N_species):
-			ax_state_Rdens[k].legend()
-			ax_state_Rdens_log[k].legend()
+			my.add_legend(fig_state_Rdens[k], ax_state_Rdens[k], \
+						loc='upper right', font_size=my.lbl_fontsize_dict['work'])
+			my.add_legend(fig_state_Rdens_log[k], ax_state_Rdens_log[k], \
+						loc='upper right', font_size=my.lbl_fontsize_dict['work'])
 
 
 	if(to_plot_k_distr):
@@ -2208,9 +2277,9 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					OP0=OP0_AB, d_OP0=d_OP0_AB, \
 					clr=my.get_my_color(1))
 					
-		ax_PB_log.legend()
-		ax_PB.legend()
-		ax_PB_sigmoid.legend()
+		my.add_legend(fig_PB_sigmoid, ax_PB_sigmoid)
+		my.add_legend(fig_PB, ax_PB)
+		my.add_legend(fig_PB_log, ax_PB_log)
 	
 	lattice_gas.init_rand(old_seed)
 	
@@ -2329,7 +2398,7 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 			fig_k_err, ax_k_err, _ = my.get_fig('$\mu_1/T$', '$[max(\ln(k_{my, ref})) / min(\ln(k_{my, ref})) - 1]$', '$\ln(k)_{error}(\mu)$; ' + TL_lbl, yscl='log')
 			#fig_Nc_err, ax_Nc_err, _ = my.get_fig('$\mu_1/T$', '$[max(Nc_{my, ref}) / min(Nc_{my, ref}) - 1]$', '$Nc_{error}(\mu)$; ' + TL_lbl, xscl='log', yscl='log')
 			fig_Nc_err, ax_Nc_err, _ = my.get_fig('$\mu_1/T$', '$[max(Nc_{my, ref}) / min(Nc_{my, ref}) - 1]$', '$Nc_{error}(\mu)$; ' + TL_lbl, yscl='log')
-
+			
 			fig_k_ratio, ax_k_ratio, _ = my.get_fig('$\mu_1/T$', '$k_{my} / k_{ref}$', '$k_{error}(\mu)$; ' + TL_lbl)
 			def get_k_err_vals(k, d_ln_k, k_ref):
 				r = np.exp(np.abs(np.log(k / k_ref)))
@@ -2343,15 +2412,15 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 			Nc_err, d_Nc_err = get_k_err_vals(OP0_AB, d_OP0_AB / OP0_AB, Nc_AB_ref[mu_Nc_ref_inds])
 			
 			ax_k_err.errorbar(mu_arr[:, 1], k_err, yerr=d_k_err, fmt='.', label='data')
-			ax_k_err.legend()
+			my.add_legend(fig_k_err, ax_k_err)
 			
 			ax_k_ratio.errorbar(mu_arr[:, 1], k_AB_mean / k_AB_ref[mu_kAB_ref_inds], yerr=d_ln_k_AB * abs(k_AB_mean / k_AB_ref[mu_kAB_ref_inds]), fmt='.', label='data')
-			ax_k_ratio.legend()
-
+			my.add_legend(fig_k_ratio, ax_k_ratio)
+			
 			ax_Nc_err.errorbar(mu_arr[:, 1], Nc_err, yerr=d_Nc_err, fmt='.', label='data')
-			ax_Nc_err.legend()
-		ax_k.legend()
-		ax_Nc.legend()
+			my.add_legend(fig_Nc_err, ax_Nc_err)
+		my.add_legend(fig_k, ax_k)
+		my.add_legend(fig_Nc, ax_Nc)
 		
 def load_Q_target_phase_data(suff):
 	phi2_target = np.load('string_radial_ternary_V3_2_phi0%s.npy' % suff).flatten()   # phi0-Q ~ phi2-My
@@ -2369,7 +2438,7 @@ def plot_avg_phi_evol(phi_mean, d_phi_mean, phi_evol, d_phi_evol, target_phi, st
 		ax.errorbar([min(to_plot_steps), max(to_plot_steps)], [phi_mean[i]] * 2, fmt='.-', yerr = [d_phi_mean[i]]*2, color=my.get_my_color(i), label = ('mean' if(i == 0) else None))
 		ax.plot([min(to_plot_steps), max(to_plot_steps)], [target_phi[i]] * 2, ':', color=my.get_my_color(i), label = ('target' if(i == 0) else None))
 	ax.plot([stab_step] * 2, [0, 1], '--', label='stab time')
-	ax.legend()
+	my.add_legend(fig, ax)
 
 def plot_Q_target_phase_data(target_states, used_target_ids, phi_obtained, d_phi_obtained, name, cost_mode):
 	if(len(phi_obtained.shape) == 1):
@@ -2384,7 +2453,7 @@ def plot_Q_target_phase_data(target_states, used_target_ids, phi_obtained, d_phi
 		ax_phi.errorbar(used_target_ids, phi_obtained[:, i], fmt='.', yerr=d_phi_obtained[:, i], color=my.get_my_color(i), lw=1.5)
 	#ax_phi.plot([try_id] * 2, [0, 1], '--', label=r'current target')
 	ax_phi.plot(np.sum(target_states, axis=1), label='total', lw=1)
-	ax_phi.legend()
+	my.add_legend(fig_phi, ax_phi)
 	
 	fig_x, ax_x = None, None
 	if(cost_mode in [2, 3, 4]):
@@ -2435,11 +2504,13 @@ def main():
 	# python run.py -mode BF_1 -Nt 800000000 -L 128 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt-1 -e -2.68010292 -1.34005146 -1.71526587 -OP_min_BF -1 -OP_max_BF 0 -timeevol_stride 16000
 	# python run.py -mode FFS_AB -L 256 -to_get_timeevol 0 -N_states_FFS 5 -N_init_states_FFS 10 -N_runs 2 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -init_composition 0.977 0.013 0.01 -OP_interfaces_set_IDs nvt16
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt16 -my_seeds 1 -N_runs 10
-	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 250 -N_init_states_FFS 500 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt16 -N_runs 87 -my_seeds 1 2 3 4 6 7 8 9 10 11 13 14 15 16 17 18 19 20 21 24 25 26 27 28 30 31 32 33 34 36 37 38 39 40 41 42 43 44 45 46 47 48 49 51 52 53 54 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 80 81 82 84 85 86 87 89 90 92 94 95 96 97 98 99 100
+	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 250 -N_init_states_FFS 500 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt16 -N_runs 87 -my_seeds 1 2 3 4 6 7 8 9 10 11 13 14 15 16 17 18 19 20 21 24 25 26 27 28 30 31 32 33 34 36 37 38 39 40 41 42 43 44 45 46 47 48 49 51 52 53 54 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 80 81 82 84 85 86 87 89 90 92 94 95 96 97 98 99 100 -to_recomp 1 -font_mode present
 	
 	# python run.py -mode FFS_AB_many -L 64 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.9 0.09 0.01 -OP_interfaces_set_IDs nvt18 -N_runs 80 -my_seeds 100 102 103 105 106 107 108 109 110 111 112 113 114 116 117 118 119 120 121 123 126 127 129 130 131 133 134 135 136 139 140 141 142 143 144 145 147 148 149 150 151 152 153 154 155 156 158 161 162 163 165 166 168 169 171 172 173 174 175 176 177 178 179 180 181 182 183 184 185 186 188 189 190 191 192 193 194 195 197 198
 	# python run.py -mode FFS_AB_many -L 64 -to_get_timeevol 0 -N_states_FFS 250 -N_init_states_FFS 500 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.92 0.07 0.01 -OP_interfaces_set_IDs nvt18 -N_runs 194 -my_seeds 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150 151 152 153 154 155 156 157 158 159 160 161 162 163 164 165 166 167 168 169 170 171 172 173 174 175 176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191 192 193 194 195 196 197 198 199 200 201 202 203 204 205 206 207 208 209 210 211 212 213 214 215 216 217 218 219 220 221 222 223 224 225 226 228 231 232 233 234 235 236 237 238 239 240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255 256 257 258 259 260 261 262 263 264 265 267 268 269 270 271 272 273 274 275 276 277 278 279 280 281 282 283 284 285 286 287 288 289 290 291 292 293 294 295 297 298 299
 	# python run.py -mode BF_1 -Nt 150000 -L 128 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt10 -e -2.68010292 -1.34005146 -1.71526587 -R_clust_init 10
+	
+	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 30 -N_init_states_FFS 60 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt16 -N_runs 20 -my_seeds 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 -to_recomp 1 -font_mode present
 	
 	################################ Ising ############################
 	# python run.py -mode BF_AB_L -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 35000000 -N_runs 5 -h 0.15 -interface_set_mode spaced -L 100 71 56 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
@@ -2466,10 +2537,10 @@ def main():
 	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.09 0.08 0.07 0.06 0.05 0.04 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 300 350 400 450 500 600 -Temp 2.0
 	#
 	# TODO: remove outdated inputs
-	[                                           L,    potential_filenames,      mode,           Nt,    N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate], _ = \
-		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt', '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate'], \
-					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],          [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1]], \
-					  default_values=      [ None,                 [None],      None, ['-1000000'],       ['-5000'],              ['5000'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],      ['3'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]]])
+	[                                           L,    potential_filenames,      mode,           Nt,    N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode], _ = \
+		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt', '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode'], \
+					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],          [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1]], \
+					  default_values=      [ None,                 [None],      None, ['-1000000'],       ['-5000'],              ['5000'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],      ['3'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work']])
 	
 	Ls = np.array([int(l) for l in L], dtype=int)
 	N_L = len(Ls)
@@ -2578,6 +2649,7 @@ def main():
 	to_save_npz = (to_save_npz[0] in my.yes_flags)
 	R_clust_init = None if(R_clust_init[0] is None) else float(R_clust_init[0])
 	to_animate = (to_animate[0] in my.yes_flags)
+	my.font_mode = font_mode[0]
 	
 	assert(interface_mode == 'CS'), 'ERROR: only CS (not M) mode is supported'
 	
@@ -3028,8 +3100,8 @@ def main():
 										label='L = ' + str(Ls[i_l]))
 				ax_PB_L.plot([min(OP_interfaces_AB[0][:-1]), max(OP_interfaces_AB[0][:-1])], [0] * 2, '--', label=r'$P_B = 1/2$')
 				
-				ax_PB_L.legend()
-				ax_dPB_L.legend()
+				my.add_legend(fig_PB_L, ax_PB_L)
+				my.add_legend(fig_dPB_L, ax_dPB_L)
 
 			if(interface_mode == 'CS'):
 				fig_Nc_L, ax_Nc_L, _ = my.get_fig('L', '$N_c$', title='$N_c(L)$; ' + Th_lbl, xscl='log')
@@ -3103,7 +3175,7 @@ def main():
 		#ax_F.plot([OP_max / OP_scale[interface_mode]] * 2, F_lims, '--', label=None, color=my.get_my_color(3))
 		if(interface_mode == 'CS'):
 			ax_F.plot([BC_cluster_size] * 2, F_lims, '--', label='$S_{BC} = L^2 / \pi$')
-		ax_F.legend()
+		my.add_legend(fig_F, ax_F)
 		
 	else:
 		print('ERROR: mode=%s is not supported' % (mode))
