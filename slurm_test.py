@@ -1,78 +1,148 @@
 import numpy as np
 import os
+import argparse
 
 import mylib as my
 import mylib_server as my_server
+import table_data
+import izing
 
 #import lattice_gas_save as lattice_gas
 import lattice_gas
-move_modes = lattice_gas.get_move_modes()
 
-#my_server.run_slurm('test.slurm', \
-#	'which cmake', \
-#	job_name='test_izing', \
-#	time='00:02:00', \
-#	nodes=1, \
-#	ntasks_per_core=1, \
-#	ntasks_per_node=1, \
-#	cpus_per_task=1)
-
-
-#my_server.run_slurm('test.slurm', \
-#	'python run.py -mode BF_1 -Nt 1500000 -L 128 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.97 0.02 0.01 -OP_interfaces_set_IDs nvt10 -e -2.68010292 -1.34005146 -1.71526587 -OP_max_BF 0', \
-#	job_name='test_izing', \
-#	time='00:60:00', \
-#	nodes=1, \
-#	ntasks_per_core=1, \
-#	ntasks_per_node=1, \
-#	cpus_per_task=1)
+def main():
+	# python slurm_test.py --MC_mode long_swap --OP_set_name nvt --mode launch_run
+	# python slurm_test.py --MC_mode swap --OP_set_name nvt --mode launch_run
 	
+	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1049 1056 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0
+	# python slurm_test.py --mode search_logs --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1100 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0
+	# python slurm_test.py --mode search_npzs --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1100 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0
+	
+	parser = argparse.ArgumentParser()
+	
+	parser.add_argument('--mode', help='what to do', choices=['launch_run', 'search_logs', 'search_npzs'], required=True)
+	
+	parser.add_argument('--MC_mode', help='mode of MC moves', choices=['swap', 'long_swap', 'flip'], required=True)
+	parser.add_argument('--OP_set_name', help='string-ID of the set of OP-intarfaces', choices=table_data.OP_interfaces_table.keys(), required=True)
+	parser.add_argument('--slurm_time', help='mode of MC moves', default='24:00:00')
+	parser.add_argument('--RAM_per_CPU', help='RAM for the run', default='4G')
+	
+	parser.add_argument('--phi_1', type=int, help='phi_1 value', default=0.015)
+	parser.add_argument('--phi_2', type=int, help='phi_2 value', default=0.01)
+	parser.add_argument('--Temp', type=float, help='scale e', default=1.0)
+	parser.add_argument('--e11', type=float, help='e11', default=-2.68010292)
+	parser.add_argument('--e12', type=float, help='e12', default=-1.34005146)
+	parser.add_argument('--e22', type=float, help='e22', default=-1.71526587)
+	
+	parser.add_argument('--seed_s', type=int, help='seeds for cycle', nargs='+')
+	parser.add_argument('--n_s', type=int, help='n-s for cycle', nargs='*', default=-1)
+	parser.add_argument('--L_s', type=int, help='L-s for cycle', nargs='+')
+	parser.add_argument('--phi1_s', type=float, help='phi1-s for cycle', nargs='+')
+	parser.add_argument('--Temp_s', type=float, help='Temp-s for cycle', nargs='*', default=1.0)
+	
+	parser.add_argument('--phi_dgt', type=int, help='system name', default=5)
+	
+	parser.add_argument('--to_run', type=int, help='whether to run or just print commands', default=0)
+	
+	clargs = parser.parse_args()
+	
+	move_modes = lattice_gas.get_move_modes()
+	
+	seed_s = np.arange(clargs.seed_s[1], clargs.seed_s[2]) if(clargs.seed_s[0] == -1) else clargs.seed_s
+	mode = clargs.mode
+	
+	to_run = clargs.to_run
+	script_name = 'run.py'
+	
+	phi_dgt = clargs.phi_dgt
+	phi_2 = clargs.phi_2
+	e_T1 = np.array([clargs.e11, clargs.e12, clargs.e22]) / clargs.Temp
+	
+	MC_mode = clargs.MC_mode
+	OP_set_name = clargs.OP_set_name
+	
+	if(mode == 'launch_run'):
+		for seed in seed_s:
+			for n in clargs.n_s:
+				for L in clargs.L_s:
+					for phi in clargs.phi1_s:
+						for Temp in clargs.Temp_s:
+							if(n >= 0):
+								n_use = n
+							elif(n == -1):
+								n_use = int(table_data.n_FFS_dict[MC_mode][Temp][phi] * my_server.slurm_time_to_seconds(clargs.slurm_time)/(24*3600) + 0.5)
+							
+							if(n_use > 0):
+								if(n_use < 15):
+									input('n = %d < 15 - too small, poor statistics possible. Proceed? [press Enter or Ctrl+C]' % n_use)
+								
+								n_init = n_use * 2
+								n_FFS = n_use
+								phi_s = my.f2s(phi, n=phi_dgt)
+								
+								name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_OPs%s' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi_s, OP_set_name)
+								#print(name)
+								#input(name)
+								
+								cmd = 'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s -to_show_on_screen 0 -my_seeds %d' \
+										% (script_name, L, n_FFS, n_init, e_T1[0]/Temp, e_T1[1]/Temp, e_T1[2]/Temp, MC_mode, my.f2s(1.0 - phi - phi_2, n=phi_dgt), my.f2s(phi, n=phi_dgt), my.f2s(phi_2, n=phi_dgt), OP_set_name, seed)
+								
+								if(to_run):
+									my_server.run_slurm(os.path.join('/scratch/gpfs/yp1065/Izing/slurm', name + '.slurm'), \
+										cmd, \
+										job_name=name, \
+										time=clargs.slurm_time, \
+										nodes=1, \
+										ntasks_per_core=1, \
+										ntasks_per_node=1, \
+										cpus_per_task=1, \
+										RAM_per_CPU_usage=clargs.RAM_per_CPU, \
+										slurm_output_filepath = '/scratch/gpfs/yp1065/Izing/logs/' + name + '.out')
+								else:
+									print(cmd)
+	elif(mode in ['search_logs', 'search_npzs']):
+		for L in clargs.L_s:
+			for phi in clargs.phi1_s:
+				for Temp in clargs.Temp_s:
+					n_use = int(table_data.n_FFS_dict[MC_mode][Temp][phi] * my_server.slurm_time_to_seconds(clargs.slurm_time)/(24*3600) + 0.5)
+					
+					if(n_use > 0):
+						print('phi1 =', phi, '; Temp =', Temp, '; mode =', MC_mode)
+						
+						if(mode == 'search_logs'):
+							templ = '/scratch/gpfs/yp1065/Izing/logs/FFS_MC%d_%d_%d_L128_Temp%s_ID%s_phi%s_OPsnvt.out' % \
+									(lattice_gas.get_move_modes()[MC_mode], 2*n_use, n_use, my.f2s(Temp), '%d', my.f2s(phi))
+							
+							izing.find_finished_runs_logs(templ, seed_s, verbose=True)
+						elif(mode == 'search_npzs'):
+							templ = '/scratch/gpfs/yp1065/Izing/npzs/MCmoves%d_L128_eT%s_%s_%s_phi%s_%s_NinitStates%d_%d_OPs12_125_22_stab16384_OPbf20_16_stride*_initGenMode-3_timeDataFalse_Nfourier5_ID%s_FFStraj.npz' % \
+									(lattice_gas.get_move_modes()[MC_mode], my.f2s(e_T1[0] / Temp), my.f2s(e_T1[1] / Temp), my.f2s(e_T1[2] / Temp), my.f2s(phi), my.f2s(phi_2), 2*n_use, n_use, '%d')
+							
+							izing.find_finished_runs_npzs(templ, seed_s, verbose=True)
 
-script_name = 'run.py'
 
-MC_mode = 'swap'
-OP_set_name = 'nvt18'
-OP_set_name = 'nvt16'
-#n_24h_n30 = 80-100
+if(__name__ == "__main__"):
+	main()
 
-#MC_mode = 'long_swap'
-#OP_set_name = 'nvt16'
-#n_24h_n15 = 3600
+	#n_24h(p1=0.015, p2=0.01, T=1, nvt16, 'swap') = 80-100
+	#n_24h(p1=0.015, p2=0.01, T=1, nvt16, 'long_swap') = 2500
 
-# for seed in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
-	# for n in [5, 10, 15]:
-		# for L in [128, 160, 200]:
-			# for phi in [0.013, 0.014, 0.015]:
-# for seed in np.arange(1, 101):
-	# for n in [250]:
-		# for L in [128]:
-			# for phi in [0.015]:
-# for seed in np.arange(1, 2):
-	# for n in [5]:
-		# for L in [128]:
-			# #for phi in [0.0161]:
-			# for phi in np.linspace(0.0162, 0.02, 39):
-#for seed in np.arange(220, 370):
-for seed in np.arange(200, 400):
-	for n in [80]:
-		for L in [128]:
-			for phi in [0.015]:
-				n_init = n * 2
-				n_FFS = n
-				phi_s = my.f2s(phi, n=5)
-				
-				name = 'FFS_MC%d_%d_%d_L%d_ID%d_phi%s_OPs%s' % (move_modes[MC_mode], n_init, n_FFS, L, seed, phi_s, OP_set_name)
-				#print(name)
-				#input(name)
-				
-				my_server.run_slurm(os.path.join('/scratch/gpfs/yp1065/Izing/slurm', name + '.slurm'), \
-					'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode %s -init_composition %s %s 0.01 -OP_interfaces_set_IDs %s -to_show_on_screen 0 -my_seeds %d' \
-						% (script_name, L, n_FFS, n_init, MC_mode, my.f2s(0.99 - phi, n=5), my.f2s(phi, n=5), OP_set_name, seed), \
-					job_name=name, \
-					time='23:59:59', \
-					nodes=1, \
-					ntasks_per_core=1, \
-					ntasks_per_node=1, \
-					cpus_per_task=1, \
-					slurm_output_filepath = '/scratch/gpfs/yp1065/Izing/logs/' + name + '.out')
-
+	#my_server.run_slurm('test.slurm', \
+	#	'which cmake', \
+	#	job_name='test_izing', \
+	#	time='00:02:00', \
+	#	nodes=1, \
+	#	ntasks_per_core=1, \
+	#	ntasks_per_node=1, \
+	#	cpus_per_task=1)
+	
+	
+	#my_server.run_slurm('test.slurm', \
+	#	'python run.py -mode BF_1 -Nt 1500000 -L 128 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.97 0.02 0.01 -OP_interfaces_set_IDs nvt10 -e -2.68010292 -1.34005146 -1.71526587 -OP_max_BF 0', \
+	#	job_name='test_izing', \
+	#	time='00:60:00', \
+	#	nodes=1, \
+	#	ntasks_per_core=1, \
+	#	ntasks_per_node=1, \
+	#	cpus_per_task=1)
+	

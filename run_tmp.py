@@ -261,22 +261,20 @@ def get_sigmoid_fit(PB, d_PB, OP, sgminv_fnc, d_sgminv_fnc=None, sgminv_dx=1e-5,
 	return PB_sigmoid, d_PB_sigmoid, linfit, linfit_inds, OP0
 
 def plot_sgm_fit(ax, ax_log, ax_sgm, x_lbl, clr, \
-				OP, PB, sgm_fnc, d_PB=None, PB_sgm=None, d_PB_sgm=None, \
+				OP, PB, d_PB=None, PB_sgm=None, d_PB_sgm=None, \
 				linfit_sgm=None, linfit_sgm_inds=None, \
 				OP0_sgm=None, d_OP0_sgm=None, \
-				N_fine_points=-10, linestyle='--'):
+				N_fine_points=-10):
 	OP0_sgm_str = x_lbl + ' = ' + (my.f2s(OP0_sgm) if(d_OP0_sgm is None) else my.errorbar_str(OP0_sgm, d_OP0_sgm))
-	#ax.errorbar(OP, PB, yerr=d_PB, fmt='.', label='data', color=clr)
+	ax.errorbar(OP, PB, yerr=d_PB, fmt='.', label='data', color=clr)
 	if(linfit_sgm_inds is not None):
 		OP_near_OP0sgm = OP[linfit_sgm_inds]
 		N_fine_points_near_OP0sgm = N_fine_points if(N_fine_points > 0) else int(-(max(OP_near_OP0sgm) - min(OP_near_OP0sgm)) / min(OP_near_OP0sgm[1:] - OP_near_OP0sgm[:-1]) * N_fine_points)
 		OP_near_OP0sgm_fine = np.linspace(min(OP_near_OP0sgm), max(OP_near_OP0sgm), N_fine_points_near_OP0sgm)
 		if(linfit_sgm is not None):
-			#sigmoid_points_near_OP0sgm = 1 / (1 + np.exp((OP0_sgm - OP_near_OP0sgm_fine) * linfit_sgm[0]))
-			#sigmoid_points_near_OP0sgm = sgm_fnc((OP0_sgm - OP_near_OP0sgm_fine) * linfit_sgm[0])
-			sigmoid_points_near_OP0sgm = sgm_fnc(np.polyval(linfit_sgm, OP_near_OP0sgm_fine))
-			ax.plot(OP_near_OP0sgm_fine, sigmoid_points_near_OP0sgm, linestyle, label='$' + OP0_sgm_str + '$', color=clr)
-			ax_log.plot(OP_near_OP0sgm_fine, sigmoid_points_near_OP0sgm, linestyle, label='$' + OP0_sgm_str + '$', color=clr)
+			sigmoid_points_near_OP0sgm = 1 / (1 + np.exp((OP0_sgm - OP_near_OP0sgm_fine) * linfit_sgm[0]))
+			ax.plot(OP_near_OP0sgm_fine, sigmoid_points_near_OP0sgm, label='$' + OP0_sgm_str + '$', color=clr)
+			ax_log.plot(OP_near_OP0sgm_fine, sigmoid_points_near_OP0sgm, label='$' + OP0_sgm_str + '$', color=clr)
 
 	if(PB_sgm is not None):
 		ax_sgm.errorbar(OP, PB_sgm, yerr=d_PB_sgm, fmt='.', label='data', color=clr)
@@ -298,23 +296,47 @@ def plot_PB_AB(ThL_lbl, x_lbl, y_lbl, interface_mode, OP, PB, d_PB=None, \
 	ax_PB_log.errorbar(OP, PB, yerr=d_PB, fmt='.', label='data', color=clr)
 
 	plot_sgm_fit(ax_PB, ax_PB_log, ax_PB_sgm, x_lbl + '_{1/2, \sigma}', clr, \
-				OP, PB, lambda x: 1 / (1 + np.exp(-x)), \
-				d_PB=d_PB, PB_sgm=PB_sgm, d_PB_sgm=d_PB_sgm, \
+				OP, PB, d_PB=d_PB, PB_sgm=PB_sgm, d_PB_sgm=d_PB_sgm, \
 				linfit_sgm=linfit_sgm, linfit_sgm_inds=linfit_sgm_inds, \
 				OP0_sgm=OP0_sgm, d_OP0_sgm=d_OP0_sgm, \
-				N_fine_points=N_fine_points, linestyle=':')
+				N_fine_points=N_fine_points)
 
 	plot_sgm_fit(ax_PB, ax_PB_log, ax_PB_erfinv, x_lbl + '_{1/2, erf}', clr, \
-				OP, PB, lambda x: (scipy.special.erf(x) + 1) / 2, \
-				d_PB=d_PB, PB_sgm=PB_erfinv, d_PB_sgm=d_PB_erfinv, \
+				OP, PB, d_PB=d_PB, PB_sgm=PB_erfinv, d_PB_sgm=d_PB_erfinv, \
 				linfit_sgm=linfit_erfinv, linfit_sgm_inds=linfit_erfinv_inds, \
 				OP0_sgm=OP0_erfinv, d_OP0_sgm=d_OP0_erfinv, \
-				N_fine_points=N_fine_points, linestyle='--')
+				N_fine_points=N_fine_points)
 
 	my.add_legend(fig_PB_log, ax_PB_log)
 	my.add_legend(fig_PB_erfinv, ax_PB_erfinv)
 	my.add_legend(fig_PB, ax_PB)
 	my.add_legend(fig_PB_sgm, ax_PB_sgm)
+
+	# OP0_str = x_lbl + '_{1/2} = ' + (my.f2s(OP0) if(d_OP0 is None) else my.errorbar_str(OP0, d_OP0))
+	# ax.errorbar(OP, PB, yerr=d_PB, fmt='.', label='$' + title + '$', color=clr)
+	# if(linfit_sgm_inds is not None):
+		# OP_near_OP0 = OP[linfit_sgm_inds]
+		# N_fine_points_near_OP0 = N_fine_points if(N_fine_points > 0) else int(-(max(OP_near_OP0) - min(OP_near_OP0)) / min(OP_near_OP0[1:] - OP_near_OP0[:-1]) * N_fine_points)
+		# OP_near_OP0_fine = np.linspace(min(OP_near_OP0), max(OP_near_OP0), N_fine_points_near_OP0)
+		# if(linfit_sgm is not None):
+			# sgm_points_near_OP0 = 1 / (1 + np.exp((OP0 - OP_near_OP0_fine) * linfit_sgm[0]))
+			# ax.plot(OP_near_OP0_fine, sgm_points_near_OP0, label='$' + OP0_str + '$', color=clr)
+			# ax_log.plot(OP_near_OP0_fine, sgm_points_near_OP0, label='$' + OP0_str + '$', color=clr)
+
+	# if(PB_sgm is not None):
+		# ax_sgm.errorbar(OP, PB_sgm, yerr=d_PB_sgm, fmt='.', label='$' + title + '$', color=clr)
+		# if(linfit_sgm_inds is not None):
+			# ax_sgm.plot(OP_near_OP0_fine, np.polyval(linfit_sgm, OP_near_OP0_fine), label='$' + OP0_str + '$', color=clr)
+
+	#if(PB_erfinv is not None):
+	#	ax_PB_erfinv.errorbar(OP_AB[:-1], PB_erfinv, yerr=d_PB_erfinv)
+
+	# if(N_fine_points < 0):
+		# N_fine_points = int(-(max(OP) - min(OP)) / min(OP[1:] - OP[:-1]) * N_fine_points)
+	#m_fine = np.linspace(min(OP), max(OP), N_fine_points)
+	#ax_PB.plot(m_AB_fine[:-1], PB_opt_fnc(m_AB_fine[:-1]), label='$P_{B, fit}$', color=my.get_my_color(1))
+	#ax_PB_log.plot(m_AB_fine[:-1], PB_opt_fnc(m_AB_fine[:-1]), label='$P_{B, fit}$', color=my.get_my_color(1))
+	#ax_PB_sgm.plot(m_AB_fine[:-1], -np.log(PB_fit_b / (PB_opt_fnc(m_AB_fine[:-1]) - PB_fit_a) - 1), label='$P_{B, fit}$', color=my.get_my_color(1))
 
 def mark_PB_plot(ax, ax_log, ax_sgm, ax_erfinv, OP, PB, PB_sgm, PB_erfinv, interface_mode):
 	ax_log.plot([min(OP), max(OP)], [1/2] * 2, '--', label='$P = 1/2$')
@@ -1852,7 +1874,7 @@ def cost_fnc(MC_move_mode, L, e, mu, Nt, interface_mode, phi0_target, phi1_targe
 	if(verbose):
 		print('================================== cost report ====================')
 		print('stab_step =', stab_step)
-		print('Temp = ', -4 / e_full[1,1])
+		print('Temp = ', -1.25 / e_full[1,1])
 		print('e', e)
 		print('mu', mu)
 		#print('mu_chi', mu + (z_neib / 2) * np.array([e_full[1,1], e_full[2,2]]))
@@ -2792,12 +2814,8 @@ def main():
 
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 80 -N_init_states_FFS 160 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt16 -N_runs 283 -my_seeds 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150 151 152 154 155 156 157 158 159 160 161 162 163 164 165 166 167 168 169 170 171 172 173 174 175 176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191 192 193 194 195 196 197 198 199 200 201 202 203 204 206 207 208 212 213 214 215 216 217 218 219 220 221 222 224 225 226 227 228 229 230 231 232 233 234 235 236 239 240 241 243 244 245 248 249 250 251 252 253 254 255 256 257 258 259 260 261 262 263 264 265 266 268 269 270 271 272 273 274 275 276 277 278 279 280 281 282 283 284 285 286 287 288 289 290 292 294 295 296 297 298 299 300 301 302 303 304 305 306 307 308 309 310 311 312 313 314 315 316 317 318 319 320 321 322 323 324 325 326 327 328 329 330 331 332 333 335 336 337 338 339 340 341 342 343 344 345 346 347 348 349 350 351 352 353 354 356 357 358 359 360 361 362 363 364 365 366 367 368 369 370 371 372 373 374 375 376 377 378 379 380 381 382 383 384 385 386 387 388 389 390 391 392 393 394 395 396 397 398 399 -to_recomp 1 -font_mode present
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 246 -my_seeds 500 501 502 503 504 505 506 507 508 509 510 511 512 513 514 515 516 517 518 519 520 521 522 523 524 525 526 527 528 529 530 531 532 533 534 535 536 537 538 539 540 541 542 543 544 545 546 547 548 549 550 551 552 553 554 555 556 557 558 559 560 561 562 563 564 565 566 567 568 569 570 571 572 573 574 575 576 577 578 579 580 581 582 583 584 585 586 587 588 589 590 591 592 593 594 595 596 597 598 599 600 601 602 603 604 605 606 607 608 609 610 612 613 614 615 616 617 618 619 620 621 622 623 624 626 627 628 629 630 631 632 633 634 635 636 637 638 639 640 641 642 643 644 645 646 647 648 649 650 651 652 653 654 655 656 657 658 659 660 661 662 663 664 665 666 667 668 669 670 671 672 673 674 675 676 677 678 679 680 681 682 683 684 685 687 688 689 690 691 692 693 694 695 696 697 698 699 700 701 702 703 704 705 706 707 708 709 710 711 712 713 714 715 716 717 718 719 720 721 722 723 724 725 726 728 729 730 731 732 733 734 735 736 737 738 739 740 741 742 743 744 745 746 747 748 749 -to_recomp 1 -font_mode present
-	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 5 -my_seeds 500 501 502 503 504 -to_recomp 1 -font_mode present
+	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 246 -my_seeds 500 501 502 503 504 -to_recomp 1 -font_mode present
 
-	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 21 -N_init_states_FFS 42 -Temp 0.8 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.976 0.014 0.01 -OP_interfaces_set_IDs nvt
-	#	-N_runs  -my_seeds  -to_recomp 1 -font_mode present
-
-	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 21 -N_init_states_FFS 42 -Temp 0.8 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.9755 0.0145 0.01 -OP_interfaces_set_IDs nvt -N_runs 47 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1044 1049 1052 1054 1055 -to_recomp 1 -font_mode present
 
 	################################ Ising ############################
 	# python run.py -mode BF_AB_L -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 35000000 -N_runs 5 -h 0.15 -interface_set_mode spaced -L 100 71 56 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
