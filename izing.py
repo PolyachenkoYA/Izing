@@ -22,7 +22,6 @@ def find_finished_runs_logs(filename_mask, inds, verbose=False):
 	return done_list
 
 def find_finished_runs_npzs(filename_mask, inds, verbose=False):
-	done_list = []
 	found_list = []
 	found_mult_list = []
 	for i in inds:
@@ -35,7 +34,7 @@ def find_finished_runs_npzs(filename_mask, inds, verbose=False):
 	
 	if(verbose):
 		def report_found(l):
-			print('found:', len(l))
+			print('Number of found files:', len(l))
 			print(' '.join([str(d) for d in l]))
 		
 		report_found(found_list)
@@ -43,7 +42,7 @@ def find_finished_runs_npzs(filename_mask, inds, verbose=False):
 			print('WARNING: multiplt candidates found for')
 			report_found(found_mult_list)
 	
-	return done_list
+	return found_list
 
 
 

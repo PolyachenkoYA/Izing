@@ -14,7 +14,9 @@ def main():
 	# python slurm_test.py --MC_mode long_swap --OP_set_name nvt --mode launch_run
 	# python slurm_test.py --MC_mode swap --OP_set_name nvt --mode launch_run
 	
-	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1049 1056 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0
+	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1045 1090 --n_s 33 --L_s 128 --phi1_s 0.015 --Temp_s 1.0 --slurm_time 72:00:00 --to_run 0
+	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1095 1100 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0 --to_run 0
+	
 	# python slurm_test.py --mode search_logs --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1100 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0
 	# python slurm_test.py --mode search_npzs --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1100 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0
 	
@@ -102,12 +104,12 @@ def main():
 									print(cmd)
 	elif(mode in ['search_logs', 'search_npzs']):
 		for L in clargs.L_s:
-			for phi in clargs.phi1_s:
-				for Temp in clargs.Temp_s:
-					n_use = int(table_data.n_FFS_dict[MC_mode][Temp][phi] * my_server.slurm_time_to_seconds(clargs.slurm_time)/(24*3600) + 0.5)
+			for Temp in clargs.Temp_s:
+				for phi in clargs.phi1_s:
+					n_use = int(table_data.n_FFS_dict[MC_mode][Temp][phi] * my_server.slurm_time_to_seconds(clargs.slurm_time)/(24*3600) + 0.5) if(clargs.n_s[0] < 0) else clargs.n_s[0]
 					
 					if(n_use > 0):
-						print('phi1 =', phi, '; Temp =', Temp, '; mode =', MC_mode)
+						print('\nphi1 =', phi, '; Temp =', Temp, '; mode =', MC_mode, '; n =', n_use)
 						
 						if(mode == 'search_logs'):
 							templ = '/scratch/gpfs/yp1065/Izing/logs/FFS_MC%d_%d_%d_L128_Temp%s_ID%s_phi%s_OPsnvt.out' % \

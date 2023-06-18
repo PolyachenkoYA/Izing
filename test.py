@@ -100,7 +100,7 @@ def main():
 	#find_finished_runs_npzs('/scratch/gpfs/yp1065/Izing/npzs/MCmoves2_L128_eT-2.68_-1.34_-1.72_phi0.015_0.01_NinitStates160_80_80_80_80_80_80_80_80_80_80_80_80_80_80_OPs19_23_27_31_35_39_43_48_52_56_60_65_70_75_80_stab16384_OPbf27_23_stride763_initGenMode-3_timeDataFalse_ID%d_FFStraj.npz', np.arange(100, 500), verbose=True)
 	#find_finished_runs_npzs('/scratch/gpfs/yp1065/Izing/npzs/MCmoves2_L128_eT-2.68_-1.34_-1.72_phi0.015_0.01_NinitStates160_80_80_80_80_80_80_80_80_80_80_80_80_80_80_OPs19_23_27_31_35_39_43_48_52_56_60_65_70_75_80_stab16384_OPbf27_23_stride763_initGenMode-3_timeDataFalse_ID%d_FFStraj.npz', np.arange(500, 1000), verbose=True)
 	
-	#avg_times()
+	avg_times()
 	
 
 if(__name__ == "__main__"):

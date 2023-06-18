@@ -212,6 +212,7 @@ OP_interfaces_table['nvt19'] = 10 + np.arange(50) * 2
 OP_interfaces_table['nvtLoc2c'] = np.array([19, 23, 27, 31, 35, 39, 43, 48, 52, 56, 60, 65, 70, 75, 80], dtype=int)
 OP_interfaces_table['nvtLoc'] = np.array([21, 25, 29, 33, 37, 41, 45, 50, 54, 58, 62, 67, 72, 77, 82, 88, 94, 100, 107, 115, 125], dtype=int)
 OP_interfaces_table['nvt'] = np.array([12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 65, 70, 75, 80, 95, 101, 107, 115, 125], dtype=int)
+OP_interfaces_table['nvtFixed'] = np.array([12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 65, 70, 75, 80, 85, 90, 95, 101, 107, 115, 125], dtype=int)
 
 # long_swap, 'nvt' OPset
 n_FFS_dict = {0.8: {0.014: 1050, 0.0145: 1200, 0.015 : 950, 0.0155: 1250, 0.016: 1200}, \

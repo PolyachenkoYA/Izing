@@ -286,47 +286,57 @@ def plot_sgm_fit(ax, ax_log, ax_sgm, x_lbl, clr, \
 def plot_PB_AB(ThL_lbl, x_lbl, y_lbl, interface_mode, OP, PB, d_PB=None, \
 				PB_sgm=None, d_PB_sgm=None, linfit_sgm=None, linfit_sgm_inds=None, OP0_sgm=None, d_OP0_sgm=None, \
 				PB_erfinv=None, d_PB_erfinv=None, linfit_erfinv=None, linfit_erfinv_inds=None, OP0_erfinv=None, d_OP0_erfinv=None, \
-				clr=None, N_fine_points=-10):
+				clr=None, N_fine_points=-10, to_plot_sgm=False, to_plot_erfinv=True):
 	fig_PB_log, ax_PB_log, _ = my.get_fig(y_lbl, r'$P_B(' + x_lbl + ') = P(i|0)$', title=r'$P_B(' + x_lbl + ')$; ' + ThL_lbl, yscl='log')
 	fig_PB, ax_PB, _ = my.get_fig(y_lbl, r'$P_B(' + x_lbl + ') = P(i|0)$', title=r'$P_B(' + x_lbl + ')$; ' + ThL_lbl)
-	fig_PB_sgm, ax_PB_sgm, _ = my.get_fig(y_lbl, r'$-\ln(1/P_B - 1)$', title=r'$P_B(' + x_lbl + ')$; ' + ThL_lbl)
-	fig_PB_erfinv, ax_PB_erfinv, _ = my.get_fig(y_lbl, r'$erf^{-1}(2 P_B - 1)$', title=r'$P_B(' + x_lbl + ')$; ' + ThL_lbl)
-
-	mark_PB_plot(ax_PB, ax_PB_log, ax_PB_sgm, ax_PB_erfinv, OP, PB[:-1], PB_sgm, PB_erfinv, interface_mode)
-
+	
+	fig_PB_sgm, ax_PB_sgm, _ = my.get_fig(y_lbl, r'$-\ln(1/P_B - 1)$', title=r'$P_B(' + x_lbl + ')$; ' + ThL_lbl) if(to_plot_sgm) else tuple([None] * 3)
+	fig_PB_erfinv, ax_PB_erfinv, _ = my.get_fig(y_lbl, r'$erf^{-1}(2 P_B - 1)$', title=r'$P_B(' + x_lbl + ')$; ' + ThL_lbl) if(to_plot_erfinv) else tuple([None] * 3)
+	
+	mark_PB_plot(ax_PB, ax_PB_log, ax_PB_sgm, ax_PB_erfinv, \
+				OP, PB[:-1], PB_sgm, PB_erfinv, interface_mode)
+	
 	ax_PB.errorbar(OP, PB, yerr=d_PB, fmt='.', label='data', color=clr)
 	ax_PB_log.errorbar(OP, PB, yerr=d_PB, fmt='.', label='data', color=clr)
-
-	plot_sgm_fit(ax_PB, ax_PB_log, ax_PB_sgm, x_lbl + '_{1/2, \sigma}', clr, \
-				OP, PB, lambda x: 1 / (1 + np.exp(-x)), \
-				d_PB=d_PB, PB_sgm=PB_sgm, d_PB_sgm=d_PB_sgm, \
-				linfit_sgm=linfit_sgm, linfit_sgm_inds=linfit_sgm_inds, \
-				OP0_sgm=OP0_sgm, d_OP0_sgm=d_OP0_sgm, \
-				N_fine_points=N_fine_points, linestyle=':')
-
-	plot_sgm_fit(ax_PB, ax_PB_log, ax_PB_erfinv, x_lbl + '_{1/2, erf}', clr, \
-				OP, PB, lambda x: (scipy.special.erf(x) + 1) / 2, \
-				d_PB=d_PB, PB_sgm=PB_erfinv, d_PB_sgm=d_PB_erfinv, \
-				linfit_sgm=linfit_erfinv, linfit_sgm_inds=linfit_erfinv_inds, \
-				OP0_sgm=OP0_erfinv, d_OP0_sgm=d_OP0_erfinv, \
-				N_fine_points=N_fine_points, linestyle='--')
-
-	my.add_legend(fig_PB_log, ax_PB_log)
-	my.add_legend(fig_PB_erfinv, ax_PB_erfinv)
+	
+	if(to_plot_sgm):
+		plot_sgm_fit(ax_PB, ax_PB_log, ax_PB_sgm, x_lbl + '_{1/2, \sigma}', clr, \
+					OP, PB, lambda x: 1 / (1 + np.exp(-x)), \
+					d_PB=d_PB, PB_sgm=PB_sgm, d_PB_sgm=d_PB_sgm, \
+					linfit_sgm=linfit_sgm, linfit_sgm_inds=linfit_sgm_inds, \
+					OP0_sgm=OP0_sgm, d_OP0_sgm=d_OP0_sgm, \
+					N_fine_points=N_fine_points, linestyle=':')
+	
+	if(to_plot_erfinv):
+		plot_sgm_fit(ax_PB, ax_PB_log, ax_PB_erfinv, x_lbl + '_{1/2, erf}', clr, \
+					OP, PB, lambda x: (scipy.special.erf(x) + 1) / 2, \
+					d_PB=d_PB, PB_sgm=PB_erfinv, d_PB_sgm=d_PB_erfinv, \
+					linfit_sgm=linfit_erfinv, linfit_sgm_inds=linfit_erfinv_inds, \
+					OP0_sgm=OP0_erfinv, d_OP0_sgm=d_OP0_erfinv, \
+					N_fine_points=N_fine_points, linestyle='--')
+	
 	my.add_legend(fig_PB, ax_PB)
-	my.add_legend(fig_PB_sgm, ax_PB_sgm)
+	my.add_legend(fig_PB_log, ax_PB_log)
+	if(to_plot_sgm):
+		my.add_legend(fig_PB_sgm, ax_PB_sgm)
+	if(to_plot_erfinv):
+		my.add_legend(fig_PB_erfinv, ax_PB_erfinv)
 
 def mark_PB_plot(ax, ax_log, ax_sgm, ax_erfinv, OP, PB, PB_sgm, PB_erfinv, interface_mode):
 	ax_log.plot([min(OP), max(OP)], [1/2] * 2, '--', label='$P = 1/2$')
 	ax.plot([min(OP), max(OP)], [1/2] * 2, '--', label='$P = 1/2$')
-	ax_sgm.plot([min(OP), max(OP)], [0] * 2, '--', label='$P = 1/2$')
-	ax_erfinv.plot([min(OP), max(OP)], [0] * 2, '--', label='$P = 1/2$')
-
+	if(ax_sgm is not None):
+		ax_sgm.plot([min(OP), max(OP)], [0] * 2, '--', label='$P = 1/2$')
+	if(ax_erfinv is not None):
+		ax_erfinv.plot([min(OP), max(OP)], [0] * 2, '--', label='$P = 1/2$')
+	
 	if(interface_mode == 'M'):
-		ax_erfinv.plot([0] * 2, [min(PB_erfinv), max(PB_erfinv)], '--', label='$m = 0$')
-		ax_sgm.plot([0] * 2, [min(PB_sgm), max(PB_sgm)], '--', label='$m = 0$')
 		ax_log.plot([0] * 2, [min(PB), 1], '--', label='$m = 0$')
 		ax.plot([0] * 2, [0, 1], '--', label='$m = 0$')
+		if(ax_sgm is not None):
+			ax_sgm.plot([0] * 2, [min(PB_sgm), max(PB_sgm)], '--', label='$m = 0$')
+		if(ax_erfinv is not None):
+			ax_erfinv.plot([0] * 2, [min(PB_erfinv), max(PB_erfinv)], '--', label='$m = 0$')
 
 def center_crd(x, L):
 	r2 = np.empty(L)
@@ -1079,6 +1089,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 	traj_filepath = keep_new_npz_file(traj_filepath_olds, traj_filepath_new)
 
 	#print(traj_filepath, os.path.isfile(traj_filepath))
+	#print(N_init_states)
 	#input('ok')
 
 	if((not os.path.isfile(traj_filepath)) or (to_recomp > 1)):
@@ -2508,7 +2519,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		ax_rhoW.plot(OP_interfaces_AB, np.exp(np.polyval(sgm_logfit, np.log(OP_interfaces_AB))), \
 					'--', label=r'$k = %s$' % (my.errorbar_str(sgm_logfit[0], np.sqrt(sgm_logfit_cov[0,0]))))
 		ax_rhoW.plot([sgm_logfit_Nmin] * 2, [min(rho0_fit_params[1, :]), max(rho0_fit_params[1, :])], \
-					'--', label=r'$N^* = %s$' % (my.f2s(sgm_logfit_Nmin)))
+					'--', label=r'$N_{min} = N^* = %s$' % (my.f2s(sgm_logfit_Nmin)))
 
 		my.add_legend(fig_rhoW, ax_rhoW)
 		my.add_legend(fig_rho_fourier, ax_rho_fourier)
@@ -2794,10 +2805,26 @@ def main():
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 246 -my_seeds 500 501 502 503 504 505 506 507 508 509 510 511 512 513 514 515 516 517 518 519 520 521 522 523 524 525 526 527 528 529 530 531 532 533 534 535 536 537 538 539 540 541 542 543 544 545 546 547 548 549 550 551 552 553 554 555 556 557 558 559 560 561 562 563 564 565 566 567 568 569 570 571 572 573 574 575 576 577 578 579 580 581 582 583 584 585 586 587 588 589 590 591 592 593 594 595 596 597 598 599 600 601 602 603 604 605 606 607 608 609 610 612 613 614 615 616 617 618 619 620 621 622 623 624 626 627 628 629 630 631 632 633 634 635 636 637 638 639 640 641 642 643 644 645 646 647 648 649 650 651 652 653 654 655 656 657 658 659 660 661 662 663 664 665 666 667 668 669 670 671 672 673 674 675 676 677 678 679 680 681 682 683 684 685 687 688 689 690 691 692 693 694 695 696 697 698 699 700 701 702 703 704 705 706 707 708 709 710 711 712 713 714 715 716 717 718 719 720 721 722 723 724 725 726 728 729 730 731 732 733 734 735 736 737 738 739 740 741 742 743 744 745 746 747 748 749 -to_recomp 1 -font_mode present
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 5 -my_seeds 500 501 502 503 504 -to_recomp 1 -font_mode present
 
-	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 21 -N_init_states_FFS 42 -Temp 0.8 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.976 0.014 0.01 -OP_interfaces_set_IDs nvt
-	#	-N_runs  -my_seeds  -to_recomp 1 -font_mode present
+	################################ many 'e' and phi1 ############################
+	### swap ###
+	# python run.py -mode FFS_AB_many -init_composition 0.976 0.014 0.01 -Temp 0.8 -N_states_FFS 21 -N_init_states_FFS 42 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 65 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1059 1061 1063 1065 1066 1068 1071 1072
+	# python run.py -mode FFS_AB_many -init_composition 0.9755 0.0145 0.01 -Temp 0.8 -N_states_FFS 19 -N_init_states_FFS 38 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 75 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1059 1060 1061 1062 1063 1064 1065 1066 1067 1068 1069 1070 1071 1072 1073 1074 1075
+	# python run.py -mode FFS_AB_many -init_composition 0.975 0.015 0.01 -Temp 0.8 -N_states_FFS 19 -N_init_states_FFS 38 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 73 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1059 1060 1061 1062 1063 1065 1066 1067 1068 1070 1071 1072 1073 1074 1075
+	# python run.py -mode FFS_AB_many -init_composition 0.9745 0.0155 0.01 -Temp 0.8 -N_states_FFS 24 -N_init_states_FFS 48 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 70 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1041 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1059 1060 1061 1062 1063 1065 1068 1070 1071 1072 1073
+	# python run.py -mode FFS_AB_many -init_composition 0.974 0.016 0.01 -Temp 0.8 -N_states_FFS 22 -N_init_states_FFS 22 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 73 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1041 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1060 1061 1062 1063 1064 1065 1066 1067 1070 1071 1072 1073 1074 1075
 
-	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 21 -N_init_states_FFS 42 -Temp 0.8 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.9755 0.0145 0.01 -OP_interfaces_set_IDs nvt -N_runs 47 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1044 1049 1052 1054 1055 -to_recomp 1 -font_mode present
+	# python run.py -mode FFS_AB_many -init_composition 0.976 0.014 0.01 -Temp 0.9 -N_states_FFS 23 -N_init_states_FFS 46 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 74 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1059 1060 1061 1062 1063 1064 1065 1066 1068 1069 1070 1071 1072 1073 1074 1075
+	# python run.py -mode FFS_AB_many -init_composition 0.9755 0.0145 0.01 -Temp 0.9 -N_states_FFS 25 -N_init_states_FFS 50 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 69 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1058 1060 1061 1062 1063 1065 1066 1069 1071 1072 1073 1074 1075
+	# python run.py -mode FFS_AB_many -init_composition 0.975 0.015 0.01 -Temp 0.9 -N_states_FFS 27 -N_init_states_FFS 54 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 66 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1059 1062 1063 1065 1066 1067 1068 1070 1071
+	# python run.py -mode FFS_AB_many -init_composition 0.9745 0.0155 0.01 -Temp 0.9 -N_states_FFS 28 -N_init_states_FFS 56 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 71 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1041 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1059 1060 1061 1063 1065 1066 1067 1071 1072 1073 1074 1075
+	# python run.py -mode FFS_AB_many -init_composition 0.974 0.016 0.01 -Temp 0.9 -N_states_FFS 31 -N_init_states_FFS 62 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 72 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1041 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1060 1061 1062 1063 1065 1066 1068 1069 1070 1071 1072 1073 1075
+
+	# python run.py -mode FFS_AB_many -init_composition 0.975 0.015 0.01 -Temp 1.0 -N_states_FFS 33 -N_init_states_FFS 66 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 44 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1037 1038 1039 1040 1041 1042 1043 1044
+	# python run.py -mode FFS_AB_many -init_composition 0.9745 0.0155 0.01 -Temp 1.0 -N_states_FFS 19 -N_init_states_FFS 38 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 66 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1041 1042 1043 1044 1045 1047 1048 1049 1050 1051 1052 1053 1054 1055 1057 1059 1060 1062 1063 1069 1070 1071 1073 1074 1075
+	# python run.py -mode FFS_AB_many -init_composition 0.974 0.016 0.01 -Temp 1.0 -N_states_FFS 21 -N_init_states_FFS 42 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 68 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1041 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1059 1061 1062 1063 1064 1066 1067 1069 1072 1073 1075
+	
+	### long_swap ###
+	
 
 	################################ Ising ############################
 	# python run.py -mode BF_AB_L -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 35000000 -N_runs 5 -h 0.15 -interface_set_mode spaced -L 100 71 56 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
@@ -2824,10 +2851,10 @@ def main():
 	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.09 0.08 0.07 0.06 0.05 0.04 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 300 350 400 450 500 600 -Temp 2.0
 	#
 	# TODO: remove outdated inputs
-	[                                           L,    potential_filenames,      mode,           Nt,    N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier], _ = \
-		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt', '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier'], \
-					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],          [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1]], \
-					  default_values=      [ None,                 [None],      None, ['-1000000'],       ['-5000'],              ['5000'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],      ['3'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5']])
+	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier], _ = \
+		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier'], \
+					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],           [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1]], \
+					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],        ['Nffs_based'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],      ['3'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5']])
 
 	Ls = np.array([int(l) for l in L], dtype=int)
 	N_L = len(Ls)
@@ -2913,9 +2940,9 @@ def main():
 	#mode = mode[0]
 	to_get_timeevol = (to_get_timeevol[0] in my.yes_flags)
 	verbose = int(verbose[0])
-	N_init_states_FFS = int(N_init_states_FFS[0])
 	Nt = int(Nt[0])
 	N_states_FFS = int(N_states_FFS[0])
+	N_init_states_FFS = (2 * N_states_FFS) if(N_init_states_FFS[0] == 'Nffs_based') else int(N_init_states_FFS[0])
 	N_runs = int(N_runs[0])
 	init_gen_mode = int(init_gen_mode[0])
 	interface_mode = interface_mode[0]
@@ -3045,8 +3072,8 @@ def main():
 		N_init_states_AB = np.ones(N_OP_interfaces, dtype=np.intc) * N_states_FFS
 		N_init_states_AB[0] = N_init_states_FFS
 
-		print('N_states_FFS=%d, N_OP_interfaces=%d, interface_mode=%s\nOP_AB: %s' % \
-			(N_states_FFS, N_OP_interfaces, interface_mode, str(OP_interfaces_AB)))
+		print('N_states_FFS=%d, N_OP_interfaces=%d, interface_mode=%s\nOP_AB: %s\nN_states_FFS: %s' % \
+			(N_states_FFS, N_OP_interfaces, interface_mode, str(OP_interfaces_AB), str(N_init_states_AB)))
 
 	if(mode == 'BF_1'):
 		proc_T(MC_move_mode, Ls[0], e, mu[0, :], Nt, interface_mode, \
