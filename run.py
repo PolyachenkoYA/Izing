@@ -9,6 +9,7 @@ import filecmp
 
 import mylib as my
 import table_data
+import izing
 
 # ========================== general params ==================
 dim = 2
@@ -122,13 +123,10 @@ if(__name__ == "__main__"):
 
 # ========================== functions ==================
 
-def join_lbls(arr, spr, n=3):
-	return spr.join([my.f2s(a, n=n) for a in arr])
-
 def get_ThL_lbl(e, mu, init_composition, L, swap_type_move):
-	return r'$\epsilon_{11,12,22}/T = ' + join_lbls([e[1,1], e[1,2], e[2,2]], ',') + \
-				'$;\n$' + ((r'\phi_{1,2} = ' + join_lbls(init_composition[1:], ',')) if(swap_type_move) \
-						else (r'\mu_{1,2}/T = ' + join_lbls(mu[1:], ','))) + '$; L = ' + str(L)
+	return r'$\epsilon_{11,12,22}/T = ' + my.join_lbls([e[1,1], e[1,2], e[2,2]], ',') + \
+				'$;\n$' + ((r'\phi_{1,2} = ' + my.join_lbls(init_composition[1:], ',')) if(swap_type_move) \
+						else (r'\mu_{1,2}/T = ' + my.join_lbls(mu[1:], ','))) + '$; L = ' + str(L)
 
 def set_OP_defaults(L2):
 	OP_min_default['M'] = - 1
@@ -415,34 +413,71 @@ def center_state_by_cluster(state, cluster_inds, \
 
 	return species_crds, cluster_centered0_crds
 
+# def keep_new_npz_file(filepath_olds, filepath_new):
+	# filepath_olds = [fp for fp in filepath_olds if(os.path.isfile(fp))]
+	# old_npzs_present = np.array([os.path.isfile(fp) for fp in filepath_olds])
+	# if(np.any(old_npzs_present)):
+		# diff_npzs = [filepath_olds[0]]
+		# for i, tp in enumerate(filepath_olds[1:]):
+			# if(not filecmp.cmp(diff_npzs[0], tp)):
+				# diff_npzs.append(tp)
+		# N_diff_npzs = len(diff_npzs)
+
+		# #print(filepath_new)
+		# #print(diff_npzs)
+		# #input('ok2')
+
+		# if(filepath_new in filepath_olds):
+			# print('WARNING')
+		
+		# if(N_diff_npzs == 1):
+			# i_npz_new = 0
+		# else:
+			# print('following npzs all correspond to a single new-style npz name but have different contents:')
+			# print('\n'.join([(str(i) + ') ' + fp) for i,fp in enumerate(diff_npzs)]))
+			# print('choose the file to keep and write to')
+			# print(filepath_new)
+			# print('(all other version will be deleted)')
+			# i_npz_new = int(input('->'))
+			# assert((i_npz_new >= 0) and (i_npz_new < N_diff_npzs))
+			# for i, fp in enumerate(filepath_olds):
+				# if(old_npzs_present[i] and (fp != diff_npzs[i_npz_new])):
+					# os.remove(fp)
+			# #for i in range(N_diff_npzs):
+			# #	if(i != i_npz_new):
+			# #		os.remove(diff_npzs[i])
+		
+		# my.run_it('mv %s %s' % (diff_npzs[i_npz_new], filepath_new))
+
+	# #input('ok')
+
+	# return filepath_new
+
 def keep_new_npz_file(filepath_olds, filepath_new):
 	filepath_olds = [fp for fp in filepath_olds if(os.path.isfile(fp))]
 	old_npzs_present = np.array([os.path.isfile(fp) for fp in filepath_olds])
-	if(np.any(old_npzs_present)):
-		diff_npzs = [filepath_olds[0]]
-		for i, tp in enumerate(filepath_olds[1:]):
-			if(not filecmp.cmp(diff_npzs[0], tp)):
-				diff_npzs.append(tp)
-		N_diff_npzs = len(diff_npzs)
-
-		#print(filepath_new)
-		#print(diff_npzs)
-		#input('ok2')
-
-		if(N_diff_npzs == 1):
-			i_npz_new = 0
+	N_present = np.sum(old_npzs_present)
+	if(N_present > 0):
+		if(filepath_new in filepath_olds):
+			print('WARNING: %s already present, deleting all other corresponding npz-s')
+			i_npz_new = filepath_olds.index(filepath_new)
 		else:
-			print('following npzs all correspond to a single new-style npz name but have different contents:')
-			print('\n'.join([(str(i) + ') ' + fp) for i,fp in enumerate(diff_npzs)]))
-			print('choose the file to keep and write to')
-			print(filepath_new)
-			print('(all other version will be deleted)')
-			i_npz_new = int(input('->'))
-			assert((i_npz_new >= 0) and (i_npz_new < N_diff_npzs))
-			for i in range(N_diff_npzs):
-				if(i != i_npz_new):
-					os.remove(diff_npzs[i])
-		my.run_it('mv %s %s' % (diff_npzs[i_npz_new], filepath_new))
+			if(N_present == 1):
+				i_npz_new = 0
+			else:
+				print('following npzs all correspond to a single new-style npz name:')
+				print('\n'.join([(str(i) + ') ' + fp) for i,fp in enumerate(filepath_olds)]))
+				print('choose the file to keep and write to')
+				print(filepath_new)
+				print('(all other version will be deleted)')
+				i_npz_new = int(input('->'))
+				assert((i_npz_new >= 0) and (i_npz_new < N_present))
+		
+		for i in range(N_present):
+			if(old_npzs_present[i] and (i != i_npz_new)):
+				os.remove(filepath_olds[i])
+		
+		my.run_it('mv %s %s' % (filepath_olds[i_npz_new], filepath_new))
 
 	#input('ok')
 
@@ -467,9 +502,9 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	swap_type_move = (MC_move_mode in [move_modes['swap'], move_modes['long_swap']])
 
 	# npz_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
-	# npz_basename = 'L' + str(L) + '_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					# (('_muT' + join_lbls(mu[1:], '_')) if(init_composition is None) \
-						# else ('_phi' + join_lbls(init_composition[1:], '_'))) + \
+	# npz_basename = 'L' + str(L) + '_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					# (('_muT' + my.join_lbls(mu[1:], '_')) if(init_composition is None) \
+						# else ('_phi' + my.join_lbls(init_composition[1:], '_'))) + \
 					# '_stride' + str(stride) + \
 					# '_OP' + str(OP_A) + '_' + str(OP_B) + '_stab' + str(stab_step) + \
 					# '_Nstates' + str(Nt_states) + '_ID' + str(lattice_gas.get_seed())
@@ -564,7 +599,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		#input(str(states is not None))
 		if(states is not None):
 			npz_states_filepath = os.path.join(npz_basename + '_FFSab_states.npz')
-
+			
 			if((not os.path.isfile(npz_states_filepath)) or to_recomp):
 				# ============ process ===========
 				OP_init_states = []
@@ -585,23 +620,31 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							#(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j, :, :].reshape((L2)))
 							(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j, :, :].flatten())
 							#OP_init_states[i][j] = max(cluster_sizes)
-
+							
 							max_cluster_id = np.argmax(cluster_sizes)
 							OP_init_states[i][j] = cluster_sizes[max_cluster_id]
 							max_cluster_1st_ind_id = np.sum(cluster_sizes[:max_cluster_id])
 							max_cluster_inds = cluster_element_inds[max_cluster_1st_ind_id : max_cluster_1st_ind_id + cluster_sizes[max_cluster_id]]
-
+							
 							#cluster_centered_crds[i][j], _, _, _, _ = \
 							#	center_cluster(max_cluster_inds, L)
-
+							
 							# if(j == 0):
 								# draw_state(states[i][j, :, :], to_show=True, ax=None, title='CS = ' + str(OP_interfaces[i]))
-
+							
 							state_centered_crds[i][j], cluster_centered_crds[i][j] = \
 								center_state_by_cluster(states[i][j, :, :], max_cluster_inds)
-
-					#cluster_centered_crds_per_interface[i] = np.concatenate(tuple(cluster_centered_crds[i]), axis=0)
-					cluster_centered_crds_per_interface[i] = np.concatenate(tuple([cluster_centered_crds[i][j] for j in range(N_init_states[i]) if(OP_init_states[i][j] == OP_interfaces[i])]), axis=0)
+					
+					cluster_centered_crds_per_interface_local = tuple([cluster_centered_crds[i][j] for j in range(N_init_states[i]) if(OP_init_states[i][j] == OP_interfaces[i])])
+					#if(len(cluster_centered_crds_per_interface_local) < len(cluster_centered_crds[i]) * 0.5):
+					if(len(cluster_centered_crds_per_interface_local) < 2):
+						print('WARNING: Interface OP[%d] = %d has too few (%d) states with OP = %d.\nOP-s are: %s\nInterfaces are:\n%s' % \
+								(i, OP_interfaces[i], len(cluster_centered_crds_per_interface_local), OP_interfaces[i], str(OP_init_states[i]), str(OP_interfaces)))
+						print('Using all the interfaces (and not only interfaces at OP = %d) for constructing clusters' % OP_interfaces[i])
+						#input('Proceed? [press Enter or Ctrl+C] ->')
+						cluster_centered_crds_per_interface_local = tuple(cluster_centered_crds[i])
+					
+					cluster_centered_crds_per_interface[i] = np.concatenate(cluster_centered_crds_per_interface_local, axis=0)
 					state_centered_crds_per_interface[i] = [[]] * N_species
 					for k in range(N_species):
 						state_centered_crds_per_interface[i][k] = \
@@ -1035,67 +1078,78 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 				timeevol_stride=-3000, N_fourier=5, \
 				init_gen_mode=-2, Ms_alpha=0.5, OP_optim_minstep=8, \
 				init_composition=None, to_recomp=0, to_save_npz=True):
-
+	
 	swap_type_move = MC_move_mode in [move_modes["swap"], move_modes["long_swap"]]
-
+	
 	#traj_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
 	traj_basepath = '/scratch/gpfs/yp1065/Izing/npzs'
 	#traj_basepath = '/scratch/gpfs/yp1065/Izing/nvt'
-
-	traj_basename_olds = ['MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
-					'_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					(('_phi' + join_lbls(init_composition[1:], '_')) if(swap_type_move) \
-						else ('_muT' + join_lbls(mu[1:], '_'))) + \
-					'_NinitStates' + '_'.join([str(n) for n in N_init_states]) + \
-					'_OPs' + '_'.join([str(ops) for ops in OP_interfaces]) + \
-					'_stab' + str(stab_step) + \
-					'_OPbf' + str(OP_sample_BF_to) + '_' + str(OP_match_BF_to) + \
-					'_stride' + str(timeevol_stride) + \
-					'_initGenMode' + str(init_gen_mode) + \
-					'_timeData' + str(to_get_timeevol) + \
-					'_ID' + str(lattice_gas.get_seed()), \
-					'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
-					'_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					(('_phi' + join_lbls(init_composition[1:], '_')) if(swap_type_move) \
-						else ('_muT' + join_lbls(mu[1:], '_'))) + \
-					'_NinitStates' + '_'.join([str(n) for n in N_init_states[:2]]) + \
-					'_OPs' + '_'.join([str(ops) for ops in OP_interfaces]) + \
-					'_stab' + str(stab_step) + \
-					'_OPbf' + str(OP_sample_BF_to) + '_' + str(OP_match_BF_to) + \
-					'_stride' + str(timeevol_stride) + \
-					'_initGenMode' + str(init_gen_mode) + \
-					'_timeData' + str(to_get_timeevol) + \
-					'_Nfourier' + str(N_fourier) + \
-					'_ID' + str(lattice_gas.get_seed())]
-
-	traj_basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
-					'_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					(('_phi' + join_lbls(init_composition[1:], '_')) if(swap_type_move) \
-						else ('_muT' + join_lbls(mu[1:], '_'))) + \
-					'_NinitStates' + '_'.join([str(n) for n in N_init_states[:2]]) + \
-					'_OPs' + '_'.join([str(ops) for ops in (np.append(OP_interfaces[[0, len(OP_interfaces)-1]], len(OP_interfaces)))]) + \
-					'_stab' + str(stab_step) + \
-					'_OPbf' + str(OP_sample_BF_to) + '_' + str(OP_match_BF_to) + \
-					'_stride' + str(timeevol_stride) + \
-					'_initGenMode' + str(init_gen_mode) + \
-					'_timeData' + str(to_get_timeevol) + \
-					'_Nfourier' + str(N_fourier) + \
-					'_ID' + str(lattice_gas.get_seed())
-
+	
+	# traj_basename_olds = ['MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
+					# '_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					# (('_phi' + my.join_lbls(init_composition[1:], '_')) if(swap_type_move) \
+						# else ('_muT' + my.join_lbls(mu[1:], '_'))) + \
+					# '_NinitStates' + '_'.join([str(n) for n in N_init_states]) + \
+					# '_OPs' + '_'.join([str(ops) for ops in OP_interfaces]) + \
+					# '_stab' + str(stab_step) + \
+					# '_OPbf' + str(OP_sample_BF_to) + '_' + str(OP_match_BF_to) + \
+					# '_stride' + str(timeevol_stride) + \
+					# '_initGenMode' + str(init_gen_mode) + \
+					# '_timeData' + str(to_get_timeevol) + \
+					# '_ID' + str(lattice_gas.get_seed()), \
+					# 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
+					# '_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					# (('_phi' + my.join_lbls(init_composition[1:], '_')) if(swap_type_move) \
+						# else ('_muT' + my.join_lbls(mu[1:], '_'))) + \
+					# '_NinitStates' + '_'.join([str(n) for n in N_init_states[:2]]) + \
+					# '_OPs' + '_'.join([str(ops) for ops in OP_interfaces]) + \
+					# '_stab' + str(stab_step) + \
+					# '_OPbf' + str(OP_sample_BF_to) + '_' + str(OP_match_BF_to) + \
+					# '_stride' + str(timeevol_stride) + \
+					# '_initGenMode' + str(init_gen_mode) + \
+					# '_timeData' + str(to_get_timeevol) + \
+					# '_Nfourier' + str(N_fourier) + \
+					# '_ID' + str(lattice_gas.get_seed())]
+	
+	# traj_basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
+					# '_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					# (('_phi' + my.join_lbls(init_composition[1:], '_')) if(swap_type_move) \
+						# else ('_muT' + my.join_lbls(mu[1:], '_'))) + \
+					# '_NinitStates' + '_'.join([str(n) for n in N_init_states[:2]]) + \
+					# '_OPs' + '_'.join([str(ops) for ops in (np.append(OP_interfaces[[0, len(OP_interfaces)-1]], len(OP_interfaces)))]) + \
+					# '_stab' + str(stab_step) + \
+					# '_OPbf' + str(OP_sample_BF_to) + '_' + str(OP_match_BF_to) + \
+					# '_stride' + str(timeevol_stride) + \
+					# '_initGenMode' + str(init_gen_mode) + \
+					# '_timeData' + str(to_get_timeevol) + \
+					# '_Nfourier' + str(N_fourier) + \
+					# '_ID' + str(lattice_gas.get_seed())
+	
+	traj_basename, traj_basename_olds = \
+		izing.get_FFS_AB_npzTrajBasename(MC_move_mode, L, e, \
+							('_phi' + my.join_lbls(init_composition[1:], '_')) \
+								if(swap_type_move) \
+								else ('_muT' + my.join_lbls(mu[1:], '_')), \
+							OP_interfaces, N_init_states, \
+							stab_step, OP_sample_BF_to, OP_match_BF_to, \
+							timeevol_stride if(to_get_timeevol) else None, \
+							init_gen_mode, bool(to_get_timeevol), \
+							N_fourier, lattice_gas.get_seed())
+	
 	FFStraj_suff = '_FFStraj.npz'
 	traj_filepath_olds = [os.path.join(traj_basepath, tb + FFStraj_suff) for tb in traj_basename_olds]
 	traj_filepath_new = os.path.join(traj_basepath, traj_basename + FFStraj_suff)
-
+	
 	traj_filepath = keep_new_npz_file(traj_filepath_olds, traj_filepath_new)
-
+	
 	#print(traj_filepath, os.path.isfile(traj_filepath))
-	#print(N_init_states)
+	#print(to_recomp, N_init_states)
 	#input('ok')
-
+	
 	if((not os.path.isfile(traj_filepath)) or (to_recomp > 1)):
 		init_state = get_fixed_composition_random_state(L, init_composition, N_main_min_warning=50) \
 						if(swap_type_move) else None
-
+		
 		# py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<double> mu,
 		#			  pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
 		#			  int to_remember_timeevol, int init_gen_mode, int interface_mode,
@@ -1109,13 +1163,13 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 								init_gen_mode=init_gen_mode, \
 								interface_mode=OP_C_id[interface_mode], \
 								init_state=None if(init_state is None) else init_state.flatten())
-
+		
 		if(to_save_npz):
 			np.savez(traj_filepath, states=_states, probs=probs, \
 					d_probs=d_probs, Nt=Nt, Nt_OP=Nt_OP, \
 					flux0=flux0, d_flux0=d_flux0, \
 					E=_E, M=_M, CS=_CS, times=times)
-
+			
 			print(traj_filepath, 'written')
 	else:
 		print('loading', traj_filepath)
@@ -1132,23 +1186,23 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 		_M = npz_data['M']
 		_CS = npz_data['CS']
 		times = npz_data['times']
-
+	
 	L2 = L**2
 	N_OP_interfaces = len(OP_interfaces)
 	if(to_get_timeevol):
 		Nt_total = max(len(_M), len(_CS))
 		if(timeevol_stride < 0):
 			timeevol_stride = np.int_(- Nt_total / timeevol_stride)
-
+	
 	states = [_states[ : N_init_states[0] * L2].reshape((N_init_states[0], L, L))]
 	for i in range(1, N_OP_interfaces):
 		states.append(_states[np.sum(N_init_states[:i]) * L2 : np.sum(N_init_states[:(i+1)] * L2)].reshape((N_init_states[i], L, L)))
 	del _states
-
+	
 	data = {}
 	data['M'] = _M
 	data['CS'] = _CS
-
+	
 	ln_k_AB, d_ln_k_AB, P_B, d_P_B, \
 		P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, \
 		P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, \
@@ -1168,7 +1222,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 						npz_basename=os.path.join(traj_basepath, traj_basename), \
 						to_save_npz=to_save_npz, to_recomp=to_recomp, \
 						init_composition=init_composition, to_do_hists=to_do_hists)
-
+	
 	return probs, d_probs, ln_k_AB, d_ln_k_AB, flux0, d_flux0, rho, d_rho, \
 			OP_hist_centers, OP_hist_lens, P_B, d_P_B, \
 			P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, \
@@ -1232,9 +1286,9 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 	swap_type_move = (MC_move_mode in [move_modes['swap'], move_modes['long_swap']])
 
 	# npz_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
-	# npz_basename = 'L' + str(L) + '_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					# (('_muT' + join_lbls(mu[1:], '_')) if(init_composition is None) \
-						# else ('_phi' + join_lbls(init_composition[1:], '_'))) + \
+	# npz_basename = 'L' + str(L) + '_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					# (('_muT' + my.join_lbls(mu[1:], '_')) if(init_composition is None) \
+						# else ('_phi' + my.join_lbls(init_composition[1:], '_'))) + \
 					# '_stride' + str(stride) + \
 					# '_OP' + str(OP_A) + '_' + str(OP_B) + '_stab' + str(stab_step) + \
 					# '_Nstates' + str(Nt_states) + '_ID' + str(lattice_gas.get_seed())
@@ -1562,9 +1616,9 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 
 	traj_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
 	traj_basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
-					'_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					(('_phi' + join_lbls(init_composition[1:], '_')) if(to_gen_init_state) \
-						else ('_muT' + join_lbls(mu[1:], '_'))) + \
+					'_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					(('_phi' + my.join_lbls(init_composition[1:], '_')) if(to_gen_init_state) \
+						else ('_muT' + my.join_lbls(mu[1:], '_'))) + \
 					'_Nt' + str(Nt) + \
 					'_NstatesMax' + str(N_saved_states_max) + \
 					'_stride' + str(timeevol_stride) + \
@@ -1782,7 +1836,7 @@ def map_phase_difference(MC_move_mode, L, e, mu_vecs, Nt, interface_mode, \
 									(resampled_mu1_grid, resampled_mu2_grid), \
 									method='linear')
 
-	ThL_lbl = r'$\epsilon_{11,12,22}/T = ' + join_lbls([e[1,1], e[1,2], e[2,2]], ',')
+	ThL_lbl = r'$\epsilon_{11,12,22}/T = ' + my.join_lbls([e[1,1], e[1,2], e[2,2]], ',')
 	fig_map, ax_map, fig_map_id = my.get_fig(r'$\mu_1/T$', r'$\mu_2/T$', title=r'$|\vec{\phi}_0 - \vec{\phi}_1| (\mu_1, \mu_2)$; $' + ThL_lbl + '$')
 	im_map = ax_map.imshow(resampled_dist.T, \
 						extent = [min(mu_vecs[0]), max(mu_vecs[0]), \
@@ -1977,7 +2031,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			target_states0=None, target_states1=None, stab_step=-5,
 			init_composition=None, to_save_npz=True, to_recomp=0, \
 			R_clust_init=None, seeds=None, interfacesIDs_to_plot_dens='main', \
-			N_fourier=5):
+			N_fourier=5, to_plot=True):
 	if(verbose is None):
 		verbose = lattice_gas.get_verbose()
 	L2 = L**2
@@ -2008,7 +2062,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 	elif('FFS' in mode):
 		assert(N_init_states_AB is not None), 'ERROR: FFS_AB mode but no "N_init_states_AB" provided'
 		assert(OP_interfaces_AB is not None), 'ERROR: FFS_AB mode but no "OP_interfaces_AB" provided'
-		assert(timeevol_stride > 0), 'ERROR: timeevol_stride = %d <= 0 for FFS-style mode' % (timeevol_stride)
+		if(to_get_timeevol):
+			assert(timeevol_stride > 0), 'ERROR: timeevol_stride = %d <= 0 for FFS-style mode' % (timeevol_stride)
 
 		N_OP_interfaces_AB = len(OP_interfaces_AB)
 		OP_AB = OP_interfaces_AB / OP_scale[interface_mode]
@@ -2052,15 +2107,15 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 
 	npz_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
 	npz_basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
-					'_eT' + join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					(('_phi' + join_lbls(init_composition[1:], '_')) if(swap_type_move) \
-						else ('_muT' + join_lbls(mu[1:], '_'))) + \
-					'_OPab' + str(OP_A) + '_' + str(OP_B)
+					'_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					(('_phi' + my.join_lbls(init_composition[1:], '_')) if(swap_type_move) \
+						else ('_muT' + my.join_lbls(mu[1:], '_')))
 
 	for i in range(N_runs):
 		lattice_gas.init_rand(seeds[i])
 		if(mode == 'BF'):
-			npz_BF_filename = npz_basename + '_stride' + str(timeevol_stride) + \
+			npz_BF_filename = npz_basename + '_OPab' + str(OP_A) + '_' + str(OP_B) + \
+								'_stride' + str(timeevol_stride) + \
 								'_Nstates' + str(N_saved_states_max) + \
 								'_ID' + str(lattice_gas.get_seed()) + '_manyBF'
 			npz_BF_filepath = os.path.join(npz_basepath, npz_BF_filename + '.npz')
@@ -2187,19 +2242,29 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 
 			ln_k_AB_data[i] = np.log(k_AB_BFcount * 1)
 		elif(mode == 'FFS_AB'):
-			npz_FFSAB_filename_olds = [npz_basename + '_stride' + str(timeevol_stride) + \
+			npz_FFSAB_filename_olds = [npz_basename + '_OPab' + str(OP_A) + '_' + str(OP_B) + \
+								'_stride' + str(timeevol_stride) + \
 								'_Ninit' + '_'.join([str(n) for n in N_init_states_AB]) + \
 								'_OPs' + '_'.join([str(p) for p in OP_interfaces_AB]) + \
 								'_ID' + str(lattice_gas.get_seed()) + \
 								'_FFSAB', \
-								npz_basename + '_stride' + str(timeevol_stride) + \
+								npz_basename + '_OPab' + str(OP_A) + '_' + str(OP_B) + \
+								'_stride' + str(timeevol_stride) + \
 								'_Ninit' + '_'.join([str(n) for n in N_init_states_AB[:2]]) + \
 								'_OPs' + '_'.join([str(p) for p in OP_interfaces_AB]) + \
 								'_Nfourier' + str(N_fourier) + \
 								'_ID' + str(lattice_gas.get_seed()) + \
+								'_FFSAB', \
+								npz_basename + '_OPab' + str(OP_A) + '_' + str(OP_B) + \
+								'_stride' + str(table_data.timeevol_stride_dict[my.f2s(e[1,1], n=3)]) + \
+								'_Ninit' + '_'.join([str(n) for n in N_init_states_AB[:2]]) + \
+								'_OPs' + '_'.join([str(p) for p in np.append(OP_interfaces_AB[[0, len(OP_interfaces_AB)-1]], len(OP_interfaces_AB))]) + \
+								'_Nfourier' + str(N_fourier) + \
+								'_ID' + str(lattice_gas.get_seed()) + \
 								'_FFSAB']
 
-			npz_FFSAB_filename_new = npz_basename + '_stride' + str(timeevol_stride) + \
+			npz_FFSAB_filename_new = npz_basename + \
+								(('_stride' + str(timeevol_stride)) if(to_get_timeevol) else '') + \
 								'_Ninit' + '_'.join([str(n) for n in N_init_states_AB[:2]]) + \
 								'_OPs' + '_'.join([str(p) for p in np.append(OP_interfaces_AB[[0, len(OP_interfaces_AB)-1]], len(OP_interfaces_AB))]) + \
 								'_Nfourier' + str(N_fourier) + \
@@ -2226,7 +2291,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								init_gen_mode=init_gen_mode, \
 								to_get_timeevol=to_get_timeevol, \
 								init_composition=init_composition, \
-								to_recomp=to_recomp - 1, \
+								to_recomp=max([to_recomp - 1, 0]), \
 								to_save_npz=to_save_npz, \
 								to_do_hists=True, \
 								N_fourier=N_fourier)
@@ -2424,6 +2489,13 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				for k in range(N_species):
 					state_centered_Rdens_total[j][k], d_state_centered_Rdens_total[j][k] = \
 						get_average(state_centered_Rdens_total_data[j][k], axis=1)
+					
+					# if(np.any(d_state_centered_Rdens_total[j][k] == 0)):
+						# print(j, k)
+						# print(state_centered_Rdens_total_data[j][k].shape)
+						# print(d_state_centered_Rdens_total[j][k] == 0)
+						# print(state_centered_Rdens_total_data[j][k][d_state_centered_Rdens_total[j][k] == 0, :])
+						# input('ok')
 
 			rho0_fit_params = np.empty((3, N_OP_interfaces_AB))
 			d_rho0_fit_params = np.empty((3, N_OP_interfaces_AB))
@@ -2442,8 +2514,9 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 											)
 				rho0_fit_params[1, j] = 1 / rho0_linsgmfit[0]
 				rho0_fit_params[2, j] = -rho0_linsgmfit[1] * rho0_fit_params[1, j]
-
-				rho0_fit_optim_res = scipy.optimize.minimize(lambda prm: np.sum(((rho0_fit_fnc(state_Rdens_centers_new, prm) - state_centered_Rdens_total[j][sgmfit_species_id]) / d_state_centered_Rdens_total[j][sgmfit_species_id])**2), rho0_fit_params[:, j])
+				
+				state_centered_Rdens_total_okFitInds = (d_state_centered_Rdens_total[j][sgmfit_species_id] > 0)
+				rho0_fit_optim_res = scipy.optimize.minimize(lambda prm: np.sum(((rho0_fit_fnc(state_Rdens_centers_new[state_centered_Rdens_total_okFitInds], prm) - state_centered_Rdens_total[j][sgmfit_species_id][state_centered_Rdens_total_okFitInds]) / d_state_centered_Rdens_total[j][sgmfit_species_id][state_centered_Rdens_total_okFitInds])**2), rho0_fit_params[:, j])
 				rho0_fit_params[:, j] = rho0_fit_optim_res.x
 				d_rho0_fit_params[:, j] = np.sqrt(rho0_fit_optim_res.hess_inv.diagonal())
 
@@ -2454,119 +2527,109 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 							np.log(rho0_fit_params[1, sgm_logfit_inds]), \
 							1, cov=True, w=1 / (d_rho0_fit_params[1, sgm_logfit_inds] / rho0_fit_params[1, sgm_logfit_inds]))
 
-	if(state_Rdens_centers_new is not None):
-		# =============== Rdens ================
-		fig_state_Rdens = [[]] * N_species
-		ax_state_Rdens = [[]] * N_species
-		fig_state_Rdens_log = [[]] * N_species
-		ax_state_Rdens_log = [[]] * N_species
-		ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
-		for k in range(N_species):
-			fig_state_Rdens[k], ax_state_Rdens[k], _ = my.get_fig('r', r'$\phi_%d$' % k, title=(r'$\phi_%d(r)$; ' % k) + ThL_lbl)
-			fig_state_Rdens_log[k], ax_state_Rdens_log[k], _ = my.get_fig('r', r'$\phi_%d$' % k, title=(r'$\phi_%d(r)$; ' % k) + ThL_lbl, yscl='logit')
+	if(to_plot):
+		if(state_Rdens_centers_new is not None):
+			# =============== Rdens ================
+			fig_state_Rdens = [[]] * N_species
+			ax_state_Rdens = [[]] * N_species
+			fig_state_Rdens_log = [[]] * N_species
+			ax_state_Rdens_log = [[]] * N_species
+			ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
+			for k in range(N_species):
+				fig_state_Rdens[k], ax_state_Rdens[k], _ = my.get_fig('r', r'$\phi_%d$' % k, title=(r'$\phi_%d(r)$; ' % k) + ThL_lbl)
+				fig_state_Rdens_log[k], ax_state_Rdens_log[k], _ = my.get_fig('r', r'$\phi_%d$' % k, title=(r'$\phi_%d(r)$; ' % k) + ThL_lbl, yscl='logit')
 
-		fig_rho_fourier, ax_rho_fourier, _ = my.get_fig('$n$', r'$\sim F_n[\phi]$', title=r'$F[\phi(\theta)](n)$')
+			fig_rho_fourier, ax_rho_fourier, _ = my.get_fig('$n$', r'$\sim F_n[\phi]$', title=r'$F[\phi(\theta)](n)$')
 
-		if(interfacesIDs_to_plot_dens == 'main'):
-			interfacesIDs_to_plot_dens = np.array([0, np.argmin(np.abs(OP_interfaces_AB - OP0_erfinv_AB)), len(OP_interfaces_AB) - 1], dtype=int)
-		elif(interfacesIDs_to_plot_dens == 'all'):
-			interfacesIDs_to_plot_dens = np.arange(len(N_OP_interfaces_AB))
-		N_interfaces_to_plot = len(interfacesIDs_to_plot_dens)
+			if(interfacesIDs_to_plot_dens == 'main'):
+				interfacesIDs_to_plot_dens = np.array([0, np.argmin(np.abs(OP_interfaces_AB - OP0_erfinv_AB)), len(OP_interfaces_AB) - 1], dtype=int)
+			elif(interfacesIDs_to_plot_dens == 'all'):
+				interfacesIDs_to_plot_dens = np.arange(len(N_OP_interfaces_AB))
+			N_interfaces_to_plot = len(interfacesIDs_to_plot_dens)
 
-		fig_cluster_map = [[]] * N_interfaces_to_plot
-		ax_cluster_map = [[]] * N_interfaces_to_plot
+			fig_cluster_map = [[]] * N_interfaces_to_plot
+			ax_cluster_map = [[]] * N_interfaces_to_plot
 
-		ax_rho_fourier.plot([0, N_fourier], [0] * 2, '--', label='F=0')
-		for i, OPind in enumerate(interfacesIDs_to_plot_dens):
-			cluster_lbl = r'$OP[%d] = %d$; ' % (OPind, OP_interfaces_AB[OPind])
+			ax_rho_fourier.plot([0, N_fourier], [0] * 2, '--', label='F=0')
+			for i, OPind in enumerate(interfacesIDs_to_plot_dens):
+				cluster_lbl = r'$OP[%d] = %d$; ' % (OPind, OP_interfaces_AB[OPind])
 
-			ax_rho_fourier.errorbar(np.arange(N_fourier+1), np.append(1, rho_fourier2D_Abs[OPind, :]), \
-									yerr = np.append(0, d_rho_fourier2D_Abs[OPind, :]), \
-									label=cluster_lbl, color=my.get_my_color(i))
+				ax_rho_fourier.errorbar(np.arange(N_fourier+1), np.append(1, rho_fourier2D_Abs[OPind, :]), \
+										yerr = np.append(0, d_rho_fourier2D_Abs[OPind, :]), \
+										label=cluster_lbl, color=my.get_my_color(i))
 
-			ax_state_Rdens[sgmfit_species_id].plot(state_Rdens_centers_new, \
-								rho0_fit_fnc(state_Rdens_centers_new, rho0_fit_params[:, OPind]), \
-								'--', color=my.get_my_color(i))
+				ax_state_Rdens[sgmfit_species_id].plot(state_Rdens_centers_new, \
+									rho0_fit_fnc(state_Rdens_centers_new, rho0_fit_params[:, OPind]), \
+									'--', color=my.get_my_color(i))
 
-			fig_cluster_map[i], ax_cluster_map[i], fig_cluster_map_id = my.get_fig('x', 'y', title=cluster_lbl + ThL_lbl)
-			im_cluster_map = ax_cluster_map[i].imshow(cluster_centered_map_total[OPind], \
-									extent = [min(cluster_map_y), max(cluster_map_y), \
-											  min(cluster_map_x), max(cluster_map_x)], \
-									interpolation ='bilinear', origin ='lower', aspect='auto')
-			plt.figure(fig_cluster_map_id)
-			cbar = plt.colorbar(im_cluster_map)
+				fig_cluster_map[i], ax_cluster_map[i], fig_cluster_map_id = my.get_fig('x', 'y', title=cluster_lbl + ThL_lbl)
+				im_cluster_map = ax_cluster_map[i].imshow(cluster_centered_map_total[OPind], \
+										extent = [min(cluster_map_y), max(cluster_map_y), \
+												  min(cluster_map_x), max(cluster_map_x)], \
+										interpolation ='bilinear', origin ='lower', aspect='auto')
+				plt.figure(fig_cluster_map_id)
+				cbar = plt.colorbar(im_cluster_map)
+
+				for k in range(N_species):
+					ax_state_Rdens[k].errorbar(state_Rdens_centers_new, \
+											state_centered_Rdens_total[OPind][k], \
+											yerr=d_state_centered_Rdens_total[OPind][k], \
+											label=cluster_lbl, color=my.get_my_color(i))
+					ax_state_Rdens_log[k].errorbar(state_Rdens_centers_new, \
+											state_centered_Rdens_total[OPind][k], \
+											yerr=d_state_centered_Rdens_total[OPind][k],
+											label=cluster_lbl, color=my.get_my_color(i))
 
 			for k in range(N_species):
-				ax_state_Rdens[k].errorbar(state_Rdens_centers_new, \
-										state_centered_Rdens_total[OPind][k], \
-										yerr=d_state_centered_Rdens_total[OPind][k], \
-										label=cluster_lbl, color=my.get_my_color(i))
-				ax_state_Rdens_log[k].errorbar(state_Rdens_centers_new, \
-										state_centered_Rdens_total[OPind][k], \
-										yerr=d_state_centered_Rdens_total[OPind][k],
-										label=cluster_lbl, color=my.get_my_color(i))
+				Rdens_lims = [min(state_Rdens_centers_new), max(state_Rdens_centers_new)]
+				ax_state_Rdens[k].plot(Rdens_lims, [init_composition[k]] * 2, '--', \
+										label='$\phi_{bulk} = %s$' % (my.f2s(init_composition[k], n=4)))
+				ax_state_Rdens_log[k].plot(Rdens_lims, [init_composition[k]] * 2, '--', \
+										label='$\phi_{bulk} = %s$' % (my.f2s(init_composition[k], n=4)))
 
-		for k in range(N_species):
-			Rdens_lims = [min(state_Rdens_centers_new), max(state_Rdens_centers_new)]
-			ax_state_Rdens[k].plot(Rdens_lims, [init_composition[k]] * 2, '--', \
-									label='$\phi_{bulk} = %s$' % (my.f2s(init_composition[k], n=4)))
-			ax_state_Rdens_log[k].plot(Rdens_lims, [init_composition[k]] * 2, '--', \
-									label='$\phi_{bulk} = %s$' % (my.f2s(init_composition[k], n=4)))
+			fig_rhoW, ax_rhoW, _ = my.get_fig(r'$N_{clust}$', r'$w_{\rho_{%d}}$' % (sgmfit_species_id), xscl='log', yscl='log')
+			#fig_rhoW, ax_rhoW, _ = my.get_fig(r'$N_{clust}$', r'$w_{\rho_{%d}}$' % (sgmfit_species_id), xscl='log')
+			ax_rhoW.errorbar(OP_interfaces_AB, rho0_fit_params[1, :],  yerr=d_rho0_fit_params[1, :], fmt='.', label='data')
+			ax_rhoW.plot(OP_interfaces_AB, np.exp(np.polyval(sgm_logfit, np.log(OP_interfaces_AB))), \
+						'--', label=r'$k = %s$' % (my.errorbar_str(sgm_logfit[0], np.sqrt(sgm_logfit_cov[0,0]))))
+			ax_rhoW.plot([sgm_logfit_Nmin] * 2, [min(rho0_fit_params[1, :]), max(rho0_fit_params[1, :])], \
+						'--', label=r'$N_{min} = N^* = %s$' % (my.f2s(sgm_logfit_Nmin)))
 
-		fig_rhoW, ax_rhoW, _ = my.get_fig(r'$N_{clust}$', r'$w_{\rho_{%d}}$' % (sgmfit_species_id), xscl='log', yscl='log')
-		#fig_rhoW, ax_rhoW, _ = my.get_fig(r'$N_{clust}$', r'$w_{\rho_{%d}}$' % (sgmfit_species_id), xscl='log')
-		ax_rhoW.errorbar(OP_interfaces_AB, rho0_fit_params[1, :],  yerr=d_rho0_fit_params[1, :], fmt='.', label='data')
-		ax_rhoW.plot(OP_interfaces_AB, np.exp(np.polyval(sgm_logfit, np.log(OP_interfaces_AB))), \
-					'--', label=r'$k = %s$' % (my.errorbar_str(sgm_logfit[0], np.sqrt(sgm_logfit_cov[0,0]))))
-		ax_rhoW.plot([sgm_logfit_Nmin] * 2, [min(rho0_fit_params[1, :]), max(rho0_fit_params[1, :])], \
-					'--', label=r'$N_{min} = N^* = %s$' % (my.f2s(sgm_logfit_Nmin)))
+			my.add_legend(fig_rhoW, ax_rhoW)
+			my.add_legend(fig_rho_fourier, ax_rho_fourier)
 
-		my.add_legend(fig_rhoW, ax_rhoW)
-		my.add_legend(fig_rho_fourier, ax_rho_fourier)
+			for k in range(N_species):
+				my.add_legend(fig_state_Rdens[k], ax_state_Rdens[k])
+				my.add_legend(fig_state_Rdens_log[k], ax_state_Rdens_log[k])
 
-		for k in range(N_species):
-			my.add_legend(fig_state_Rdens[k], ax_state_Rdens[k])
-			my.add_legend(fig_state_Rdens_log[k], ax_state_Rdens_log[k])
+		if(to_plot_k_distr):
+			plot_k_distr(np.exp(ln_k_AB_data) / 1, N_k_bins, 'k_{AB}', units='step')
+			plot_k_distr(ln_k_AB_data, N_k_bins, r'\ln(k_{AB} \cdot 1step)')
+			if('AB' not in mode):
+				plot_k_distr(np.exp(ln_k_BA_data) / 1, N_k_bins, 'k_{BA}', units='step')
+				plot_k_distr(ln_k_BA_data, N_k_bins, r'\ln(k_{BA} \cdot 1step)')
+			if(mode == 'BF'):
+				plot_k_distr(np.exp(ln_k_bc_AB_data) / 1, N_k_bins, r'k_{bc, AB}', units='step')
+				plot_k_distr(ln_k_bc_AB_data, N_k_bins, r'\ln(k_{bc, AB} \cdot 1step)')
+				plot_k_distr(np.exp(ln_k_bc_BA_data) / 1, N_k_bins, r'k_{bc, BA}', units='step')
+				plot_k_distr(ln_k_bc_BA_data, N_k_bins, r'\ln(k_{bc, BA} \cdot 1step)')
 
-	if(to_plot_k_distr):
-		plot_k_distr(np.exp(ln_k_AB_data) / 1, N_k_bins, 'k_{AB}', units='step')
-		plot_k_distr(ln_k_AB_data, N_k_bins, r'\ln(k_{AB} \cdot 1step)')
-		if('AB' not in mode):
-			plot_k_distr(np.exp(ln_k_BA_data) / 1, N_k_bins, 'k_{BA}', units='step')
-			plot_k_distr(ln_k_BA_data, N_k_bins, r'\ln(k_{BA} \cdot 1step)')
-		if(mode == 'BF'):
-			plot_k_distr(np.exp(ln_k_bc_AB_data) / 1, N_k_bins, r'k_{bc, AB}', units='step')
-			plot_k_distr(ln_k_bc_AB_data, N_k_bins, r'\ln(k_{bc, AB} \cdot 1step)')
-			plot_k_distr(np.exp(ln_k_bc_BA_data) / 1, N_k_bins, r'k_{bc, BA}', units='step')
-			plot_k_distr(ln_k_bc_BA_data, N_k_bins, r'\ln(k_{bc, BA} \cdot 1step)')
+		if(to_plot_committer is None):
+			to_plot_committer = ('FFS' in mode)
+		else:
+			assert(not (('BF' in mode) and to_plot_committer)), 'ERROR: BF mode used but commiter requested'
 
-	if(to_plot_committer is None):
-		to_plot_committer = ('FFS' in mode)
-	else:
-		assert(not (('BF' in mode) and to_plot_committer)), 'ERROR: BF mode used but commiter requested'
-
-	if(to_plot_committer):
-		ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
-		# fig_PB_log, ax_PB_log, _ = my.get_fig(title[interface_mode], r'$P_B(' + feature_label[interface_mode] + ') = P(i|0)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; ' + ThL_lbl, yscl='log')
-		# fig_PB, ax_PB, _ = my.get_fig(title[interface_mode], r'$P_B(' + feature_label[interface_mode] + ') = P(i|0)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
-		# fig_PB_sigmoid, ax_PB_sigmoid, _ = my.get_fig(title[interface_mode], r'$-\ln(1/P_B - 1)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
-		# fig_PB_erfinv, ax_PB_erfinv, _ = my.get_fig(title[interface_mode], r'$erf^{-1}(2 P_B - 1)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
-
-		# mark_PB_plot(ax_PB, ax_PB_log, ax_PB_sigmoid, OP, PB_AB, PB_sigmoid, interface_mode)
-		plot_PB_AB(ThL_lbl, feature_label[interface_mode], title[interface_mode], \
-					interface_mode, OP_AB[:-1], PB_AB[:-1], d_PB=d_PB_AB[:-1], \
-					PB_sgm=PB_sigmoid, d_PB_sgm=d_PB_sigmoid, \
-					linfit_sgm=linfit_sigmoid_AB, linfit_sgm_inds=linfit_sigmoid_AB_inds, \
-					OP0_sgm=OP0_sigmoid_AB, d_OP0_sgm=d_OP0_sigmoid_AB, \
-					PB_erfinv=PB_erfinv, d_PB_erfinv=d_PB_erfinv, \
-					linfit_erfinv=linfit_erfinv_AB, linfit_erfinv_inds=linfit_erfinv_AB_inds, \
-					OP0_erfinv=OP0_erfinv_AB, d_OP0_erfinv=d_OP0_erfinv_AB, \
-					clr=my.get_my_color(1))
-
-		# my.add_legend(fig_PB_sigmoid, ax_PB_sigmoid)
-		# my.add_legend(fig_PB_erfinv, ax_PB_erfinv)
-		# my.add_legend(fig_PB, ax_PB)
-		# my.add_legend(fig_PB_log, ax_PB_log)
+		if(to_plot_committer):
+			ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
+			plot_PB_AB(ThL_lbl, feature_label[interface_mode], title[interface_mode], \
+						interface_mode, OP_AB[:-1], PB_AB[:-1], d_PB=d_PB_AB[:-1], \
+						PB_sgm=PB_sigmoid, d_PB_sgm=d_PB_sigmoid, \
+						linfit_sgm=linfit_sigmoid_AB, linfit_sgm_inds=linfit_sigmoid_AB_inds, \
+						OP0_sgm=OP0_sigmoid_AB, d_OP0_sgm=d_OP0_sigmoid_AB, \
+						PB_erfinv=PB_erfinv, d_PB_erfinv=d_PB_erfinv, \
+						linfit_erfinv=linfit_erfinv_AB, linfit_erfinv_inds=linfit_erfinv_AB_inds, \
+						OP0_erfinv=OP0_erfinv_AB, d_OP0_erfinv=d_OP0_erfinv_AB, \
+						clr=my.get_my_color(1))
 
 	lattice_gas.init_rand(old_seed)
 
@@ -2755,8 +2818,265 @@ def plot_Q_target_phase_data(target_states, used_target_ids, phi_obtained, d_phi
 
 	return fig_phi, ax_phi
 
+# 					OP_sample_BF_A_to=None, OP_match_BF_A_to=None, \
 
+def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
+					L, e, interface_mode, OP_interfaces, \
+					OP0_constraint=0, init_gen_mode=-2, \
+					OP_sample_BF_to=None, OP_match_BF_to=None, \
+					timeevol_stride=-3000, to_get_timeevol=None, \
+					to_save_npz=False, to_recomp=0, N_fourier=5, \
+					seeds_range=np.arange(1000, 1200), \
+					N_points_OP0constr=1000, \
+					fit_ord=2, to_plot=False, 
+					npz_path='/scratch/gpfs/yp1065/Izing/npzs/', \
+					npz_suff='FFStraj'):
+	N_OP_interfaces = len(OP_interfaces)
+	N_Temps = len(Temp_s)
+	N_phi1s = len(phi1_s)
+	
+	ln_k = np.zeros((N_Temps, N_phi1s))
+	d_ln_k = np.zeros((N_Temps, N_phi1s))
+	flux0 = np.zeros((N_Temps, N_phi1s))
+	d_flux0 = np.zeros((N_Temps, N_phi1s))
+	OP0 = np.zeros((N_Temps, N_phi1s))
+	d_OP0 = np.zeros((N_Temps, N_phi1s))
+	Temps_grid = np.zeros((N_Temps, N_phi1s))
+	phi1s_grid = np.zeros((N_Temps, N_phi1s))
+	for i_Temp, Temp in enumerate(Temp_s):
+		for i_phi1, phi1 in enumerate(phi1_s):
+			n_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][Temp][phi1]
+			if(n_FFS > 0):
+				# templ = '/scratch/gpfs/yp1065/Izing/npzs/MCmoves%d_L%d_eT%s_%s_%s_phi%s_%s_NinitStates%d_%d_OPs%d_%d_%d_stab*_OPbf%d_%d_stride%d_initGenMode%d_timeData%s_Nfourier%d_ID%s_FFStraj.npz' % \
+						# (lattice_gas.get_move_modes()[MC_move_mode_name], L, \
+						# my.f2s(e[1,1] / Temp), my.f2s(e[1,2] / Temp), my.f2s(e[2,2] / Temp), \
+						# my.f2s(phi1), my.f2s(phi2), 2*n_FFS, n_FFS, \
+						# OP_interfaces[0], OP_interfaces[-1], len(OP_interfaces), \
+						# OP_sample_BF_A_to, OP_match_BF_A_to, timeevol_stride, \
+						# init_gen_mode, str(bool(to_get_timeevol)), N_fourier, \
+						# '%d')
+				
+				e_use = e / Temp
+				mu = np.array([0] * N_species)
+				init_composition = np.array([1 - phi1 - phi2, phi1, phi2])
+				N_init_states = np.ones(N_OP_interfaces, dtype=int) * n_FFS
+				N_init_states[0] *= 2
+				MC_move_mode = lattice_gas.get_move_modes()[MC_move_mode_name]
+				
+				# It does not have to be L**2 (can be more), but it always is L**2 in practice for the cases of June2023 work
+				stab_step = L**2
+				
+				# old_versions are not valid because no full 'N_init_states' is given
+				templ, templ_old = \
+					izing.get_FFS_AB_npzTrajBasename(MC_move_mode, L, e_use, \
+									'_phi' + my.join_lbls(init_composition[1:], '_'), \
+									OP_interfaces, N_init_states, \
+									stab_step, OP_sample_BF_to, OP_match_BF_to, \
+									timeevol_stride, init_gen_mode, \
+									bool(to_get_timeevol), \
+									N_fourier, '%d')
+				templ = npz_path + templ + '_' + npz_suff + '.npz'
+				#templ = npz_path + templ_old[-1] + '_' + npz_suff + '.npz'   # to 'mv' old files to new format
+				#print(templ)
+				
+				found_IDs, found_filepaths, _ = \
+					izing.find_finished_runs_npzs(templ, seeds_range, verbose=True)
+				#input('ok')
+				
+				N_found_npzs = len(found_IDs)
+				if(N_found_npzs > 0):
+					Temps_grid[i_Temp][i_phi1] = Temp
+					phi1s_grid[i_Temp][i_phi1] = phi1
+					
+					F, d_F, M_hist_centers, OP_hist_lens, \
+						ln_k[i_Temp][i_phi1], d_ln_k[i_Temp][i_phi1], \
+						flux0[i_Temp][i_phi1], d_flux0[i_Temp][i_phi1], \
+						prob, d_prob, PB, d_PB, \
+						OP0[i_Temp][i_phi1], d_OP0[i_Temp][i_phi1] = \
+							run_many(MC_move_mode, L, e_use, mu, N_found_npzs, \
+								interface_mode, stab_step=stab_step, \
+								N_init_states_AB=N_init_states, \
+								OP_interfaces_AB=OP_interfaces, \
+								mode='FFS_AB', init_gen_mode=init_gen_mode, \
+								OP_sample_BF_A_to=OP_sample_BF_to, \
+								OP_match_BF_A_to=OP_match_BF_to, \
+								timeevol_stride=timeevol_stride, \
+								to_get_timeevol=to_get_timeevol, \
+								init_composition=init_composition, \
+								to_save_npz=to_save_npz, \
+								to_recomp=max([to_recomp - 1, 0]), \
+								N_fourier=N_fourier, seeds=found_IDs, \
+								to_plot=False)
+	
+	ok_inds = (flux0.flatten() > 0)
+	N_ok_points = np.sum(ok_inds)
+	
+	ln_k_arr, d_ln_k_arr, OP0_arr, d_OP0_arr, flux0_arr, d_flux0_arr, Temps_arr, phi1s_arr = \
+		tuple([arr.flatten()[ok_inds] for arr in [ln_k, d_ln_k, OP0, d_OP0, flux0, d_flux0, Temps_grid, phi1s_grid]])
+	
+	ln_flux0 = np.log(flux0_arr)
+	d_ln_flux0 = d_flux0_arr / flux0_arr
+	
+	if(N_ok_points >= fit_ord**2):
+		OP0_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, OP0_arr, dz=d_OP0_arr, xord=fit_ord, yord=fit_ord)
+		ln_k_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_k_arr, dz=d_ln_k_arr, xord=fit_ord, yord=fit_ord)
+		ln_flux0_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_flux0, dz=d_ln_flux0, xord=fit_ord, yord=fit_ord)
+		
+		if(OP0_constraint > 0):
+			OP0consr_points = find_optim_manifold(lambda x: np.abs(OP0_fitfnc(x[0], x[1]) - OP0_constraint), \
+								np.array([[min(Temp_s), max(Temp_s)], [min(phi1_s), max(phi1_s)]]).T, \
+								trial_points=N_points_OP0constr)
+	
+	if(to_plot):
+		if(N_ok_points >= fit_ord**2):
+			fig_OP0, ax_OP0 = plot_data(Temps_arr, phi1s_arr, OP0_arr, d_OP0_arr, '$N^*$', OP0_fitfnc)
+			fig_ln_k, ax_ln_k = plot_data(Temps_arr, phi1s_arr, ln_k_arr, d_ln_k_arr, '$\ln(k)$', ln_k_fitfnc)
+			fig_ln_flux0, ax_ln_flux0 = plot_data(Temps_arr, phi1s_arr, ln_flux0, d_ln_flux0, '$\ln(\Phi_A)$', ln_flux0_fitfnc)
+			
+			if((OP0_constraint > 0) and (OP0consr_points.shape[0] > 0)):
+				ax_OP0.plot3D(OP0consr_points[:, 0], OP0consr_points[:, 1], OP0_fitfnc(OP0consr_points[:, 0], OP0consr_points[:, 1]), '.', label='$N^* = %d$' % OP0_constraint)
+			
+			my.add_legend(fig_OP0, ax_OP0)
+			my.add_legend(fig_ln_k, ax_ln_k)
+			my.add_legend(fig_ln_flux0, ax_ln_flux0)
+
+def find_optim_manifold(fnc, ranges, trial_points=1000, tol=1e-6, thin_eps=1e-3):
+	'''
+		fnc: function R^D -> R
+		ranges: array 2xD
+		trial_points: 
+			int: trial_points will be uniform random points in 'ranges' cube
+			arrayNxD: these points will be used
+		tol: points with f < tol will be added to the resulting set
+	'''
+	
+	dim = ranges.shape[0]
+	
+	if(isinstance(trial_points, int)):
+		N_trial_points = trial_points
+		trial_points = np.random.random((N_trial_points, dim))
+	
+	for i in range(dim):
+		trial_points[:, i] = trial_points[:, i] * (ranges[1, i] - ranges[0, i]) + ranges[0, i]
+	
+	def subst_x1d(x, x_1d, d):
+		x_local = np.copy(x)
+		x_local[d] = x_1d
+		return x_local
+	
+	optim_points = []
+	for i_p in range(N_trial_points):
+		for i_dim in range(dim):
+			trial_point = trial_points[i_p, :]
+			fnc_opt = lambda x_1d: fnc(subst_x1d(trial_point, x_1d, i_dim))
+			
+			#opt_res = scipy.optimize.minimize_scalar(fnc_opt, bounds=(ranges[0, i_dim], ranges[1, i_dim]), method='bounded')
+			opt_res = scipy.optimize.minimize_scalar(fnc_opt, \
+						trial_points[i_p, i_dim], \
+						bounds=((ranges[0, i_dim], ranges[1, i_dim])), \
+						method='bounded', \
+						options={'xatol': tol * (ranges[1, i_dim] - ranges[0, i_dim])})
+			
+			#print(opt_res.x, opt_res.fun)
+			#print(trial_points[i_p, :], '->', subst_x1d(trial_points[i_p, :], opt_res.x, i_dim))
+			#input(str((i_p, i_dim)))
+			if(opt_res.fun < tol):
+				optim_points.append(subst_x1d(trial_points[i_p, :], opt_res.x, i_dim))
+	
+	optim_points = np.array(optim_points)   # MxD
+	
+	return optim_points
+
+
+def plot_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$', \
+				N_draw_points=1000, draw_only_inside_convexhull=True, \
+				points_mode='grid', to_add_legend=False):
+	fig, ax, _ = my.get_fig(x_lbl, y_lbl, zlbl=z_lbl, projection='3d')
+	
+	ax.errorbar(x, y, z, zerr=dz, fmt='.', label='data')
+	
+	if(points_mode == 'random'):
+		xy_draw = np.random.random((N_draw_points, 2))
+		sort_inds = np.argsort(xy_draw[:, 0] + xy_draw[:, 1])
+		xy_draw[:, 0] = xy_draw[sort_inds, 0] * (max(x) - min(x)) + min(x)
+		xy_draw[:, 1] = xy_draw[sort_inds, 1] * (max(y) - min(y)) + min(y)
+	elif(points_mode == 'grid'):
+		X, Y = np.meshgrid(np.linspace(min(x), max(x), int(np.sqrt(N_draw_points))), \
+							 np.linspace(min(y), max(y), int(np.sqrt(N_draw_points))), \
+							indexing='xy')
+		xy_draw = np.stack((X.flatten(), Y.flatten()), axis=-1)
+	
+	if(draw_only_inside_convexhull):
+		xy_draw = xy_draw[my.in_hull(xy_draw, np.stack((x, y), axis=-1)), :]
+		#convx_hull = scipy.spatial.ConvexHull(xy_draw)
+	
+	z_draw = z_fitfnc(xy_draw[:, 0], xy_draw[:, 1])
+	triangulation = matplotlib.tri.Triangulation(xy_draw[:, 0], xy_draw[:, 1])
+	
+	#ax.plot3D(xy_draw[:, 0], xy_draw[:, 1], z_draw, '.')
+	surf = ax.plot_trisurf(xy_draw[:, 0], xy_draw[:, 1], z_draw, label='interp', \
+						triangles=triangulation.triangles, \
+						color=(0,0,0,0), edgecolor='Gray', lw=0.5)
+	surf._facecolors2d = surf._facecolor3d
+	surf._edgecolors2d = surf._edgecolor3d
+	
+	if(to_add_legend):
+		my.add_legend(fig, ax)
+	
+	return fig, ax
+
+def fit_Tphi1_grid(x, y, z, dz=None, xord=2, yord=2, to_rescale=True):
+	# polynomial_features = sklearn.preprocessing.PolynomialFeatures(degree=degrees[i], include_bias=False)
+	# linear_regression = sklearn.linear_model.LinearRegression()
+	# pipeline = Pipeline(
+		# [
+			# ("polynomial_features", polynomial_features),
+			# ("linear_regression", linear_regression),
+		# ]
+	# )
+	# pipeline.fit(X[:, np.newaxis], y)
+	
+	if(dz is None):
+		dz = np.ones(z.shape)
+	
+	xm = np.mean(x) if(to_rescale) else 0
+	xs = np.std(x) if(to_rescale) else 1
+	ym = np.mean(y) if(to_rescale) else 0
+	ys = np.std(y) if(to_rescale) else 1
+	interp = scipy.interpolate.SmoothBivariateSpline(\
+					(x - xm) / xs, (y - ym) / ys, \
+					z, w=1/dz, kx=xord, ky=yord)
+	
+	interp_fnc = lambda xin, yin: interp((xin - xm) / xs, (yin - ym) / ys, grid=False)
+	
+	return interp_fnc, interp
+	
 def main():
+	################################ Ising ############################
+	# python run.py -mode BF_AB_L -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 35000000 -N_runs 5 -h 0.15 -interface_set_mode spaced -L 100 71 56 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
+
+	# python run.py -mode FFS_AB -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.15 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
+	# python run.py -mode FFS_AB_L -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.15 -interface_set_mode spaced -L 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
+	# python run.py -mode FFS_AB_L -N_states_FFS 100 -N_init_states_FFS 200 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 3 -h 0.15 -interface_set_mode spaced -L 100 78 56 42 32 24 18 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
+	# python run.py -mode FFS_AB_L -N_states_FFS 100 -N_init_states_FFS 500 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 5 -h 0.13 -interface_set_mode spaced -L 100 78 56 42 32 24 18 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
+	# python run.py -mode FFS_AB_L -N_states_FFS 500 -N_init_states_FFS 1000 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 15 -h 0.15 -interface_set_mode spaced -L 24 31 39 50 56 63 71 79 89 100 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
+	#
+	# python run.py -mode FFS_AB_L -N_states_FFS 500 -N_init_states_FFS 1000 -N_OP_interfaces 15 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.15 -interface_set_mode spaced -L 100 64 48 32 -to_get_timeevol 0 -OP_max 210 -Temp 1.5
+	###########
+	# python run.py -mode FFS_AB_h -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.13 0.12 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
+	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.13 0.12 0.11 0.1 0.09 0.08 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 250 300 350 400 500 -Temp 1.5
+	#
+	# python run.py -mode FFS_AB_mu -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.13 0.12 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 250 -J 0.6666666667 -OP_interfaces_set_IDs hJ0.13_2 hJ0.12_2
+	# python run.py -mode FFS_AB_mu -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.13 0.12 0.11 0.1 0.09 0.08 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 250 300 350 400 500 -J 0.6666666667 -OP_interfaces_set_IDs hJ0.13_2 hJ0.12_2 hJ0.11_2 hJ0.10_2 hJ0.09_2 hJ0.08_2
+
+	###########
+	# python run.py -mode FFS_AB_h -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.09 0.08 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 -Temp 1.9
+	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.09 0.08 0.07 0.06 0.05 0.04 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 300 350 400 450 500 600 -Temp 1.9
+	###########
+	# python run.py -mode FFS_AB_h -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.06 0.04 0.02 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 400 500 600 -Temp 2.0
+	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.09 0.08 0.07 0.06 0.05 0.04 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 300 350 400 450 500 600 -Temp 2.0
+	#
+	
 	################################ Lattice ###########################
 	# python run.py -mode BF_1 -interface_mode CS -Nt 15000 -h 0.13 -L 32 -to_get_timeevol 1 -chi 2.5 1.6 1.6 -to_plot_timeevol 1 -N_spins_up_init 0 -N_saved_states_max 0 -MC_move_mode flip
 	# python run.py -mode BF_1 -interface_mode CS -Nt 15000 -h 0.13 -L 32 -to_get_timeevol 1 -to_plot_timeevol 1 -N_spins_up_init 0 -J 0.66667 -N_saved_states_max 0 -MC_move_mode flip
@@ -2804,6 +3124,8 @@ def main():
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 80 -N_init_states_FFS 160 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt16 -N_runs 283 -my_seeds 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150 151 152 154 155 156 157 158 159 160 161 162 163 164 165 166 167 168 169 170 171 172 173 174 175 176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191 192 193 194 195 196 197 198 199 200 201 202 203 204 206 207 208 212 213 214 215 216 217 218 219 220 221 222 224 225 226 227 228 229 230 231 232 233 234 235 236 239 240 241 243 244 245 248 249 250 251 252 253 254 255 256 257 258 259 260 261 262 263 264 265 266 268 269 270 271 272 273 274 275 276 277 278 279 280 281 282 283 284 285 286 287 288 289 290 292 294 295 296 297 298 299 300 301 302 303 304 305 306 307 308 309 310 311 312 313 314 315 316 317 318 319 320 321 322 323 324 325 326 327 328 329 330 331 332 333 335 336 337 338 339 340 341 342 343 344 345 346 347 348 349 350 351 352 353 354 356 357 358 359 360 361 362 363 364 365 366 367 368 369 370 371 372 373 374 375 376 377 378 379 380 381 382 383 384 385 386 387 388 389 390 391 392 393 394 395 396 397 398 399 -to_recomp 1 -font_mode present
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 246 -my_seeds 500 501 502 503 504 505 506 507 508 509 510 511 512 513 514 515 516 517 518 519 520 521 522 523 524 525 526 527 528 529 530 531 532 533 534 535 536 537 538 539 540 541 542 543 544 545 546 547 548 549 550 551 552 553 554 555 556 557 558 559 560 561 562 563 564 565 566 567 568 569 570 571 572 573 574 575 576 577 578 579 580 581 582 583 584 585 586 587 588 589 590 591 592 593 594 595 596 597 598 599 600 601 602 603 604 605 606 607 608 609 610 612 613 614 615 616 617 618 619 620 621 622 623 624 626 627 628 629 630 631 632 633 634 635 636 637 638 639 640 641 642 643 644 645 646 647 648 649 650 651 652 653 654 655 656 657 658 659 660 661 662 663 664 665 666 667 668 669 670 671 672 673 674 675 676 677 678 679 680 681 682 683 684 685 687 688 689 690 691 692 693 694 695 696 697 698 699 700 701 702 703 704 705 706 707 708 709 710 711 712 713 714 715 716 717 718 719 720 721 722 723 724 725 726 728 729 730 731 732 733 734 735 736 737 738 739 740 741 742 743 744 745 746 747 748 749 -to_recomp 1 -font_mode present
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 5 -my_seeds 500 501 502 503 504 -to_recomp 1 -font_mode present
+	
+	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present
 
 	################################ many 'e' and phi1 ############################
 	### swap ###
@@ -2825,46 +3147,21 @@ def main():
 	
 	### long_swap ###
 	
-
-	################################ Ising ############################
-	# python run.py -mode BF_AB_L -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 35000000 -N_runs 5 -h 0.15 -interface_set_mode spaced -L 100 71 56 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-
-	# python run.py -mode FFS_AB -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.15 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-	# python run.py -mode FFS_AB_L -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.15 -interface_set_mode spaced -L 32 24 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-	# python run.py -mode FFS_AB_L -N_states_FFS 100 -N_init_states_FFS 200 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 3 -h 0.15 -interface_set_mode spaced -L 100 78 56 42 32 24 18 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-	# python run.py -mode FFS_AB_L -N_states_FFS 100 -N_init_states_FFS 500 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 5 -h 0.13 -interface_set_mode spaced -L 100 78 56 42 32 24 18 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-	# python run.py -mode FFS_AB_L -N_states_FFS 500 -N_init_states_FFS 1000 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 15 -h 0.15 -interface_set_mode spaced -L 24 31 39 50 56 63 71 79 89 100 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-	#
-	# python run.py -mode FFS_AB_L -N_states_FFS 500 -N_init_states_FFS 1000 -N_OP_interfaces 15 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.15 -interface_set_mode spaced -L 100 64 48 32 -to_get_timeevol 0 -OP_max 210 -Temp 1.5
-	###########
-	# python run.py -mode FFS_AB_h -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.13 0.12 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 -Temp 1.5
-	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.13 0.12 0.11 0.1 0.09 0.08 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 250 300 350 400 500 -Temp 1.5
-	#
-	# python run.py -mode FFS_AB_mu -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.13 0.12 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 250 -J 0.6666666667 -OP_interfaces_set_IDs hJ0.13_2 hJ0.12_2
-	# python run.py -mode FFS_AB_mu -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.13 0.12 0.11 0.1 0.09 0.08 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 250 300 350 400 500 -J 0.6666666667 -OP_interfaces_set_IDs hJ0.13_2 hJ0.12_2 hJ0.11_2 hJ0.10_2 hJ0.09_2 hJ0.08_2
-
-	###########
-	# python run.py -mode FFS_AB_h -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.09 0.08 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 200 -Temp 1.9
-	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.09 0.08 0.07 0.06 0.05 0.04 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 300 350 400 450 500 600 -Temp 1.9
-	###########
-	# python run.py -mode FFS_AB_h -N_states_FFS 50 -N_init_states_FFS 100 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 2 -h 0.06 0.04 0.02 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 400 500 600 -Temp 2.0
-	# python run.py -mode FFS_AB_h -N_states_FFS 400 -N_init_states_FFS 800 -N_OP_interfaces 9 -interface_mode CS -OP_0 24 -Nt 1500000 -N_runs 20 -h 0.09 0.08 0.07 0.06 0.05 0.04 -interface_set_mode spaced -L 32 -to_get_timeevol 0 -OP_max 300 350 400 450 500 600 -Temp 2.0
-	#
-	# TODO: remove outdated inputs
-	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier], _ = \
-		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier'], \
-					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],           [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1]], \
-					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],        ['Nffs_based'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],      ['3'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5']])
-
+	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier,     Temp_s,     phi1_s,      phi2,     OP0_constr], _ = \
+		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier',  '-Temp_s',  '-phi1_s',   '-phi2',  '-OP0_constr'], \
+					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],           [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1],       None,       None,    [0, 1],         [0, 1]], \
+					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],        ['Nffs_based'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],      ['3'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5'],    ['1.0'],  ['0.015'],  ['0.01'],          ['0']])
+	
 	Ls = np.array([int(l) for l in L], dtype=int)
 	N_L = len(Ls)
 	L = Ls[0]
 	L2 = L**2
-
-	MC_move_mode = move_modes[MC_move_mode[0]]
+	
+	MC_move_mode_name = MC_move_mode[0]
+	MC_move_mode = move_modes[MC_move_mode_name]
 	init_composition = np.array([float(ic) for ic in init_composition])
 	swap_type_move = (MC_move_mode in [move_modes['swap'], move_modes['long_swap']])
-
+	
 	# ================ interaction setup ==============
 	e_inputs = ~np.array([J[0] is None, chi[0] is None, potential_filenames[0] is None, e[0] is None])
 	e_inputs_strs = ['J', 'chi', 'file', 'e']
@@ -2876,7 +3173,7 @@ def main():
 	elif(J[0] is not None):
 		assert(h[0] is not None), 'ERROR: J is given but no "h". Aborting'
 		N_param_points = len(h)
-
+		
 		e_new[1, 1] = -4 * float(J[0])
 	elif(chi[0] is not None):
 		kk = 0
@@ -2890,12 +3187,12 @@ def main():
 		e_new[1,2] = float(e[1])
 		e_new[2,2] = float(e[2])
 		e_new[2,1] = e_new[1,2]
-
+	
 	e = np.copy(e_new)
 	for i in range(N_species):
 		for j in range(N_species):
 			e[i, j] = (e_new[i, j] + e_new[0,0] - e_new[0, i] - e_new[0, j])
-
+	
 	if(MC_move_mode in [move_modes['swap'], move_modes['long_swap']]):
 		N_param_points = 1
 		mu = np.zeros((N_param_points, N_species))
@@ -2916,26 +3213,27 @@ def main():
 			N_param_points = len(mu_chi) // (N_species - 1)
 			assert(N_param_points * (N_species - 1) == len(mu_chi)), 'ERROR: number of mu_chi-s given is not divisible by %d. Aborting' % (N_species - 1)
 			mu = np.array([([e[0, 0] * z_neib / 2] + [(float(mu_chi[i * (N_species - 1) + j]) - e[j+1, j+1] * z_neib / 2) for j in range(N_species - 1)]) for i in range(N_param_points)])   # N x N_species; mu[:, 0] = 0
-
+	
 	mu_orig = np.copy(mu)
 	for i in range(N_species):
 		mu[:, i] = (mu_orig[:, i] - mu_orig[:, 0] + z_neib * (e[0, i] - e[0,0]))
-
+	
 	Temp = float(Temp[0])
 	e /= Temp
 	mu /= Temp
-
+	
 	N_mu = mu.shape[0]
 	N_param_points = N_L if('L' in mode) else (N_mu if('mu' in mode) else 1)
 	if(OP_interfaces_set_IDs[0] is not None):
 		if((N_param_points > 1) and (len(OP_interfaces_set_IDs) == 1)):
 			OP_interfaces_set_IDs = [OP_interfaces_set_IDs[0]] * N_param_points
-
+	
 	# ================ other params ==============
 	set_OP_defaults(L2)
-
+	
 	my_seeds = np.array(my_seeds, dtype=int)
 	my_seed = my_seeds[0]
+	np.random.seed(my_seed)
 	to_recomp = int(to_recomp[0])
 	#mode = mode[0]
 	to_get_timeevol = (to_get_timeevol[0] in my.yes_flags)
@@ -2965,12 +3263,16 @@ def main():
 	to_animate = (to_animate[0] in my.yes_flags)
 	my.font_mode = font_mode[0]
 	N_fourier = int(N_fourier[0])
-
+	Temp_s = np.array([float(xx) for xx in Temp_s])
+	phi1_s = np.array([float(xx) for xx in phi1_s])
+	phi2 = float(phi2[0])
+	OP0_constr = int(OP0_constr[0])
+	
 	assert(interface_mode == 'CS'), 'ERROR: only CS (not M) mode is supported'
-
+	
 	OP_min_BF = OP_min_default[interface_mode] if(OP_min_BF[0] is None) else int(OP_min_BF[0])
 	OP_max_BF = OP_max_default[interface_mode] if(OP_max_BF[0] is None) else int(OP_max_BF[0])
-
+	
 	if(OP_interfaces_set_IDs[0] is None):
 		if(OP_0[0] is None):
 			OP_0[0] = OP_min_BF
@@ -2983,7 +3285,7 @@ def main():
 			OP_min_BF = OP_0[0]
 		if(OP_max_BF == 0):
 			OP_max_BF = OP_max[0]
-
+	
 	OP_0 = np.array(([int(OP_0[0])] * N_param_points) if(len(OP_0) == 1) else [int(x) for x in OP_0], dtype=int)
 	OP_max = np.array(([int(OP_max[0])] * N_param_points) if(len(OP_max) == 1) else [int(x) for x in OP_max], dtype=int)
 	OP_0_handy = np.copy(OP_0)
@@ -2991,54 +3293,54 @@ def main():
 	if(interface_mode == 'M'):
 		OP_0 = OP_0 - L2
 		OP_max = OP_max - L2
-
+	
 	assert(interface_mode == 'CS'), 'ERROR: interface_mode==M is temporary not supported'
-
+	
 	print('Ls=%s, mode=%s, Nt=%d, N_runs=%d, init_gen_mode=%d, OP_0=%s, OP_max=%s, N_spins_up_init=%s, OP_min_BF=%d, OP_max_BF=%d, to_get_timeevol=%r, verbose=%d, my_seed=%d, to_recomp=%d, N_param_points=%d\ne: %s\nmu: %s\n' % \
 		(str(Ls), mode, Nt, N_runs, init_gen_mode, str(OP_0), str(OP_max), str(N_spins_up_init), OP_min_BF, OP_max_BF, to_get_timeevol, verbose, my_seed, to_recomp, N_param_points, str(e), str(mu)))
-
+	
 	lattice_gas.init_rand(my_seed)
 	lattice_gas.set_verbose(verbose)
-
+	
 	#input(str(lattice_gas.get_seed()))
-
+	
 	dE_avg = ((np.sqrt(abs(e[1,1])) + np.sqrt(abs(e[2,2]))) / 2)**2
 	Nt, N_states_FFS = \
 		tuple([(int(-n * np.exp(3 - dE_avg) + 1) if(n < 0) else n) for n in [Nt, N_states_FFS]])
-
+	
 	BC_cluster_size = L2 / np.pi
-
+	
 	if(('compare' in mode) or ('many' in mode)):
 		N_k_bins=int(np.round(np.sqrt(N_runs) / 2) + 1)
-
+	
 	if(stab_step < 0):
 		stab_step = int(min(L2, Nt / 2) * (-stab_step))
 	if(timeevol_stride < 0):
 		timeevol_stride = np.int_(- Nt / timeevol_stride)
 	#print(Nt, timeevol_stride)
 	#input(str(timeevol_stride))
-
+	
 	if('2sides' in mode):
 		target_states0_all = load_Q_target_phase_data('bc').T
 		target_states1_all = load_Q_target_phase_data('nc').T
-
+		
 		# x0 = [0.8, 3.12, 5.2]
 		# (id0, id1) : T, m1/T, m2/T
 		# (  0,  0) :  [0.77928023, 3.18452509, 5.16587932]
 		# ( 19, 19) :  [0.81041512, 3.02352679, 5.20396601]
-
+		
 		target_states0 = np.array([target_states0_all[i, :] for i in target_phase_id0])
 		target_states1 = np.array([target_states1_all[i, :] for i in target_phase_id1])
-
+	
 	if('FFS' in mode):
 		N_OP_interfaces = int(N_OP_interfaces[0]) if(OP_interfaces_set_IDs is None) else len(table_data.OP_interfaces_table[OP_interfaces_set_IDs[0]])
-
+		
 		assert(not(('AB' not in mode) and (interface_mode == 'CS'))), 'ERROR: BA transitions is not supported for CS'
 		OP_left = OP_min_default[interface_mode]
 		OP_right = OP_max_default[interface_mode] - 1
-
+		
 		UIDs = []
-
+		
 		OP_interfaces_AB = []
 		OP_match_BF_A_to = []
 		OP_sample_BF_A_to = []
@@ -3296,7 +3598,24 @@ def main():
 						N_init_states_AB, OP_interfaces_AB, init_gen_mode=init_gen_mode, \
 						stab_step=stab_step, to_recomp=to_recomp, \
 						to_plot=True, to_save_npy=True, seeds=my_seeds)
-
+	
+	elif('Tphi1' in mode):
+		get_Tphi1_dependence(Temp_s, phi1_s, phi2, \
+							MC_move_mode_name, Ls[0], e, interface_mode, \
+							OP_interfaces=OP_interfaces_AB[0], \
+							init_gen_mode=init_gen_mode, \
+							OP_sample_BF_to=OP_sample_BF_A_to[0], \
+							OP_match_BF_to=OP_match_BF_A_to[0], \
+							timeevol_stride=timeevol_stride if(to_get_timeevol) else None, \
+							to_get_timeevol=to_get_timeevol, \
+							to_save_npz=to_save_npz, \
+							to_recomp=to_recomp, \
+							N_fourier=N_fourier, \
+							OP0_constraint=OP0_constr, \
+							to_plot=True, \
+							seeds_range=np.arange(1000, 1200))
+					
+	
 	elif('L' in mode):
 		ln_k_AB = np.empty(N_L)
 		d_ln_k_AB = np.empty(N_L)
