@@ -501,14 +501,6 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	Temp = 4 / e[1, 1]
 	swap_type_move = (MC_move_mode in [move_modes['swap'], move_modes['long_swap']])
 
-	# npz_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
-	# npz_basename = 'L' + str(L) + '_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					# (('_muT' + my.join_lbls(mu[1:], '_')) if(init_composition is None) \
-						# else ('_phi' + my.join_lbls(init_composition[1:], '_'))) + \
-					# '_stride' + str(stride) + \
-					# '_OP' + str(OP_A) + '_' + str(OP_B) + '_stab' + str(stab_step) + \
-					# '_Nstates' + str(Nt_states) + '_ID' + str(lattice_gas.get_seed())
-
 	print('Nt:', Nt)
 	#print('N_init_guess: ', np.exp(np.mean(np.log(Nt))) / Nt)
 	print('flux0 = (%s) 1/step' % (my.errorbar_str(flux0, d_flux0)))
@@ -1025,12 +1017,6 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			my.add_legend(fig_F, ax_F)
 
 	if(to_plot_hists):
-		# fig_PB_log, ax_PB_log, _ = my.get_fig(y_lbl, r'$P_B(' + x_lbl + ') = P(i|0)$', title=r'$P_B(' + x_lbl + ')$; ' + ThL_lbl, yscl='log')
-		# fig_PB, ax_PB, _ = my.get_fig(y_lbl, r'$P_B(' + x_lbl + ') = P(i|0)$', title=r'$P_B(' + x_lbl + ')$; ' + ThL_lbl)
-		# fig_PB_sgm, ax_PB_sgm, _ = my.get_fig(y_lbl, r'$-\ln(1/P_B - 1)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
-		# fig_PB_erfinv, ax_PB_erfinv, _ = my.get_fig(title[interface_mode], r'$erf^{-1}(2 P_B - 1)$', title=r'$P_B(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
-
-		#mark_PB_plot(ax_PB, ax_PB_log, ax_PB_sgm, OP_interfaces_scaled, P_B[:-1], P_B_sigmoid, interface_mode)
 		plot_PB_AB(ThL_lbl, x_lbl, y_lbl, \
 					interface_mode, OP_interfaces_scaled[:-1], P_B[:-1], d_PB=d_P_B[:-1], \
 					PB_sgm=P_B_sigmoid, d_PB_sgm=d_P_B_sigmoid, \
@@ -1040,15 +1026,10 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 					linfit_erfinv=linfit_erfinv, linfit_erfinv_inds=linfit_erfinv_inds, \
 					OP0_erfinv=OP0_erfinv, \
 					clr=my.get_my_color(1))
-
-		# my.add_legend(fig_PB_log, ax_PB_log)
-		# my.add_legend(fig_PB_erfinv, ax_PB_erfinv)
-		# my.add_legend(fig_PB, ax_PB)
-		# my.add_legend(fig_PB_sgm, ax_PB_sgm)
-
+		
 		fig_fl, ax_fl, _ = my.get_fig(y_lbl, r'$1 - \ln[P_B(' + x_lbl + ')] / \ln[P_B(0)] = f(\lambda_i)$', title=r'$f(\lambda_i)$; ' + ThL_lbl)
 		fig_fl_i, ax_fl_i, _ = my.get_fig(r'$index(' + x_lbl + '_i)$', r'$1 - \ln[P_B(' + x_lbl + '_i)] / \ln[P_B(0)] = f(\lambda_i)$', title=r'$f(\lambda_i)$; ' + ThL_lbl)
-
+		
 		m_fine = np.linspace(min(OP_interfaces_scaled), max(OP_interfaces_scaled), int((max(OP_interfaces_scaled) - min(OP_interfaces_scaled)) / min(OP_interfaces_scaled[1:] - OP_interfaces_scaled[:-1]) * 10))
 		ax_fl.errorbar(OP_interfaces_scaled, OP_optimize_f_interp_vals, yerr=d_OP_optimize_f_interp_vals, fmt='.', label=r'$f(\lambda)_i$')
 		ax_fl_i.errorbar(np.arange(N_OP_interfaces), OP_optimize_f_interp_vals, yerr=d_OP_optimize_f_interp_vals, fmt='.', label=r'$f(\lambda)_i$')
@@ -2505,7 +2486,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			for j in range(N_OP_interfaces_AB):
 				#rho0_fit_params[0, j] = state_Rdens_centers_new[np.argmin(np.abs(state_centered_Rdens_total[j][sgmfit_species_id] - 1/2))]
 				rho0_fit_params[0, j] = state_centered_Rdens_total[j][sgmfit_species_id][0]   # argmin(r)
-				rho0_linsgm_inds = (state_centered_Rdens_total[j][sgmfit_species_id] > 0.1) & (state_centered_Rdens_total[j][sgmfit_species_id] < 0.9)
+				rho0_linsgm_inds = (state_centered_Rdens_total[j][sgmfit_species_id] > 0.1) & (state_centered_Rdens_total[j][sgmfit_species_id] < 0.9) & (d_state_centered_Rdens_total[j][sgmfit_species_id] > 0)
+				assert(np.any(rho0_linsgm_inds)), 'ERROR: no points suited for sigmoidal fit of specie-N%d' % (sgmfit_species_id)
 				rho0_linsgmfit = np.polyfit(state_Rdens_centers_new[rho0_linsgm_inds], \
 											-np.log(init_composition[sgmfit_species_id]/state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds] - 1), \
 											1, \
@@ -2516,7 +2498,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				rho0_fit_params[2, j] = -rho0_linsgmfit[1] * rho0_fit_params[1, j]
 				
 				state_centered_Rdens_total_okFitInds = (d_state_centered_Rdens_total[j][sgmfit_species_id] > 0)
-				rho0_fit_optim_res = scipy.optimize.minimize(lambda prm: np.sum(((rho0_fit_fnc(state_Rdens_centers_new[state_centered_Rdens_total_okFitInds], prm) - state_centered_Rdens_total[j][sgmfit_species_id][state_centered_Rdens_total_okFitInds]) / d_state_centered_Rdens_total[j][sgmfit_species_id][state_centered_Rdens_total_okFitInds])**2), rho0_fit_params[:, j])
+				rho0_fit_optim_res = scipy.optimize.minimize(lambda prm: np.sum(((rho0_fit_fnc(state_Rdens_centers_new[state_centered_Rdens_total_okFitInds], prm) - state_centered_Rdens_total[j][sgmfit_species_id][state_centered_Rdens_total_okFitInds]) / d_state_centered_Rdens_total[j][sgmfit_species_id][state_centered_Rdens_total_okFitInds])**2), \
+																rho0_fit_params[:, j])
 				rho0_fit_params[:, j] = rho0_fit_optim_res.x
 				d_rho0_fit_params[:, j] = np.sqrt(rho0_fit_optim_res.hess_inv.diagonal())
 
@@ -2847,15 +2830,6 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 		for i_phi1, phi1 in enumerate(phi1_s):
 			n_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][Temp][phi1]
 			if(n_FFS > 0):
-				# templ = '/scratch/gpfs/yp1065/Izing/npzs/MCmoves%d_L%d_eT%s_%s_%s_phi%s_%s_NinitStates%d_%d_OPs%d_%d_%d_stab*_OPbf%d_%d_stride%d_initGenMode%d_timeData%s_Nfourier%d_ID%s_FFStraj.npz' % \
-						# (lattice_gas.get_move_modes()[MC_move_mode_name], L, \
-						# my.f2s(e[1,1] / Temp), my.f2s(e[1,2] / Temp), my.f2s(e[2,2] / Temp), \
-						# my.f2s(phi1), my.f2s(phi2), 2*n_FFS, n_FFS, \
-						# OP_interfaces[0], OP_interfaces[-1], len(OP_interfaces), \
-						# OP_sample_BF_A_to, OP_match_BF_A_to, timeevol_stride, \
-						# init_gen_mode, str(bool(to_get_timeevol)), N_fourier, \
-						# '%d')
-				
 				e_use = e / Temp
 				mu = np.array([0] * N_species)
 				init_composition = np.array([1 - phi1 - phi2, phi1, phi2])
@@ -2875,8 +2849,8 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 									timeevol_stride, init_gen_mode, \
 									bool(to_get_timeevol), \
 									N_fourier, '%d')
-				templ = npz_path + templ + '_' + npz_suff + '.npz'
-				#templ = npz_path + templ_old[-1] + '_' + npz_suff + '.npz'   # to 'mv' old files to new format
+				#templ = npz_path + templ + '_' + npz_suff + '.npz'
+				templ = npz_path + templ_old[-1] + '_' + npz_suff + '.npz'   # to 'mv' old files to new format
 				#print(templ)
 				
 				found_IDs, found_filepaths, _ = \
@@ -2923,7 +2897,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 		ln_flux0_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_flux0, dz=d_ln_flux0, xord=fit_ord, yord=fit_ord)
 		
 		if(OP0_constraint > 0):
-			OP0consr_Tphi1 = find_optim_manifold(lambda x: np.abs(OP0_fitfnc(x[0], x[1]) - OP0_constraint), \
+			OP0consr_Tphi1 = my.find_optim_manifold(lambda x: np.abs(OP0_fitfnc(x[0], x[1]) - OP0_constraint), \
 								np.array([[min(Temp_s), max(Temp_s)], [min(phi1_s), max(phi1_s)], [min(OP0_arr), max(OP0_arr)]]).T, \
 								trial_points=N_points_OP0constr)
 		else:
@@ -2941,113 +2915,9 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 					ln_flux0, d_ln_flux0, '$\ln(\Phi_A)$', ln_flux0_fitfnc, \
 					OP0_constraint=OP0_constraint, OP0consr_Tphi1=OP0consr_Tphi1)
 			
-			#if((OP0_constraint > 0) and (OP0consr_Tphi1.shape[0] > 0)):
-				#ax_OP0.plot3D(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1], OP0_fitfnc(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1]), '.', label='$N^* = %d$' % OP0_constraint)
-				# ax_ln_k.plot3D(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1], ln_k_fitfnc(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1]), '.', label='$N^* = %d$' % OP0_constraint)
-				# ax_ln_flux0.plot3D(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1], ln_flux0_fitfnc(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1]), '.', label='$N^* = %d$' % OP0_constraint)
-			
 			my.add_legend(fig_OP0, ax_OP0)
 			my.add_legend(fig_ln_k, ax_ln_k)
 			my.add_legend(fig_ln_flux0, ax_ln_flux0)
-
-def find_optim_manifold(fnc, ranges, trial_points=1000, tol=-1e-5, thin_eps=1e-2):  # , to_sort=True
-	'''
-		fnc: function R^D -> R
-		ranges: array 2x(D+1); D+1 because it also has the range for fnc_values at ranges[:, -1]
-		trial_points: 
-			int: trial_points will be uniform random points in 'ranges' cube
-			arrayNxD: these points will be used
-		tol: points with f < tol will be added to the resulting set
-		thin_eps: if > 0, resulting points will be thinned out to have all pdist > thin_eps
-		
-		return: set of points where fnc < tol
-		
-	'''
-	
-	dim = ranges.shape[1] - 1  # dim of the argument space
-	
-	if(isinstance(trial_points, int)):
-		N_trial_points = trial_points
-		trial_points = np.random.random((N_trial_points, dim))
-	
-	L = ranges[1, :] - ranges[0, :]
-	if(tol < 0):
-		tol *= -L[-1]
-	for i in range(dim):
-		trial_points[:, i] = trial_points[:, i] * L[i] + ranges[0, i]
-	
-	def subst_x1d(x, x_1d, d):
-		x_local = np.copy(x)
-		x_local[d] = x_1d
-		return x_local
-	
-	optim_points = []
-	for i_p in range(N_trial_points):
-		for i_dim in range(dim):
-			trial_point = trial_points[i_p, :]
-			fnc_opt = lambda x_1d: fnc(subst_x1d(trial_point, x_1d, i_dim))
-			
-			opt_res_1 = scipy.optimize.minimize_scalar(fnc_opt, \
-						bounds=(ranges[0, i_dim], trial_points[i_p, i_dim]), \
-						method='bounded', \
-						options={'xatol': tol})
-			opt_res_2 = scipy.optimize.minimize_scalar(fnc_opt, \
-						bounds=(trial_points[i_p, i_dim], ranges[1, i_dim]), \
-						method='bounded', \
-						options={'xatol': tol})
-			
-			#print(dim, ranges[0, i_dim], ranges[1, i_dim], L)
-			#print(opt_res.x, opt_res.fun)
-			#print(trial_points[i_p, :], '->', subst_x1d(trial_points[i_p, :], opt_res.x, i_dim))
-			#input(str((i_p, i_dim)))
-			for opt_res in [opt_res_1, opt_res_2]:
-				if(opt_res.fun < tol * 50):
-					optim_points.append(subst_x1d(trial_points[i_p, :], opt_res.x, i_dim))
-	
-	optim_points = np.array(optim_points)   # MxD
-	
-	if(thin_eps > 0):
-		optim_points = thin_points(optim_points, thin_eps**2, ranges=L[:-1])
-	
-	#if(to_sort):
-	#	
-	
-	return optim_points
-
-#def neib_sort_inds()
-
-def thin_points(points, thin_eps2, ranges=None):
-	'''
-		points: array NxD
-		ranges: array 1xD
-		thin_eps2: all dists will be > sqrt(thin_eps2)
-		
-		return: thinned set of points where all dists are > sqrt(thin_eps2)
-	'''
-	
-	if(isinstance(ranges, str)):
-		if(ranges == 'std'):
-			ranges = np.std(points, axis=0)
-	
-	if(ranges is not None):
-		points = points / np.tile(ranges, (points.shape[0], 1))
-	
-	i_p = 0
-	while(1):
-		#dists2 = np.sum(((points[i_p+1 :, :] - np.tile(points[i_p, :], (points.shape[0] - i_p-1, 1))) / np.tile(ranges, (points.shape[0] - i_p-1, 1)))**2, axis=1)
-		dists2 = np.sum((points[i_p+1 :, :] - np.tile(points[i_p, :], (points.shape[0] - i_p-1, 1)))**2, axis=1)
-		to_keep_inds = (np.ones(points.shape[0]) > 0)
-		to_keep_inds[i_p+1 : ] = (dists2 > thin_eps2)
-		points = points[to_keep_inds, :]
-		if(i_p < points.shape[0] - 1):
-			i_p += 1
-		else:
-			break
-	
-	if(ranges is not None):
-		points = points * np.tile(ranges, (points.shape[0], 1))
-	
-	return points
 
 def plot_Tphi1_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$', \
 				N_draw_points=1000, draw_only_inside_convexhull=True, \
@@ -3197,31 +3067,14 @@ def main():
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 5 -my_seeds 500 501 502 503 504 -to_recomp 1 -font_mode present
 	
 	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present
-
-	################################ many 'e' and phi1 ############################
-	### swap ###
-	# python run.py -mode FFS_AB_many -init_composition 0.976 0.014 0.01 -Temp 0.8 -N_states_FFS 21 -N_init_states_FFS 42 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 65 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1059 1061 1063 1065 1066 1068 1071 1072
-	# python run.py -mode FFS_AB_many -init_composition 0.9755 0.0145 0.01 -Temp 0.8 -N_states_FFS 19 -N_init_states_FFS 38 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 75 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1059 1060 1061 1062 1063 1064 1065 1066 1067 1068 1069 1070 1071 1072 1073 1074 1075
-	# python run.py -mode FFS_AB_many -init_composition 0.975 0.015 0.01 -Temp 0.8 -N_states_FFS 19 -N_init_states_FFS 38 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 73 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1059 1060 1061 1062 1063 1065 1066 1067 1068 1070 1071 1072 1073 1074 1075
-	# python run.py -mode FFS_AB_many -init_composition 0.9745 0.0155 0.01 -Temp 0.8 -N_states_FFS 24 -N_init_states_FFS 48 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 70 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1041 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1059 1060 1061 1062 1063 1065 1068 1070 1071 1072 1073
-	# python run.py -mode FFS_AB_many -init_composition 0.974 0.016 0.01 -Temp 0.8 -N_states_FFS 22 -N_init_states_FFS 22 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 73 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1041 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1060 1061 1062 1063 1064 1065 1066 1067 1070 1071 1072 1073 1074 1075
-
-	# python run.py -mode FFS_AB_many -init_composition 0.976 0.014 0.01 -Temp 0.9 -N_states_FFS 23 -N_init_states_FFS 46 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 74 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1059 1060 1061 1062 1063 1064 1065 1066 1068 1069 1070 1071 1072 1073 1074 1075
-	# python run.py -mode FFS_AB_many -init_composition 0.9755 0.0145 0.01 -Temp 0.9 -N_states_FFS 25 -N_init_states_FFS 50 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 69 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1058 1060 1061 1062 1063 1065 1066 1069 1071 1072 1073 1074 1075
-	# python run.py -mode FFS_AB_many -init_composition 0.975 0.015 0.01 -Temp 0.9 -N_states_FFS 27 -N_init_states_FFS 54 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 66 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1042 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1059 1062 1063 1065 1066 1067 1068 1070 1071
-	# python run.py -mode FFS_AB_many -init_composition 0.9745 0.0155 0.01 -Temp 0.9 -N_states_FFS 28 -N_init_states_FFS 56 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 71 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1041 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1059 1060 1061 1063 1065 1066 1067 1071 1072 1073 1074 1075
-	# python run.py -mode FFS_AB_many -init_composition 0.974 0.016 0.01 -Temp 0.9 -N_states_FFS 31 -N_init_states_FFS 62 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 72 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1041 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1057 1058 1060 1061 1062 1063 1065 1066 1068 1069 1070 1071 1072 1073 1075
-
-	# python run.py -mode FFS_AB_many -init_composition 0.975 0.015 0.01 -Temp 1.0 -N_states_FFS 33 -N_init_states_FFS 66 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 44 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1037 1038 1039 1040 1041 1042 1043 1044
-	# python run.py -mode FFS_AB_many -init_composition 0.9745 0.0155 0.01 -Temp 1.0 -N_states_FFS 19 -N_init_states_FFS 38 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 66 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1041 1042 1043 1044 1045 1047 1048 1049 1050 1051 1052 1053 1054 1055 1057 1059 1060 1062 1063 1069 1070 1071 1073 1074 1075
-	# python run.py -mode FFS_AB_many -init_composition 0.974 0.016 0.01 -Temp 1.0 -N_states_FFS 21 -N_init_states_FFS 42 -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -N_runs 68 -my_seeds 1000 1001 1002 1003 1004 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 1025 1026 1027 1028 1029 1030 1031 1032 1033 1034 1035 1036 1037 1038 1039 1040 1041 1042 1043 1044 1045 1046 1047 1048 1049 1050 1051 1052 1053 1054 1055 1056 1059 1061 1062 1063 1064 1066 1067 1069 1072 1073 1075
+	# python run.py -mode FFS_AB_many -init_composition 0.9745 0.0155 0.01 -Temp 1.0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -my_seeds FFS_auto
 	
-	### long_swap ###
+	# TODO: run failed IDs with longer times
 	
 	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier,     Temp_s,     phi1_s,      phi2,     OP0_constr], _ = \
 		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier',  '-Temp_s',  '-phi1_s',   '-phi2',  '-OP0_constr'], \
 					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],           [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1],       None,       None,    [0, 1],         [0, 1]], \
-					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],        ['Nffs_based'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],      ['3'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5'],    ['1.0'],  ['0.015'],  ['0.01'],          ['0']])
+					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],          ['FFS_auto'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],     ['-1'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5'],    ['1.0'],  ['0.015'],  ['0.01'],          ['0']])
 	
 	Ls = np.array([int(l) for l in L], dtype=int)
 	N_L = len(Ls)
@@ -3302,16 +3155,14 @@ def main():
 	# ================ other params ==============
 	set_OP_defaults(L2)
 	
-	my_seeds = np.array(my_seeds, dtype=int)
-	my_seed = my_seeds[0]
-	np.random.seed(my_seed)
 	to_recomp = int(to_recomp[0])
 	#mode = mode[0]
 	to_get_timeevol = (to_get_timeevol[0] in my.yes_flags)
 	verbose = int(verbose[0])
 	Nt = int(Nt[0])
-	N_states_FFS = int(N_states_FFS[0])
-	N_init_states_FFS = (2 * N_states_FFS) if(N_init_states_FFS[0] == 'Nffs_based') else int(N_init_states_FFS[0])
+	# TODO: change phi1-key float -> strings
+	N_states_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][Temp][init_composition[1]] if(N_states_FFS[0] == 'FFS_auto') else int(N_states_FFS[0])
+	N_init_states_FFS = (2 * N_states_FFS) if(N_init_states_FFS[0] == 'FFS_auto') else int(N_init_states_FFS[0])
 	N_runs = int(N_runs[0])
 	init_gen_mode = int(init_gen_mode[0])
 	interface_mode = interface_mode[0]
@@ -3367,22 +3218,13 @@ def main():
 	
 	assert(interface_mode == 'CS'), 'ERROR: interface_mode==M is temporary not supported'
 	
-	print('Ls=%s, mode=%s, Nt=%d, N_runs=%d, init_gen_mode=%d, OP_0=%s, OP_max=%s, N_spins_up_init=%s, OP_min_BF=%d, OP_max_BF=%d, to_get_timeevol=%r, verbose=%d, my_seed=%d, to_recomp=%d, N_param_points=%d\ne: %s\nmu: %s\n' % \
-		(str(Ls), mode, Nt, N_runs, init_gen_mode, str(OP_0), str(OP_max), str(N_spins_up_init), OP_min_BF, OP_max_BF, to_get_timeevol, verbose, my_seed, to_recomp, N_param_points, str(e), str(mu)))
-	
-	lattice_gas.init_rand(my_seed)
 	lattice_gas.set_verbose(verbose)
-	
-	#input(str(lattice_gas.get_seed()))
 	
 	dE_avg = ((np.sqrt(abs(e[1,1])) + np.sqrt(abs(e[2,2]))) / 2)**2
 	Nt, N_states_FFS = \
 		tuple([(int(-n * np.exp(3 - dE_avg) + 1) if(n < 0) else n) for n in [Nt, N_states_FFS]])
 	
 	BC_cluster_size = L2 / np.pi
-	
-	if(('compare' in mode) or ('many' in mode)):
-		N_k_bins=int(np.round(np.sqrt(N_runs) / 2) + 1)
 	
 	if(stab_step < 0):
 		stab_step = int(min(L2, Nt / 2) * (-stab_step))
@@ -3425,29 +3267,57 @@ def main():
 				else:
 					UID = OP_interfaces_set_IDs[i]
 				UIDs.append(UID)
-
+				
 				if(UIDs[i] in table_data.OP_interfaces_table):
 					OP_interfaces_AB.append(table_data.OP_interfaces_table[UIDs[i]])
 					assert(N_OP_interfaces == len(OP_interfaces_AB[i])), 'ERROR: OP_interfaces number of elements does not match N_OP_interfaces'
 				else:
 					assert(input('WARNING: no custom interfaces found for %s, using equly-spaced interfaces, proceed? (y/N)\n' % (str(UIDs[i]))) in my.yes_flags), 'exiting'
-
+				
 				if(interface_mode == 'M'):
 					OP_interfaces_AB[i] = OP_interfaces_AB[i] - L_local**2
 			else:
 				# =========== if the necessary set in not in the table - this will work and nothing will erase its results ========
 				OP_interfaces_AB.append(OP_0[i] + np.round(np.arange(abs(N_OP_interfaces)) * (OP_max[i] - OP_0[i]) / (abs(N_OP_interfaces) - 1) / OP_step[interface_mode]) * OP_step[interface_mode])
 					# this gives Ms such that there are always pairs +-M[i], so flipping this does not move the intefraces, which is (is it?) good for backwords FFS (B->A)
-
+			
 			OP_match_BF_A_to.append(OP_interfaces_AB[i][1])
 			OP_sample_BF_A_to.append(OP_interfaces_AB[i][2])
-
+		
 		N_init_states_AB = np.ones(N_OP_interfaces, dtype=np.intc) * N_states_FFS
 		N_init_states_AB[0] = N_init_states_FFS
-
+		
+		if(my_seeds[0] == 'FFS_auto'):
+			FFS_npz_template_filename, FFS_npz_template_filename_old = \
+					izing.get_FFS_AB_npzTrajBasename(MC_move_mode, L, e, \
+									'_phi' + my.join_lbls(init_composition[1:], '_'), \
+									OP_interfaces_AB[-1], N_init_states_AB, \
+									Ls[0]**2, OP_sample_BF_A_to[0], OP_match_BF_A_to[0], \
+									timeevol_stride, init_gen_mode, \
+									to_get_timeevol, \
+									N_fourier, '%d')
+			FFS_npz_template_filepath = '/scratch/gpfs/yp1065/Izing/npzs/' + FFS_npz_template_filename + '_FFStraj.npz'
+			my_seeds, found_filepaths, _ = \
+				izing.find_finished_runs_npzs(FFS_npz_template_filepath, np.arange(1000, 1200), verbose=True)
+		
 		print('N_states_FFS=%d, N_OP_interfaces=%d, interface_mode=%s\nOP_AB: %s\nN_states_FFS: %s' % \
 			(N_states_FFS, N_OP_interfaces, interface_mode, str(OP_interfaces_AB), str(N_init_states_AB)))
-
+	
+	if(my_seeds not in ['FFS_auto']):
+		my_seeds = np.array(my_seeds, dtype=int)
+	
+	my_seed = my_seeds[0]
+	lattice_gas.init_rand(my_seed)
+	np.random.seed(my_seed)
+	#input(str(lattice_gas.get_seed()))
+	if(N_runs == -1):
+		N_runs = len(my_seeds)
+	if(('compare' in mode) or ('many' in mode)):
+		N_k_bins = int(np.round(np.sqrt(N_runs) / 2) + 1)
+	
+	print('Ls=%s, mode=%s, Nt=%d, N_runs=%d, init_gen_mode=%d, OP_0=%s, OP_max=%s, N_spins_up_init=%s, OP_min_BF=%d, OP_max_BF=%d, to_get_timeevol=%r, verbose=%d, my_seed=%d, to_recomp=%d, N_param_points=%d\ne: %s\nmu: %s\n' % \
+		(str(Ls), mode, Nt, N_runs, init_gen_mode, str(OP_0), str(OP_max), str(N_spins_up_init), OP_min_BF, OP_max_BF, to_get_timeevol, verbose, my_seed, to_recomp, N_param_points, str(e), str(mu)))
+	
 	if(mode == 'BF_1'):
 		proc_T(MC_move_mode, Ls[0], e, mu[0, :], Nt, interface_mode, \
 				OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
