@@ -14,8 +14,8 @@ def main():
 	# python slurm_test.py --MC_mode long_swap --OP_set_name nvt --mode launch_run
 	# python slurm_test.py --MC_mode swap --OP_set_name nvt --mode launch_run
 	
-	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1090 1135 --n_s 33 --L_s 128 --phi1_s 0.015 --Temp_s 1.0 --slurm_time 72:00:00 --to_run 0
-	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1124 1130 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0 --to_run 0
+	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1135 1180 --n_s 33 --L_s 128 --phi1_s 0.015 --Temp_s 1.0 --slurm_time 72:00:00 --to_run 0
+	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1150 1160 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0 --to_run 0
 	
 	# python slurm_test.py --mode search_logs --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1200 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0
 	# python slurm_test.py --mode search_npzs --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1200 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0

@@ -2923,41 +2923,58 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 		ln_flux0_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_flux0, dz=d_ln_flux0, xord=fit_ord, yord=fit_ord)
 		
 		if(OP0_constraint > 0):
-			OP0consr_points = find_optim_manifold(lambda x: np.abs(OP0_fitfnc(x[0], x[1]) - OP0_constraint), \
-								np.array([[min(Temp_s), max(Temp_s)], [min(phi1_s), max(phi1_s)]]).T, \
+			OP0consr_Tphi1 = find_optim_manifold(lambda x: np.abs(OP0_fitfnc(x[0], x[1]) - OP0_constraint), \
+								np.array([[min(Temp_s), max(Temp_s)], [min(phi1_s), max(phi1_s)], [min(OP0_arr), max(OP0_arr)]]).T, \
 								trial_points=N_points_OP0constr)
+		else:
+			OP0consr_Tphi1 = np.zeros((0,1))
 	
 	if(to_plot):
 		if(N_ok_points >= fit_ord**2):
-			fig_OP0, ax_OP0 = plot_data(Temps_arr, phi1s_arr, OP0_arr, d_OP0_arr, '$N^*$', OP0_fitfnc)
-			fig_ln_k, ax_ln_k = plot_data(Temps_arr, phi1s_arr, ln_k_arr, d_ln_k_arr, '$\ln(k)$', ln_k_fitfnc)
-			fig_ln_flux0, ax_ln_flux0 = plot_data(Temps_arr, phi1s_arr, ln_flux0, d_ln_flux0, '$\ln(\Phi_A)$', ln_flux0_fitfnc)
+			fig_OP0, ax_OP0 = plot_Tphi1_data(Temps_arr, phi1s_arr, \
+					OP0_arr, d_OP0_arr, '$N^*$', OP0_fitfnc, \
+					OP0_constraint=OP0_constraint, OP0consr_Tphi1=OP0consr_Tphi1)
+			fig_ln_k, ax_ln_k = plot_Tphi1_data(Temps_arr, phi1s_arr, \
+					ln_k_arr, d_ln_k_arr, '$\ln(k)$', ln_k_fitfnc, \
+					OP0_constraint=OP0_constraint, OP0consr_Tphi1=OP0consr_Tphi1)
+			fig_ln_flux0, ax_ln_flux0 = plot_Tphi1_data(Temps_arr, phi1s_arr, \
+					ln_flux0, d_ln_flux0, '$\ln(\Phi_A)$', ln_flux0_fitfnc, \
+					OP0_constraint=OP0_constraint, OP0consr_Tphi1=OP0consr_Tphi1)
 			
-			if((OP0_constraint > 0) and (OP0consr_points.shape[0] > 0)):
-				ax_OP0.plot3D(OP0consr_points[:, 0], OP0consr_points[:, 1], OP0_fitfnc(OP0consr_points[:, 0], OP0consr_points[:, 1]), '.', label='$N^* = %d$' % OP0_constraint)
+			#if((OP0_constraint > 0) and (OP0consr_Tphi1.shape[0] > 0)):
+				#ax_OP0.plot3D(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1], OP0_fitfnc(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1]), '.', label='$N^* = %d$' % OP0_constraint)
+				# ax_ln_k.plot3D(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1], ln_k_fitfnc(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1]), '.', label='$N^* = %d$' % OP0_constraint)
+				# ax_ln_flux0.plot3D(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1], ln_flux0_fitfnc(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1]), '.', label='$N^* = %d$' % OP0_constraint)
 			
 			my.add_legend(fig_OP0, ax_OP0)
 			my.add_legend(fig_ln_k, ax_ln_k)
 			my.add_legend(fig_ln_flux0, ax_ln_flux0)
 
-def find_optim_manifold(fnc, ranges, trial_points=1000, tol=1e-6, thin_eps=1e-3):
+def find_optim_manifold(fnc, ranges, trial_points=1000, tol=-1e-5, thin_eps=1e-2):  # , to_sort=True
 	'''
 		fnc: function R^D -> R
-		ranges: array 2xD
+		ranges: array 2x(D+1); D+1 because it also has the range for fnc_values at ranges[:, -1]
 		trial_points: 
 			int: trial_points will be uniform random points in 'ranges' cube
 			arrayNxD: these points will be used
 		tol: points with f < tol will be added to the resulting set
+		thin_eps: if > 0, resulting points will be thinned out to have all pdist > thin_eps
+		
+		return: set of points where fnc < tol
+		
 	'''
 	
-	dim = ranges.shape[0]
+	dim = ranges.shape[1] - 1  # dim of the argument space
 	
 	if(isinstance(trial_points, int)):
 		N_trial_points = trial_points
 		trial_points = np.random.random((N_trial_points, dim))
 	
+	L = ranges[1, :] - ranges[0, :]
+	if(tol < 0):
+		tol *= -L[-1]
 	for i in range(dim):
-		trial_points[:, i] = trial_points[:, i] * (ranges[1, i] - ranges[0, i]) + ranges[0, i]
+		trial_points[:, i] = trial_points[:, i] * L[i] + ranges[0, i]
 	
 	def subst_x1d(x, x_1d, d):
 		x_local = np.copy(x)
@@ -2970,27 +2987,72 @@ def find_optim_manifold(fnc, ranges, trial_points=1000, tol=1e-6, thin_eps=1e-3)
 			trial_point = trial_points[i_p, :]
 			fnc_opt = lambda x_1d: fnc(subst_x1d(trial_point, x_1d, i_dim))
 			
-			#opt_res = scipy.optimize.minimize_scalar(fnc_opt, bounds=(ranges[0, i_dim], ranges[1, i_dim]), method='bounded')
-			opt_res = scipy.optimize.minimize_scalar(fnc_opt, \
-						trial_points[i_p, i_dim], \
-						bounds=((ranges[0, i_dim], ranges[1, i_dim])), \
+			opt_res_1 = scipy.optimize.minimize_scalar(fnc_opt, \
+						bounds=(ranges[0, i_dim], trial_points[i_p, i_dim]), \
 						method='bounded', \
-						options={'xatol': tol * (ranges[1, i_dim] - ranges[0, i_dim])})
+						options={'xatol': tol})
+			opt_res_2 = scipy.optimize.minimize_scalar(fnc_opt, \
+						bounds=(trial_points[i_p, i_dim], ranges[1, i_dim]), \
+						method='bounded', \
+						options={'xatol': tol})
 			
+			#print(dim, ranges[0, i_dim], ranges[1, i_dim], L)
 			#print(opt_res.x, opt_res.fun)
 			#print(trial_points[i_p, :], '->', subst_x1d(trial_points[i_p, :], opt_res.x, i_dim))
 			#input(str((i_p, i_dim)))
-			if(opt_res.fun < tol):
-				optim_points.append(subst_x1d(trial_points[i_p, :], opt_res.x, i_dim))
+			for opt_res in [opt_res_1, opt_res_2]:
+				if(opt_res.fun < tol * 50):
+					optim_points.append(subst_x1d(trial_points[i_p, :], opt_res.x, i_dim))
 	
 	optim_points = np.array(optim_points)   # MxD
 	
+	if(thin_eps > 0):
+		optim_points = thin_points(optim_points, thin_eps**2, ranges=L[:-1])
+	
+	#if(to_sort):
+	#	
+	
 	return optim_points
 
+#def neib_sort_inds()
 
-def plot_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$', \
+def thin_points(points, thin_eps2, ranges=None):
+	'''
+		points: array NxD
+		ranges: array 1xD
+		thin_eps2: all dists will be > sqrt(thin_eps2)
+		
+		return: thinned set of points where all dists are > sqrt(thin_eps2)
+	'''
+	
+	if(isinstance(ranges, str)):
+		if(ranges == 'std'):
+			ranges = np.std(points, axis=0)
+	
+	if(ranges is not None):
+		points = points / np.tile(ranges, (points.shape[0], 1))
+	
+	i_p = 0
+	while(1):
+		#dists2 = np.sum(((points[i_p+1 :, :] - np.tile(points[i_p, :], (points.shape[0] - i_p-1, 1))) / np.tile(ranges, (points.shape[0] - i_p-1, 1)))**2, axis=1)
+		dists2 = np.sum((points[i_p+1 :, :] - np.tile(points[i_p, :], (points.shape[0] - i_p-1, 1)))**2, axis=1)
+		to_keep_inds = (np.ones(points.shape[0]) > 0)
+		to_keep_inds[i_p+1 : ] = (dists2 > thin_eps2)
+		points = points[to_keep_inds, :]
+		if(i_p < points.shape[0] - 1):
+			i_p += 1
+		else:
+			break
+	
+	if(ranges is not None):
+		points = points * np.tile(ranges, (points.shape[0], 1))
+	
+	return points
+
+def plot_Tphi1_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$', \
 				N_draw_points=1000, draw_only_inside_convexhull=True, \
-				points_mode='grid', to_add_legend=False):
+				points_mode='grid', to_add_legend=False, \
+				OP0_constraint=0, OP0consr_Tphi1=np.zeros((0,1))):
 	fig, ax, _ = my.get_fig(x_lbl, y_lbl, zlbl=z_lbl, projection='3d')
 	
 	ax.errorbar(x, y, z, zerr=dz, fmt='.', label='data')
@@ -3019,6 +3081,15 @@ def plot_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$', \
 						color=(0,0,0,0), edgecolor='Gray', lw=0.5)
 	surf._facecolors2d = surf._facecolor3d
 	surf._edgecolors2d = surf._edgecolor3d
+	
+	if((OP0_constraint > 0) and (OP0consr_Tphi1.shape[0] > 0)):
+		ax.plot3D(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1], z_fitfnc(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1]), '.', label='$N^* = %d$' % OP0_constraint)
+		
+		fig_vsX, ax_vsX, _ = my.get_fig(x_lbl, z_lbl, title='%s(%s | $N^*=%d$)' % (z_lbl, x_lbl, OP0_constraint))
+		ax_vsX.plot(OP0consr_Tphi1[:, 0], z_fitfnc(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1]), '.')
+		
+		fig_vsY, ax_vsY, _ = my.get_fig(y_lbl, z_lbl, title='%s(%s | $N^*=%d$)' % (z_lbl, y_lbl, OP0_constraint))
+		ax_vsY.plot(OP0consr_Tphi1[:, 1], z_fitfnc(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1]), '.')
 	
 	if(to_add_legend):
 		my.add_legend(fig, ax)
