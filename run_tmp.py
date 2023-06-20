@@ -2481,37 +2481,71 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			rho0_fit_params = np.empty((4, N_OP_interfaces_AB))
 			d_rho0_fit_params = np.empty((4, N_OP_interfaces_AB))
 			sgmfit_species_id = 0
-			def rho_fit_fnc_template(r, prm, rho_bulk, Ncl, verbose=False):
+			def rho_fit_fnc_template(r, prm, rho_bulk, Ncl, capilar_correction_thr=2, verbose=False):
 				rho_inf = (rho_bulk - prm[0] * (Ncl / L2)) / (1 - Ncl / L2)
 				#rho_inf = (rho_bulk) / (1 - Ncl / L2)
 				if(verbose):
 					print('Ncl =', Ncl, '; rho_inf =', rho_inf)
-				return prm[0] + (rho_inf - prm[0]) / (1 + np.exp(-((r - prm[2]) / prm[1]))) + prm[3] / r * np.heaviside(r - (prm[2] + prm[1] * 2), 0)
+				return prm[0] + (rho_inf - prm[0]) / (1 + np.exp(-((r - prm[2]) / prm[1]))) + prm[3] / r * np.heaviside(r - (prm[2] + prm[1] * capilar_correction_thr), 0)
+			
+			def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl):
+				ok_ind = (d_Rdens > 0)
 				
-			for j in range(N_OP_interfaces_AB):
-				state_centered_Rdens_total_okFitInds = (d_state_centered_Rdens_total[j][sgmfit_species_id] > 0)
-				
-				rho0_fit_params[0, j] = state_centered_Rdens_total[j][sgmfit_species_id][0]   # argmin(r)
-				rho0_linsgm_inds = (state_centered_Rdens_total[j][sgmfit_species_id] > 0.1) & (state_centered_Rdens_total[j][sgmfit_species_id] < 0.9) & (d_state_centered_Rdens_total[j][sgmfit_species_id] > 0)
-				assert(np.any(rho0_linsgm_inds)), 'ERROR: no points suited for sigmoidal fit of specie-N%d' % (sgmfit_species_id)
-				rho0_linsgmfit = np.polyfit(state_Rdens_centers_new[rho0_linsgm_inds], \
-											-np.log(init_composition[sgmfit_species_id]/state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds] - 1), \
+				rho_fit_params = np.empty(4)
+				rho_fit_params[0] = Rdens[0]   # argmin(r)
+				rho_linsgm_inds = (Rdens > 0.1) & (Rdens < 0.9) & (d_Rdens > 0)
+				assert(np.any(rho_linsgm_inds)), 'ERROR: no points suited for sigmoidal fit of %s' % (fit_error_name)  #specie-N%d
+				rho_linsgmfit = np.polyfit(R_centers[rho_linsgm_inds], \
+											-np.log(rho_bulk/Rdens[rho_linsgm_inds] - 1), \
 											1, \
-											w = abs((1 - state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds] / init_composition[sgmfit_species_id]) * \
-												(state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds] / d_state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds]))\
+											w = abs((1 - Rdens[rho_linsgm_inds] / rho_bulk) * \
+												(Rdens[rho_linsgm_inds] / d_Rdens[rho_linsgm_inds]))\
 											)
-				rho0_fit_params[1, j] = 1 / rho0_linsgmfit[0]
-				rho0_fit_params[2, j] = -rho0_linsgmfit[1] * rho0_fit_params[1, j]
+				rho_fit_params[1] = 1 / rho_linsgmfit[0]
+				rho_fit_params[2] = -rho_linsgmfit[1] * rho_fit_params[1]
 				
-				#rho0_fit_params[3, j] = 0
-				opt_fnc_full = lambda prm: np.sum(((rho_fit_fnc_template(state_Rdens_centers_new[state_centered_Rdens_total_okFitInds], prm, init_composition[sgmfit_species_id], OP_interfaces_AB[j]) - state_centered_Rdens_total[j][sgmfit_species_id][state_centered_Rdens_total_okFitInds]) / d_state_centered_Rdens_total[j][sgmfit_species_id][state_centered_Rdens_total_okFitInds])**2)
-				rho0_fit_params[3, j] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho0_fit_params[:, j], x, 3))).x
+				#rho0_fit_params[3] = 0
+				opt_fnc_full = lambda prm: np.sum(((rho_fit_fnc_template(R_centers[ok_ind], prm, rho_bulk, Ncl) - Rdens[ok_ind]) / d_Rdens[ok_ind])**2)
+				rho_fit_params[3] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho_fit_params, x, 3))).x
 				#print(j, OP_interfaces_AB[j], rho0_fit_params[3, j])
 				
-				rho0_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho0_fit_params[:, j])
-				rho0_fit_params[:, j] = rho0_fit_optim_res.x
-				d_rho0_fit_params[:, j] = np.sqrt(rho0_fit_optim_res.hess_inv.diagonal())
+				rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params)
+				rho_fit_params = rho_fit_optim_res.x
+				d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.diagonal())
 				#print(j, OP_interfaces_AB[j], rho0_fit_params[3, j])
+				
+				return rho_fit_params, d_rho_fit_params
+			
+			for j in range(N_OP_interfaces_AB):
+				rho0_fit_params[:, j], d_rho0_fit_params[:, j] = \
+					rho_fit_full(state_Rdens_centers_new, \
+								state_centered_Rdens_total[j][sgmfit_species_id], \
+								d_state_centered_Rdens_total[j][sgmfit_species_id], \
+								init_composition[sgmfit_species_id], \
+								OP_interfaces_AB[j])
+				# state_centered_Rdens_total_okFitInds = (d_state_centered_Rdens_total[j][sgmfit_species_id] > 0)
+				
+				# rho0_fit_params[0, j] = state_centered_Rdens_total[j][sgmfit_species_id][0]   # argmin(r)
+				# rho0_linsgm_inds = (state_centered_Rdens_total[j][sgmfit_species_id] > 0.1) & (state_centered_Rdens_total[j][sgmfit_species_id] < 0.9) & (d_state_centered_Rdens_total[j][sgmfit_species_id] > 0)
+				# assert(np.any(rho0_linsgm_inds)), 'ERROR: no points suited for sigmoidal fit of specie-N%d' % (sgmfit_species_id)
+				# rho0_linsgmfit = np.polyfit(state_Rdens_centers_new[rho0_linsgm_inds], \
+											# -np.log(init_composition[sgmfit_species_id]/state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds] - 1), \
+											# 1, \
+											# w = abs((1 - state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds] / init_composition[sgmfit_species_id]) * \
+												# (state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds] / d_state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds]))\
+											# )
+				# rho0_fit_params[1, j] = 1 / rho0_linsgmfit[0]
+				# rho0_fit_params[2, j] = -rho0_linsgmfit[1] * rho0_fit_params[1, j]
+				
+				# #rho0_fit_params[3, j] = 0
+				# opt_fnc_full = lambda prm: np.sum(((rho_fit_fnc_template(state_Rdens_centers_new[state_centered_Rdens_total_okFitInds], prm, init_composition[sgmfit_species_id], OP_interfaces_AB[j]) - state_centered_Rdens_total[j][sgmfit_species_id][state_centered_Rdens_total_okFitInds]) / d_state_centered_Rdens_total[j][sgmfit_species_id][state_centered_Rdens_total_okFitInds])**2)
+				# rho0_fit_params[3, j] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho0_fit_params[:, j], x, 3))).x
+				# #print(j, OP_interfaces_AB[j], rho0_fit_params[3, j])
+				
+				# rho0_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho0_fit_params[:, j])
+				# rho0_fit_params[:, j] = rho0_fit_optim_res.x
+				# d_rho0_fit_params[:, j] = np.sqrt(rho0_fit_optim_res.hess_inv.diagonal())
+				# #print(j, OP_interfaces_AB[j], rho0_fit_params[3, j])
 			
 			sgm_logfit_Nmin = OP0_erfinv_AB
 			sgm_logfit_inds = (OP_interfaces_AB > sgm_logfit_Nmin)
