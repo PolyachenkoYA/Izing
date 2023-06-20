@@ -2471,88 +2471,27 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					state_centered_Rdens_total[j][k], d_state_centered_Rdens_total[j][k] = \
 						get_average(state_centered_Rdens_total_data[j][k], axis=1)
 					
-					# if(np.any(d_state_centered_Rdens_total[j][k] == 0)):
-						# print(j, k)
-						# print(state_centered_Rdens_total_data[j][k].shape)
-						# print(d_state_centered_Rdens_total[j][k] == 0)
-						# print(state_centered_Rdens_total_data[j][k][d_state_centered_Rdens_total[j][k] == 0, :])
-						# input('ok')
-
-			rho0_fit_params = np.empty((4, N_OP_interfaces_AB))
-			d_rho0_fit_params = np.empty((4, N_OP_interfaces_AB))
+			rho_fit_params = np.empty((N_species, 4, N_OP_interfaces_AB))
+			d_rho_fit_params = np.empty((N_species, 4, N_OP_interfaces_AB))
+			species_to_fit_rho_inds = np.array([0, 1], dtype=int)
+			for k in species_to_fit_rho_inds:
+				for j in range(N_OP_interfaces_AB):
+					rho_fit_params[k, :, j], d_rho_fit_params[k, :, j] = \
+						rho_fit_full(state_Rdens_centers_new, \
+									state_centered_Rdens_total[j][k], \
+									d_state_centered_Rdens_total[j][k], \
+									init_composition[k], \
+									OP_interfaces_AB[j], L2, \
+									debug=(k==1))
+			
 			sgmfit_species_id = 0
-			def rho_fit_fnc_template(r, prm, rho_bulk, Ncl, capilar_correction_thr=2, verbose=False):
-				rho_inf = (rho_bulk - prm[0] * (Ncl / L2)) / (1 - Ncl / L2)
-				#rho_inf = (rho_bulk) / (1 - Ncl / L2)
-				if(verbose):
-					print('Ncl =', Ncl, '; rho_inf =', rho_inf)
-				return prm[0] + (rho_inf - prm[0]) / (1 + np.exp(-((r - prm[2]) / prm[1]))) + prm[3] / r * np.heaviside(r - (prm[2] + prm[1] * capilar_correction_thr), 0)
-			
-			def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl):
-				ok_ind = (d_Rdens > 0)
-				
-				rho_fit_params = np.empty(4)
-				rho_fit_params[0] = Rdens[0]   # argmin(r)
-				rho_linsgm_inds = (Rdens > 0.1) & (Rdens < 0.9) & (d_Rdens > 0)
-				assert(np.any(rho_linsgm_inds)), 'ERROR: no points suited for sigmoidal fit of %s' % (fit_error_name)  #specie-N%d
-				rho_linsgmfit = np.polyfit(R_centers[rho_linsgm_inds], \
-											-np.log(rho_bulk/Rdens[rho_linsgm_inds] - 1), \
-											1, \
-											w = abs((1 - Rdens[rho_linsgm_inds] / rho_bulk) * \
-												(Rdens[rho_linsgm_inds] / d_Rdens[rho_linsgm_inds]))\
-											)
-				rho_fit_params[1] = 1 / rho_linsgmfit[0]
-				rho_fit_params[2] = -rho_linsgmfit[1] * rho_fit_params[1]
-				
-				#rho0_fit_params[3] = 0
-				opt_fnc_full = lambda prm: np.sum(((rho_fit_fnc_template(R_centers[ok_ind], prm, rho_bulk, Ncl) - Rdens[ok_ind]) / d_Rdens[ok_ind])**2)
-				rho_fit_params[3] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho_fit_params, x, 3))).x
-				#print(j, OP_interfaces_AB[j], rho0_fit_params[3, j])
-				
-				rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params)
-				rho_fit_params = rho_fit_optim_res.x
-				d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.diagonal())
-				#print(j, OP_interfaces_AB[j], rho0_fit_params[3, j])
-				
-				return rho_fit_params, d_rho_fit_params
-			
-			for j in range(N_OP_interfaces_AB):
-				rho0_fit_params[:, j], d_rho0_fit_params[:, j] = \
-					rho_fit_full(state_Rdens_centers_new, \
-								state_centered_Rdens_total[j][sgmfit_species_id], \
-								d_state_centered_Rdens_total[j][sgmfit_species_id], \
-								init_composition[sgmfit_species_id], \
-								OP_interfaces_AB[j])
-				# state_centered_Rdens_total_okFitInds = (d_state_centered_Rdens_total[j][sgmfit_species_id] > 0)
-				
-				# rho0_fit_params[0, j] = state_centered_Rdens_total[j][sgmfit_species_id][0]   # argmin(r)
-				# rho0_linsgm_inds = (state_centered_Rdens_total[j][sgmfit_species_id] > 0.1) & (state_centered_Rdens_total[j][sgmfit_species_id] < 0.9) & (d_state_centered_Rdens_total[j][sgmfit_species_id] > 0)
-				# assert(np.any(rho0_linsgm_inds)), 'ERROR: no points suited for sigmoidal fit of specie-N%d' % (sgmfit_species_id)
-				# rho0_linsgmfit = np.polyfit(state_Rdens_centers_new[rho0_linsgm_inds], \
-											# -np.log(init_composition[sgmfit_species_id]/state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds] - 1), \
-											# 1, \
-											# w = abs((1 - state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds] / init_composition[sgmfit_species_id]) * \
-												# (state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds] / d_state_centered_Rdens_total[j][sgmfit_species_id][rho0_linsgm_inds]))\
-											# )
-				# rho0_fit_params[1, j] = 1 / rho0_linsgmfit[0]
-				# rho0_fit_params[2, j] = -rho0_linsgmfit[1] * rho0_fit_params[1, j]
-				
-				# #rho0_fit_params[3, j] = 0
-				# opt_fnc_full = lambda prm: np.sum(((rho_fit_fnc_template(state_Rdens_centers_new[state_centered_Rdens_total_okFitInds], prm, init_composition[sgmfit_species_id], OP_interfaces_AB[j]) - state_centered_Rdens_total[j][sgmfit_species_id][state_centered_Rdens_total_okFitInds]) / d_state_centered_Rdens_total[j][sgmfit_species_id][state_centered_Rdens_total_okFitInds])**2)
-				# rho0_fit_params[3, j] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho0_fit_params[:, j], x, 3))).x
-				# #print(j, OP_interfaces_AB[j], rho0_fit_params[3, j])
-				
-				# rho0_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho0_fit_params[:, j])
-				# rho0_fit_params[:, j] = rho0_fit_optim_res.x
-				# d_rho0_fit_params[:, j] = np.sqrt(rho0_fit_optim_res.hess_inv.diagonal())
-				# #print(j, OP_interfaces_AB[j], rho0_fit_params[3, j])
-			
+			assert(sgmfit_species_id in species_to_fit_rho_inds), 'ERROR: Species N%d to be used for width estimation but this specie is not included in species to be fit: %s' % (sgmfit_species_id, str(species_to_fit_rho_inds))
 			sgm_logfit_Nmin = OP0_erfinv_AB
 			sgm_logfit_inds = (OP_interfaces_AB > sgm_logfit_Nmin)
 			sgm_logfit, sgm_logfit_cov = \
 				np.polyfit(np.log(OP_interfaces_AB[sgm_logfit_inds]), \
-							np.log(rho0_fit_params[1, sgm_logfit_inds]), \
-							1, cov=True, w=1 / (d_rho0_fit_params[1, sgm_logfit_inds] / rho0_fit_params[1, sgm_logfit_inds]))
+							np.log(rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds]), \
+							1, cov=True, w=1 / (d_rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds] / rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds]))
 
 	if(to_plot):
 		if(state_Rdens_centers_new is not None):
@@ -2585,9 +2524,13 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 										yerr = np.append(0, d_rho_fourier2D_Abs[OPind, :]), \
 										label=cluster_lbl, color=my.get_my_color(i))
 				
-				ax_state_Rdens[sgmfit_species_id].plot(state_Rdens_centers_new, \
-									rho_fit_fnc_template(state_Rdens_centers_new, rho0_fit_params[:, OPind], init_composition[sgmfit_species_id], OP_interfaces_AB[OPind]), \
-									'--', color=my.get_my_color(i))
+				for k in species_to_fit_rho_inds:
+					ax_state_Rdens[k].plot(state_Rdens_centers_new, \
+										rho_fit_fnc_template(state_Rdens_centers_new, rho_fit_params[k, :, OPind], init_composition[k], OP_interfaces_AB[OPind], L2), \
+										'--', color=my.get_my_color(i))
+					ax_state_Rdens_log[k].plot(state_Rdens_centers_new, \
+										rho_fit_fnc_template(state_Rdens_centers_new, rho_fit_params[k, :, OPind], init_composition[k], OP_interfaces_AB[OPind], L2), \
+										'--', color=my.get_my_color(i))
 
 				fig_cluster_map[i], ax_cluster_map[i], fig_cluster_map_id = my.get_fig('x', 'y', title=cluster_lbl + ThL_lbl)
 				im_cluster_map = ax_cluster_map[i].imshow(cluster_centered_map_total[OPind], \
@@ -2616,10 +2559,10 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 
 			fig_rhoW, ax_rhoW, _ = my.get_fig(r'$N_{clust}$', r'$w_{\rho_{%d}}$' % (sgmfit_species_id), xscl='log', yscl='log')
 			#fig_rhoW, ax_rhoW, _ = my.get_fig(r'$N_{clust}$', r'$w_{\rho_{%d}}$' % (sgmfit_species_id), xscl='log')
-			ax_rhoW.errorbar(OP_interfaces_AB, rho0_fit_params[1, :],  yerr=d_rho0_fit_params[1, :], fmt='.', label='data')
+			ax_rhoW.errorbar(OP_interfaces_AB, rho_fit_params[sgmfit_species_id, 1, :],  yerr=d_rho_fit_params[sgmfit_species_id, 1, :], fmt='.', label='data')
 			ax_rhoW.plot(OP_interfaces_AB, np.exp(np.polyval(sgm_logfit, np.log(OP_interfaces_AB))), \
 						'--', label=r'$k = %s$' % (my.errorbar_str(sgm_logfit[0], np.sqrt(sgm_logfit_cov[0,0]))))
-			ax_rhoW.plot([sgm_logfit_Nmin] * 2, [min(rho0_fit_params[1, :]), max(rho0_fit_params[1, :])], \
+			ax_rhoW.plot([sgm_logfit_Nmin] * 2, [min(rho_fit_params[sgmfit_species_id, 1, :]), max(rho_fit_params[sgmfit_species_id, 1, :])], \
 						'--', label=r'$N_{min} = N^* = %s$' % (my.f2s(sgm_logfit_Nmin)))
 
 			my.add_legend(fig_rhoW, ax_rhoW)
@@ -2670,6 +2613,85 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		return phi_0, d_phi_0, phi_1, d_phi_1, phi_0_evol, d_phi_0_evol, phi_1_evol, d_phi_1_evol
 # 	if(mode == 'FFS'):
 # 		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, ln_k_BA, d_ln_k_BA, flux0_AB, d_flux0_AB, flux0_BA, d_flux0_BA, probs_AB, d_probs_AB, probs_BA, d_probs_BA, PB_AB, d_PB_AB, PA_BA, d_PA_BA, OP0_AB, d_OP0_AB, OP0_BA, d_OP0_BA
+
+def rho_fit_fnc_template(r, prm, rho_bulk, Ncl, L2, capilar_correction_min=4, capilar_correction_max=25, capilar_correction_sgm=-5, verbose=False):
+	rho_inf = (rho_bulk - prm[0] * (Ncl / L2)) / (1 - Ncl / L2)
+	#rho_inf = (rho_bulk) / (1 - Ncl / L2)
+	if(verbose):
+		print('Ncl =', Ncl, '; rho_inf =', rho_inf)
+	
+	if(capilar_correction_sgm < 0):
+		capilar_correction_sgm *= -prm[1]
+		
+	return prm[0] + (rho_inf - prm[0]) / (1 + np.exp(-((r - prm[2]) / prm[1]))) + \
+			prm[3] / r * np.heaviside(r - (prm[2] + prm[1] * capilar_correction_min), 0) / (1 + np.exp((r - (prm[2] + prm[1] * capilar_correction_max)) / capilar_correction_sgm))
+
+def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl, L2, debug=True):
+	ok_ind = (d_Rdens > 0)
+	
+	rho_fit_params = np.empty(4)
+	rho_fit_params[0] = Rdens[0]   # argmin(r)
+	rho_linsgm_inds = (Rdens > 0.1) & (Rdens < 0.9) & (d_Rdens > 0)
+	assert(np.any(rho_linsgm_inds)), 'ERROR: no points suited for sigmoidal fit of %s' % (fit_error_name)  #specie-N%d
+	
+	# if(debug):
+		# fig, ax, _ = my.get_fig('R', r'$\rho$', yscl='logit')
+		# ax.errorbar(R_centers, Rdens, yerr=d_Rdens)
+		
+		# fig2, ax2, _ = my.get_fig('R', r'$\rho$')
+		# print(R_centers[rho_linsgm_inds])
+		# ax2.errorbar(R_centers[rho_linsgm_inds], -np.log(max(Rdens)/Rdens[rho_linsgm_inds] - 1))
+		# # ax2.errorbar(R_centers[rho_linsgm_inds], -np.log(rho_bulk/Rdens[rho_linsgm_inds] - 1), yerr=abs((1 - Rdens[rho_linsgm_inds] / rho_bulk) * \
+									# # (Rdens[rho_linsgm_inds] / d_Rdens[rho_linsgm_inds])))
+		
+		# plt.show()
+	
+	rho_linsgmfit = np.polyfit(R_centers[rho_linsgm_inds], \
+								-np.log(max(Rdens)/Rdens[rho_linsgm_inds] - 1), \
+								1, \
+								w = abs((1 - Rdens[rho_linsgm_inds] / Rdens[-1]) * \
+									(Rdens[rho_linsgm_inds] / d_Rdens[rho_linsgm_inds]))\
+								)
+	rho_fit_params[1] = 1 / abs(rho_linsgmfit[0])
+	rho_fit_params[2] = -rho_linsgmfit[1] * rho_fit_params[1]
+	
+	opt_fnc_full = lambda prm: np.sum(((rho_fit_fnc_template(R_centers[ok_ind], prm, rho_bulk, Ncl, L2) - Rdens[ok_ind]) / d_Rdens[ok_ind])**2)
+	#rho_fit_params[3] = 0
+	rho_fit_params[3] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho_fit_params, x, 3))).x
+	#print(j, OP_interfaces_AB[j], rho_fit_params[3, j])
+	
+	# if(debug and False):
+		# print(rho_fit_params)
+		
+		# fig, ax, _ = my.get_fig('R', r'$\rho$', yscl='logit')
+		# ax.errorbar(R_centers, Rdens, yerr=d_Rdens)
+		# ax.plot(R_centers, rho_fit_fnc_template(R_centers, rho_fit_params, rho_bulk, Ncl, L2), '--')
+		
+		# plt.show()
+	
+	R0_estimate = np.sqrt(Ncl / np.pi)
+	opt_bounds = ((0, 1), (0.1, R0_estimate), (R0_estimate / 3, R0_estimate * 3), (-1,1))
+	# [0]: desnity [0;1]
+	# [1]: width. It is (0;None) but really it is < 2 so here it is
+	# [0]: R0 ~ np.sqrt(Ncl / np.pi)
+	# [3]: unclear, but usually |a| << 1
+	rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params)
+	if(np.any([((rho_fit_optim_res.x[i] < opt_bounds[i][0]) or (opt_bounds[i][1] < rho_fit_optim_res.x[i])) for i in range(4)])):
+		rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params, bounds=opt_bounds)
+	
+	rho_fit_params = rho_fit_optim_res.x
+	
+	if(isinstance(rho_fit_optim_res.hess_inv, scipy.optimize._lbfgsb_py.LbfgsInvHessProduct)):
+		d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.todense().diagonal())
+	else:
+		d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.diagonal())
+	
+	
+	#print(j, OP_interfaces_AB[j], rho_fit_params[3, j])
+	# if(debug or True):
+		# print(rho_fit_params, d_rho_fit_params)
+	
+	return rho_fit_params, d_rho_fit_params
 
 def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 						N_init_states, OP_interfaces, init_gen_mode=-3, \
