@@ -2894,7 +2894,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 	phi1s_grid = np.zeros((N_Temps, N_phi1s))
 	for i_Temp, Temp in enumerate(Temp_s):
 		for i_phi1, phi1 in enumerate(phi1_s):
-			n_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][Temp][phi1]
+			n_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][my.f2s(Temp, n=1)][my.f2s(phi1, n=5)]
 			if(n_FFS > 0):
 				e_use = e / Temp
 				mu = np.array([0] * N_species)
@@ -2915,8 +2915,8 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 									timeevol_stride, init_gen_mode, \
 									bool(to_get_timeevol), \
 									N_fourier, '%d')
-				#templ = npz_path + templ + '_' + npz_suff + '.npz'
-				templ = npz_path + templ_old[-1] + '_' + npz_suff + '.npz'   # to 'mv' old files to new format
+				templ = npz_path + templ + '_' + npz_suff + '.npz'
+				#templ = npz_path + templ_old[-1] + '_' + npz_suff + '.npz'   # to 'mv' old files to new format
 				#print(templ)
 				
 				found_IDs, found_filepaths, _ = \
@@ -3032,7 +3032,7 @@ def plot_Tphi1_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$'
 	
 	return fig, ax
 
-def fit_Tphi1_grid(x, y, z, dz=None, xord=2, yord=2, to_rescale=True):
+def fit_Tphi1_grid(x, y, z, dz=None, xord=2, yord=2, to_rescale=True, mode='Rbf'):
 	# polynomial_features = sklearn.preprocessing.PolynomialFeatures(degree=degrees[i], include_bias=False)
 	# linear_regression = sklearn.linear_model.LinearRegression()
 	# pipeline = Pipeline(
@@ -3050,11 +3050,15 @@ def fit_Tphi1_grid(x, y, z, dz=None, xord=2, yord=2, to_rescale=True):
 	xs = np.std(x) if(to_rescale) else 1
 	ym = np.mean(y) if(to_rescale) else 0
 	ys = np.std(y) if(to_rescale) else 1
-	interp = scipy.interpolate.SmoothBivariateSpline(\
-					(x - xm) / xs, (y - ym) / ys, \
-					z, w=1/dz, kx=xord, ky=yord)
-	
-	interp_fnc = lambda xin, yin: interp((xin - xm) / xs, (yin - ym) / ys, grid=False)
+	if(mode == 'SmoothBivariateSpline'):
+		interp = scipy.interpolate.SmoothBivariateSpline(\
+						(x - xm) / xs, (y - ym) / ys, \
+						z, w=1/dz, kx=xord, ky=yord)
+		
+		interp_fnc = lambda xin, yin: interp((xin - xm) / xs, (yin - ym) / ys, grid=False)
+	elif(mode == 'Rbf'):
+		interp = scipy.interpolate.Rbf((x - xm) / xs, (y - ym) / ys, z)
+		interp_fnc = lambda xin, yin: interp((xin - xm) / xs, (yin - ym) / ys)
 	
 	return interp_fnc, interp
 	
@@ -3132,7 +3136,7 @@ def main():
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 246 -my_seeds 500 501 502 503 504 505 506 507 508 509 510 511 512 513 514 515 516 517 518 519 520 521 522 523 524 525 526 527 528 529 530 531 532 533 534 535 536 537 538 539 540 541 542 543 544 545 546 547 548 549 550 551 552 553 554 555 556 557 558 559 560 561 562 563 564 565 566 567 568 569 570 571 572 573 574 575 576 577 578 579 580 581 582 583 584 585 586 587 588 589 590 591 592 593 594 595 596 597 598 599 600 601 602 603 604 605 606 607 608 609 610 612 613 614 615 616 617 618 619 620 621 622 623 624 626 627 628 629 630 631 632 633 634 635 636 637 638 639 640 641 642 643 644 645 646 647 648 649 650 651 652 653 654 655 656 657 658 659 660 661 662 663 664 665 666 667 668 669 670 671 672 673 674 675 676 677 678 679 680 681 682 683 684 685 687 688 689 690 691 692 693 694 695 696 697 698 699 700 701 702 703 704 705 706 707 708 709 710 711 712 713 714 715 716 717 718 719 720 721 722 723 724 725 726 728 729 730 731 732 733 734 735 736 737 738 739 740 741 742 743 744 745 746 747 748 749 -to_recomp 1 -font_mode present
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 5 -my_seeds 500 501 502 503 504 -to_recomp 1 -font_mode present
 	
-	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present
+	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present -OP0_constr 30
 	# python run.py -mode FFS_AB_many -init_composition 0.9745 0.0155 0.01 -Temp 1.0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -my_seeds FFS_auto
 	
 	# TODO: run failed IDs with longer times
@@ -3227,7 +3231,7 @@ def main():
 	verbose = int(verbose[0])
 	Nt = int(Nt[0])
 	# TODO: change phi1-key float -> strings
-	N_states_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][Temp][init_composition[1]] if(N_states_FFS[0] == 'FFS_auto') else int(N_states_FFS[0])
+	N_states_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][my.f2s(Temp, n=1)][my.f2s(init_composition[1], n=5)] if(N_states_FFS[0] == 'FFS_auto') else int(N_states_FFS[0])
 	N_init_states_FFS = (2 * N_states_FFS) if(N_init_states_FFS[0] == 'FFS_auto') else int(N_init_states_FFS[0])
 	N_runs = int(N_runs[0])
 	init_gen_mode = int(init_gen_mode[0])
