@@ -15,7 +15,20 @@ def main():
 	# python slurm_test.py --MC_mode swap --OP_set_name nvt --mode launch_run
 	
 	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1135 1180 --n_s 33 --L_s 128 --phi1_s 0.015 --Temp_s 1.0 --slurm_time 72:00:00 --to_run 0
-	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1160 1175 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0 --to_run 0
+	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1160 1175 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0 --slurm_time 24:00:00 --to_run 0
+	
+	# python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1010 1033 --n_s -1 --L_s 128 --phi1_s 0.0145 --Temp_s 1.0 --to_run 0
+	# python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1010 1020 --n_s -1 --L_s 128 --phi1_s 0.015 --Temp_s 1.0 --to_run 0
+	
+	## python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 --Temp_s 0.95 --slurm_time 144:00:00 --to_run 0
+	## python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.0145 --Temp_s 1.0 --slurm_time 144:00:00 --to_run 0
+	## python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.014 --Temp_s 1.0 --slurm_time 144:00:00 --to_run 0
+	## python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.015 0.0155 0.016 --Temp_s 0.95 --slurm_time 72:00:00 --to_run 0
+	## python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.85 --slurm_time 72:00:00 --to_run 0
+	
+	## python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.014 --Temp_s 0.95 1.0 --slurm_time 144:00:00 --to_run 0
+	## python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.0145 0.015 0.0155 0.016 --Temp_s 0.95 --to_run 0
+	## python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.85 --to_run 0
 	
 	# python slurm_test.py --mode search_logs --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1200 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0
 	# python slurm_test.py --mode search_npzs --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1200 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0
@@ -72,10 +85,10 @@ def main():
 							if(n >= 0):
 								n_use = n
 							elif(n == -1):
-								n_use = int(table_data.n24h_FFS_dict[MC_mode][Temp][phi] * my_server.slurm_time_to_seconds(clargs.slurm_time)/(24*3600) + 0.5)
+								n_use = int(table_data.n144h_FFS_dict[MC_mode][my.f2s(Temp, n=2)][my.f2s(phi, n=5)] * my_server.slurm_time_to_seconds(clargs.slurm_time)/(144*3600) + 0.5)
 							
 							if(n_use > 0):
-								if(n_use < 15):
+								if(n_use < 5):
 									input('n = %d < 15 - too small, poor statistics possible. Proceed? [press Enter or Ctrl+C]' % n_use)
 								
 								n_init = n_use * 2
@@ -106,7 +119,7 @@ def main():
 		for L in clargs.L_s:
 			for Temp in clargs.Temp_s:
 				for phi in clargs.phi1_s:
-					n_use = int(table_data.n24h_FFS_dict[MC_mode][Temp][phi] * my_server.slurm_time_to_seconds(clargs.slurm_time)/(24*3600) + 0.5) if(clargs.n_s[0] < 0) else clargs.n_s[0]
+					n_use = int(table_data.n144h_FFS_dict[MC_mode][my.f2s(Temp, n=2)][my.f2s(phi, n=5)] * my_server.slurm_time_to_seconds(clargs.slurm_time)/(144*3600) + 0.5) if(clargs.n_s[0] < 0) else clargs.n_s[0]
 					
 					if(n_use > 0):
 						print('\nphi1 =', phi, '; Temp =', Temp, '; mode =', MC_mode, '; n =', n_use)

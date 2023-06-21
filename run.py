@@ -2871,7 +2871,7 @@ def plot_Q_target_phase_data(target_states, used_target_ids, phi_obtained, d_phi
 
 def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 					L, e, interface_mode, OP_interfaces, \
-					OP0_constraint=0, init_gen_mode=-2, \
+					OP0_constraint_s=[], init_gen_mode=-2, \
 					OP_sample_BF_to=None, OP_match_BF_to=None, \
 					timeevol_stride=-3000, to_get_timeevol=None, \
 					to_save_npz=False, to_recomp=0, N_fourier=5, \
@@ -2894,7 +2894,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 	phi1s_grid = np.zeros((N_Temps, N_phi1s))
 	for i_Temp, Temp in enumerate(Temp_s):
 		for i_phi1, phi1 in enumerate(phi1_s):
-			n_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][my.f2s(Temp, n=1)][my.f2s(phi1, n=5)]
+			n_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][my.f2s(Temp, n=2)][my.f2s(phi1, n=5)]
 			if(n_FFS > 0):
 				e_use = e / Temp
 				mu = np.array([0] * N_species)
@@ -2964,33 +2964,34 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 		ln_k_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_k_arr, dz=d_ln_k_arr, xord=fit_ord, yord=fit_ord)
 		ln_flux0_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_flux0_arr, dz=d_ln_flux0_arr, xord=fit_ord, yord=fit_ord)
 		
-		if(OP0_constraint > 0):
-			OP0consr_Tphi1 = my.find_optim_manifold(lambda x: np.abs(ln_OP0_fitfnc(x[0], x[1]) - np.log(OP0_constraint)), \
-								np.array([[min(Temp_s), max(Temp_s)], [min(phi1_s), max(phi1_s)], [min(ln_OP0_arr), max(ln_OP0_arr)]]).T, \
-								trial_points=N_points_OP0constr)
-		else:
-			OP0consr_Tphi1 = np.zeros((0,2))
+		N_OP0_constr = len(OP0_constraint_s)
+		OP0consr_Tphi1_sets = []
+		if(N_OP0_constr > 0):
+			for i in range(N_OP0_constr):
+				OP0consr_Tphi1_sets.append(my.find_optim_manifold(lambda x: np.abs(ln_OP0_fitfnc(x[0], x[1]) - np.log(OP0_constraint_s[i])), \
+									np.array([[min(Temp_s), max(Temp_s)], [min(phi1_s), max(phi1_s)], [min(ln_OP0_arr), max(ln_OP0_arr)]]).T, \
+									trial_points=N_points_OP0constr))
 	
 	if(to_plot):
 		if(N_ok_points >= fit_ord**2):
 			fig_OP0, ax_OP0 = plot_Tphi1_data(Temps_arr, phi1s_arr, \
 					ln_OP0_arr, d_ln_OP0_arr, '$\ln(N^*)$', ln_OP0_fitfnc, \
-					OP0_constraint=OP0_constraint, OP0consr_Tphi1=OP0consr_Tphi1)
+					OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
 			fig_ln_k, ax_ln_k = plot_Tphi1_data(Temps_arr, phi1s_arr, \
 					ln_k_arr, d_ln_k_arr, '$\ln(k)$', ln_k_fitfnc, \
-					OP0_constraint=OP0_constraint, OP0consr_Tphi1=OP0consr_Tphi1)
+					OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
 			fig_ln_flux0, ax_ln_flux0 = plot_Tphi1_data(Temps_arr, phi1s_arr, \
 					ln_flux0_arr, d_ln_flux0_arr, '$\ln(\Phi_A)$', ln_flux0_fitfnc, \
-					OP0_constraint=OP0_constraint, OP0consr_Tphi1=OP0consr_Tphi1)
+					OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
 			
-			my.add_legend(fig_OP0, ax_OP0)
-			my.add_legend(fig_ln_k, ax_ln_k)
-			my.add_legend(fig_ln_flux0, ax_ln_flux0)
+			# my.add_legend(fig_OP0, ax_OP0)
+			# my.add_legend(fig_ln_k, ax_ln_k)
+			# my.add_legend(fig_ln_flux0, ax_ln_flux0)
 
 def plot_Tphi1_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$', \
 				N_draw_points=1000, draw_only_inside_convexhull=True, \
 				points_mode='grid', to_add_legend=False, \
-				OP0_constraint=0, OP0consr_Tphi1=np.zeros((0,1))):
+				OP0_constraint_s=[], OP0consr_Tphi1_sets=[]):
 	fig, ax, _ = my.get_fig(x_lbl, y_lbl, zlbl=z_lbl, projection='3d')
 	
 	ax.errorbar(x, y, z, zerr=dz, fmt='.', label='data')
@@ -3020,14 +3021,17 @@ def plot_Tphi1_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$'
 	surf._facecolors2d = surf._facecolor3d
 	surf._edgecolors2d = surf._edgecolor3d
 	
-	if((OP0_constraint > 0) and (OP0consr_Tphi1.shape[0] > 0)):
-		ax.plot3D(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1], z_fitfnc(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1]), '.', label='$N^* = %d$' % OP0_constraint)
-		
-		fig_vsX, ax_vsX, _ = my.get_fig(x_lbl, z_lbl, title='%s(%s | $N^*=%d$)' % (z_lbl, x_lbl, OP0_constraint))
-		ax_vsX.plot(OP0consr_Tphi1[:, 0], z_fitfnc(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1]), '.')
-		
-		fig_vsY, ax_vsY, _ = my.get_fig(y_lbl, z_lbl, title='%s(%s | $N^*=%d$)' % (z_lbl, y_lbl, OP0_constraint))
-		ax_vsY.plot(OP0consr_Tphi1[:, 1], z_fitfnc(OP0consr_Tphi1[:, 0], OP0consr_Tphi1[:, 1]), '.')
+	N_OP0_constr = len(OP0_constraint_s)
+	if(N_OP0_constr > 0):
+		fig_vsX, ax_vsX, _ = my.get_fig(x_lbl, z_lbl, title='%s(%s | $N^*$)' % (z_lbl, x_lbl))
+		fig_vsY, ax_vsY, _ = my.get_fig(y_lbl, z_lbl, title='%s(%s | $N^*$)' % (z_lbl, y_lbl))
+		for i in range(N_OP0_constr):
+			if(OP0consr_Tphi1_sets[i].shape[0] > 0):
+				ax.plot3D(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1], z_fitfnc(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1]), '.', label='$N^* = %d$' % OP0_constraint_s[i])
+				
+				ax_vsX.plot(OP0consr_Tphi1_sets[i][:, 0], z_fitfnc(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1]), '.')
+				
+				ax_vsY.plot(OP0consr_Tphi1_sets[i][:, 1], z_fitfnc(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1]), '.')
 	
 	if(to_add_legend):
 		my.add_legend(fig, ax)
@@ -3138,16 +3142,16 @@ def main():
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 246 -my_seeds 500 501 502 503 504 505 506 507 508 509 510 511 512 513 514 515 516 517 518 519 520 521 522 523 524 525 526 527 528 529 530 531 532 533 534 535 536 537 538 539 540 541 542 543 544 545 546 547 548 549 550 551 552 553 554 555 556 557 558 559 560 561 562 563 564 565 566 567 568 569 570 571 572 573 574 575 576 577 578 579 580 581 582 583 584 585 586 587 588 589 590 591 592 593 594 595 596 597 598 599 600 601 602 603 604 605 606 607 608 609 610 612 613 614 615 616 617 618 619 620 621 622 623 624 626 627 628 629 630 631 632 633 634 635 636 637 638 639 640 641 642 643 644 645 646 647 648 649 650 651 652 653 654 655 656 657 658 659 660 661 662 663 664 665 666 667 668 669 670 671 672 673 674 675 676 677 678 679 680 681 682 683 684 685 687 688 689 690 691 692 693 694 695 696 697 698 699 700 701 702 703 704 705 706 707 708 709 710 711 712 713 714 715 716 717 718 719 720 721 722 723 724 725 726 728 729 730 731 732 733 734 735 736 737 738 739 740 741 742 743 744 745 746 747 748 749 -to_recomp 1 -font_mode present
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 5 -my_seeds 500 501 502 503 504 -to_recomp 1 -font_mode present
 	
-	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present -OP0_constr 30
-	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present -OP0_constr 30
+	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present -OP0_constr_s 30
+	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present -OP0_constr_s 30 20
 	# python run.py -mode FFS_AB_many -init_composition 0.9745 0.0155 0.01 -Temp 1.0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -my_seeds FFS_auto
 	
 	# TODO: run failed IDs with longer times
 	
-	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier,     Temp_s,     phi1_s,      phi2,     OP0_constr], _ = \
-		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier',  '-Temp_s',  '-phi1_s',   '-phi2',  '-OP0_constr'], \
-					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],           [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1],       None,       None,    [0, 1],         [0, 1]], \
-					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],          ['FFS_auto'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],     ['-1'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5'],    ['1.0'],  ['0.015'],  ['0.01'],          ['0']])
+	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier,     Temp_s,     phi1_s,      phi2,     OP0_constr_s], _ = \
+		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier',  '-Temp_s',  '-phi1_s',   '-phi2',  '-OP0_constr_s'], \
+					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],           [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1],       None,       None,    [0, 1],             None], \
+					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],          ['FFS_auto'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],     ['-1'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5'],    ['1.0'],  ['0.015'],  ['0.01'],            [None]])
 	
 	Ls = np.array([int(l) for l in L], dtype=int)
 	N_L = len(Ls)
@@ -3233,8 +3237,7 @@ def main():
 	to_get_timeevol = (to_get_timeevol[0] in my.yes_flags)
 	verbose = int(verbose[0])
 	Nt = int(Nt[0])
-	# TODO: change phi1-key float -> strings
-	N_states_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][my.f2s(Temp, n=1)][my.f2s(init_composition[1], n=5)] if(N_states_FFS[0] == 'FFS_auto') else int(N_states_FFS[0])
+	N_states_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][my.f2s(Temp, n=2)][my.f2s(init_composition[1], n=5)] if(N_states_FFS[0] == 'FFS_auto') else int(N_states_FFS[0])
 	N_init_states_FFS = (2 * N_states_FFS) if(N_init_states_FFS[0] == 'FFS_auto') else int(N_init_states_FFS[0])
 	N_runs = int(N_runs[0])
 	init_gen_mode = int(init_gen_mode[0])
@@ -3261,7 +3264,7 @@ def main():
 	Temp_s = np.array([float(xx) for xx in Temp_s])
 	phi1_s = np.array([float(xx) for xx in phi1_s])
 	phi2 = float(phi2[0])
-	OP0_constr = int(OP0_constr[0])
+	OP0_constr_s = None if(OP0_constr_s[0] is None) else np.array(OP0_constr_s, dtype=int)
 	
 	assert(interface_mode == 'CS'), 'ERROR: only CS (not M) mode is supported'
 	
@@ -3625,7 +3628,7 @@ def main():
 							to_save_npz=to_save_npz, \
 							to_recomp=to_recomp, \
 							N_fourier=N_fourier, \
-							OP0_constraint=OP0_constr, \
+							OP0_constraint_s=OP0_constr_s, \
 							to_plot=True, \
 							seeds_range=np.arange(1000, 1200))
 					

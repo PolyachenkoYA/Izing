@@ -86,7 +86,7 @@ def get_FFS_AB_npzTrajBasename(MC_move_mode, L, e, mu_str, OP_interfaces, N_init
 						'_OPs' + '_'.join([str(ops) for ops in (np.append(OP_interfaces[[0, len(OP_interfaces)-1]], len(OP_interfaces)))]) + \
 						'_stab' + str(stab_step) + \
 						'_OPbf' + str(OP_sample_BF_to) + '_' + str(OP_match_BF_to) + \
-						'_stride' + str(table_data.timeevol_stride_dict[my.f2s(e[1,1], n=3)]) + \
+						'_stride' + str(table_data.timeevol_stride_dict[my.f2s(e[1,1], n=3)] if(my.f2s(e[1,1], n=3) in table_data.timeevol_stride_dict) else timeevol_stride) + \
 						'_initGenMode' + str(init_gen_mode) + \
 						'_timeData' + str(to_get_timeevol) + \
 						'_Nfourier' + str(N_fourier) + \
