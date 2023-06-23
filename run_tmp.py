@@ -2438,7 +2438,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					
 			rho_fit_params = np.empty((N_species, 4, N_OP_interfaces_AB))
 			d_rho_fit_params = np.empty((N_species, 4, N_OP_interfaces_AB))
-			species_to_fit_rho_inds = np.array([0, 1], dtype=int)
+			species_to_fit_rho_inds = np.array([0, 1], dtype=int)   # , 2
 			for k in species_to_fit_rho_inds:
 				for j in range(N_OP_interfaces_AB):
 					rho_fit_params[k, :, j], d_rho_fit_params[k, :, j] = \
@@ -2447,7 +2447,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 									d_state_centered_Rdens_total[j][k], \
 									init_composition[k], \
 									OP_interfaces_AB[j], L2, \
-									fit_error_name='specie-N%d' % k)
+									fit_error_name='specie-N%d' % k, \
+									mode=k)
 			
 			sgmfit_species_id = 0
 			assert(sgmfit_species_id in species_to_fit_rho_inds), 'ERROR: Species N%d to be used for width estimation but this specie is not included in species to be fit: %s' % (sgmfit_species_id, str(species_to_fit_rho_inds))
@@ -2491,10 +2492,10 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				
 				for k in species_to_fit_rho_inds:
 					ax_state_Rdens[k].plot(state_Rdens_centers_new, \
-										rho_fit_fnc_template(state_Rdens_centers_new, rho_fit_params[k, :, OPind], init_composition[k], OP_interfaces_AB[OPind], L2), \
+										rho_fit_sgmfnc_template(state_Rdens_centers_new, rho_fit_params[k, :, OPind], init_composition[k], OP_interfaces_AB[OPind], L2, mode=k, A=max(state_centered_Rdens_total[OPind][k]) - init_composition[k]), \
 										'--', color=my.get_my_color(i))
 					ax_state_Rdens_log[k].plot(state_Rdens_centers_new, \
-										rho_fit_fnc_template(state_Rdens_centers_new, rho_fit_params[k, :, OPind], init_composition[k], OP_interfaces_AB[OPind], L2), \
+										rho_fit_sgmfnc_template(state_Rdens_centers_new, rho_fit_params[k, :, OPind], init_composition[k], OP_interfaces_AB[OPind], L2, mode=k, A=max(state_centered_Rdens_total[OPind][k]) - init_composition[k]), \
 										'--', color=my.get_my_color(i))
 				
 				fig_cluster_map[i], ax_cluster_map[i], fig_cluster_map_id = my.get_fig('x', 'y', title=cluster_lbl + ThL_lbl)
@@ -2579,21 +2580,29 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 # 	if(mode == 'FFS'):
 # 		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, ln_k_BA, d_ln_k_BA, flux0_AB, d_flux0_AB, flux0_BA, d_flux0_BA, probs_AB, d_probs_AB, probs_BA, d_probs_BA, PB_AB, d_PB_AB, PA_BA, d_PA_BA, OP0_AB, d_OP0_AB, OP0_BA, d_OP0_BA
 
-def rho_fit_fnc_template(r, prm, rho_bulk, Ncl, L2, \
+def get_rho_inf(rho_bulk, rho_0, Ncl, L2):
+	#rho_inf = (rho_bulk) / (1 - Ncl / L2)
+	return (rho_bulk - rho_0 * (Ncl / L2)) / (1 - Ncl / L2)
+
+def rho_fit_sgmfnc_template(r, prm, rho_bulk, Ncl, L2, \
 						capilar_correction_min=0, \
 						capilar_correction_min_sgm=-0.2, \
  						capilar_correction_max=-25, \
 						capilar_correction_max_sgm=-5, \
+						mode=0, A=0, \
 						verbose=False):
 # 						capilar_correction_min=-4, \
-	rho_inf = (rho_bulk - prm[0] * (Ncl / L2)) / (1 - Ncl / L2)
-	#rho_inf = (rho_bulk) / (1 - Ncl / L2)
+	rho_inf = get_rho_inf(rho_bulk, prm[0], Ncl, L2)
+	
 	if(verbose):
 		print('Ncl =', Ncl, '; rho_inf =', rho_inf)
 	
 	if(capilar_correction_min == 0):
-		#capilar_correction_min = prm[2] + np.sign(prm[0] - rho_inf) * prm[1] * np.log(1/rho_inf - 1)
-		capilar_correction_min = -np.abs(np.log(1/rho_inf - 1))
+		if(mode in [0,1]):
+			#capilar_correction_min = prm[2] + np.sign(prm[0] - rho_inf) * prm[1] * np.log(1/rho_inf - 1)
+			capilar_correction_min = -np.abs(np.log(1/rho_inf - 1))
+		elif(mode in [2]):
+			capilar_correction_min = -1.8
 	if(capilar_correction_min < 0):
 		capilar_correction_min = prm[2] - capilar_correction_min * prm[1]
 	if(capilar_correction_min_sgm < 0):
@@ -2606,66 +2615,153 @@ def rho_fit_fnc_template(r, prm, rho_bulk, Ncl, L2, \
 	if(capilar_correction_max_sgm < 0):
 		capilar_correction_max_sgm *= -prm[1]
 		
-	return prm[0] + (rho_inf - prm[0]) / (1 + np.exp(-((r - prm[2]) / prm[1]))) + \
-			prm[3] / r / (1 + np.exp(-(r - capilar_correction_min) / capilar_correction_min_sgm)) / (1 + np.exp((r - capilar_correction_max) / capilar_correction_max_sgm))
+	if(mode in [0, 1]):
+		return prm[0] + (rho_inf - prm[0]) / (1 + np.exp(-((r - prm[2]) / prm[1]))) + \
+				prm[3] / r / (1 + np.exp(-(r - capilar_correction_min) / capilar_correction_min_sgm)) / (1 + np.exp((r - capilar_correction_max) / capilar_correction_max_sgm))
+	elif(mode in [2]):
+		return rho_bulk + A * np.exp(-(np.abs(r - prm[2]) / prm[1])**4) + \
+			prm[3] / r / (1 + np.exp(-(r - prm[0]) / capilar_correction_min_sgm)) / (1 + np.exp((r - capilar_correction_max) / capilar_correction_max_sgm))
 
-def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl, L2, \
+def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl, L2, mode=0, \
 				sgmfit_rho_min=0.1, sgmfit_rho_max=0.9, Rdens_eps=-1e-2, \
-				fit_error_name='', debug=False, strict_bounds=True):
+				fit_error_name='', debug=1, strict_bounds=True):
 	ok_inds = (d_Rdens > 0) & (Rdens < 1)
 	fit_error_name = fit_error_name + '; rho_bulk = ' + str(rho_bulk)
 	
-	
-	rho_fit_params = np.empty(4)
-	rho_fit_params[0] = Rdens[ok_inds][0]   # argmin(r)
-	#print(sgmfit_rho_min, sgmfit_rho_max)
-	rho_linsgm_inds = (Rdens > sgmfit_rho_min) & (Rdens < sgmfit_rho_max) & ok_inds
-	assert(np.any(rho_linsgm_inds)), 'ERROR: no points suited for sigmoidal fit of %s' % (fit_error_name)
-	
-	max_Rdens = max(Rdens[ok_inds])
-	min_Rdens = min(Rdens[ok_inds])
-	if(Rdens_eps < 0):
-		Rdens_eps *= -min_Rdens
-	Rdens_scaled = (max_Rdens - Rdens[rho_linsgm_inds] + Rdens_eps) / (max_Rdens - min_Rdens + Rdens_eps)
-	rho_linsgmfit = np.polyfit(R_centers[rho_linsgm_inds], \
-								-np.log(1 / Rdens_scaled - 1), \
-								1, \
-								w = Rdens_scaled * (1 - Rdens_scaled) / d_Rdens[rho_linsgm_inds])
-								# w = abs((1 - Rdens[rho_linsgm_inds] / Rdens[-1]) * \
-									# (Rdens[rho_linsgm_inds] / d_Rdens[rho_linsgm_inds]))\
-	rho_fit_params[1] = 1 / abs(rho_linsgmfit[0])
-	rho_fit_params[2] = -rho_linsgmfit[1] / rho_linsgmfit[0]
-	
-	opt_fnc_full = lambda prm: np.sum(((rho_fit_fnc_template(R_centers[ok_inds], prm, rho_bulk, Ncl, L2) - Rdens[ok_inds]) / d_Rdens[ok_inds])**2)
-	#rho_fit_params[3] = 0
-	rho_fit_params[3] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho_fit_params, x, 3))).x
-	
-	if(strict_bounds):
-		#[0]: (max([0, 1 - 5 * (1 - rho_fit_params[0])]), 1) if(rho_fit_params[0] > 0.5) else (0, min([1, 5 * rho_fit_params[0]])
-		d_rho_fit_params_0 = d_Rdens[ok_inds][0]
-		opt_bounds = ((max([0, rho_fit_params[0] - d_rho_fit_params_0 * 10]), 1) if(rho_fit_params[0] > 0.5) else (0, min([1, rho_fit_params[0] + d_rho_fit_params_0 * 10])), \
-					(rho_fit_params[1] / 2, rho_fit_params[1] * 2), \
-					(rho_fit_params[2] / 2, rho_fit_params[2] * 2), \
-					(-abs(rho_fit_params[3]) * 3, abs(rho_fit_params[3]) * 3))
-	else:
-		R0_estimate = np.sqrt(Ncl / np.pi)
-		opt_bounds = ((0, 1), (0.1, R0_estimate), (R0_estimate / 3, R0_estimate * 3), (-1,1))
-		# [0]: desnity [0;1]
-		# [1]: width. It is (0;None) but really it is < 2 so here it is
-		# [0]: R0 ~ np.sqrt(Ncl / np.pi)
-		# [3]: unclear, but usually |a| << 1
-	
-	rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params)
-	if(np.any([((rho_fit_optim_res.x[i] < opt_bounds[i][0]) or (opt_bounds[i][1] < rho_fit_optim_res.x[i])) for i in range(4)])):
-		rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params, bounds=opt_bounds)
-	
-	rho_fit_params = rho_fit_optim_res.x
-	
-	if(isinstance(rho_fit_optim_res.hess_inv, scipy.optimize._lbfgsb_py.LbfgsInvHessProduct)):
-		d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.todense().diagonal())
-	else:
-		d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.diagonal())
-	
+	if(mode in [0, 1]):
+		rho_fit_params = np.empty(4)
+		rho_fit_params[0] = Rdens[ok_inds][0]   # argmin(r)
+		rho_inf = get_rho_inf(rho_bulk, rho_fit_params[0], Ncl, L2)
+		rho_linsgm_inds = (Rdens > sgmfit_rho_min) & (Rdens < sgmfit_rho_max) & ok_inds
+		assert(np.any(rho_linsgm_inds)), 'ERROR: no points suited for sigmoidal fit of %s' % (fit_error_name)
+		
+		max_Rdens = max(Rdens[ok_inds])
+		min_Rdens = min(Rdens[ok_inds])
+		if(Rdens_eps < 0):
+			Rdens_eps *= -min_Rdens
+		Rdens_scaled = (max_Rdens - Rdens[rho_linsgm_inds] + Rdens_eps) / (max_Rdens - min_Rdens + Rdens_eps)
+		rho_linsgmfit = np.polyfit(R_centers[rho_linsgm_inds], \
+									-np.log(1 / Rdens_scaled - 1), \
+									1, \
+									w = Rdens_scaled * (1 - Rdens_scaled) / d_Rdens[rho_linsgm_inds])
+		rho_fit_params[1] = 1 / abs(rho_linsgmfit[0])
+		rho_fit_params[2] = -rho_linsgmfit[1] / rho_linsgmfit[0]
+		
+		#R_correction = rho_fit_params[2] + rho_fit_params[1] * abs(np.log(1/rho_inf - 1))
+		R_correction = R_centers[ok_inds][np.argmax((Rdens[ok_inds] > rho_inf) if(rho_bulk > 0.5) else (Rdens[ok_inds] < rho_inf))]
+		
+		opt_fnc_full = lambda prm: np.sum(((rho_fit_sgmfnc_template(R_centers[ok_inds], prm, rho_bulk, Ncl, L2, mode=mode) - Rdens[ok_inds]) / d_Rdens[ok_inds])**2)   # , capilar_correction_min=R_correction
+		#rho_fit_params[3] = 0
+		prm3_opt_options = {}
+		if(strict_bounds):
+			rho_fit_params[3] = R_correction * \
+								((max(Rdens[ok_inds]) - rho_inf) if(rho_bulk > 0.5) \
+								else (min(Rdens[ok_inds]) - rho_inf))
+			prm3_opt_options['bounds'] = (min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3]))
+		
+		rho_fit_params[3] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho_fit_params, x, 3)), **prm3_opt_options).x
+		
+		if(strict_bounds):
+			#[0]: (max([0, 1 - 5 * (1 - rho_fit_params[0])]), 1) if(rho_fit_params[0] > 0.5) else (0, min([1, 5 * rho_fit_params[0]])
+			d_rho_fit_params_0 = d_Rdens[ok_inds][0]
+			opt_bounds = ((0, min(1, rho_fit_params[0] + d_rho_fit_params_0 * 10)) if(rho_bulk > 0.5) else (max(0, rho_fit_params[0] - d_rho_fit_params_0 * 10), 1), \
+						(rho_fit_params[1] / 2, rho_fit_params[1] * 2), \
+						(rho_fit_params[2] / 2, rho_fit_params[2] * 2), \
+						(min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3])))
+		else:
+			R0_estimate = np.sqrt(Ncl / np.pi)
+			opt_bounds = ((0, 1), (0.1, R0_estimate), (R0_estimate / 3, R0_estimate * 3), (-1,1))
+			# [0]: desnity [0;1]
+			# [1]: width. It is (0;None) but really it is < 2 so here it is
+			# [2]: R0 ~ np.sqrt(Ncl / np.pi)
+			# [3]: unclear, but usually |a| << 1
+		
+		rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params)
+		if(np.any([((rho_fit_optim_res.x[i] < opt_bounds[i][0]) or (opt_bounds[i][1] < rho_fit_optim_res.x[i])) for i in range(len(rho_fit_params))])):
+			rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params, bounds=opt_bounds)
+		
+		rho_fit_params = rho_fit_optim_res.x
+		
+		if(isinstance(rho_fit_optim_res.hess_inv, scipy.optimize._lbfgsb_py.LbfgsInvHessProduct)):
+			d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.todense().diagonal())
+		else:
+			d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.diagonal())
+	elif(mode in [2]):
+		rho_fit_params = np.empty(4)
+		
+		Rdens_maxind = np.argmax(Rdens[ok_inds])
+		#rho_fit_params[0] = Rdens[ok_inds][Rdens_maxind] - rho_bulk
+		rho_fit_params[2] = R_centers[ok_inds][Rdens_maxind]
+		R_left_to_peak_inds = R_centers[ok_inds] < rho_fit_params[2]
+		R_left_peak_ind = np.where(Rdens[ok_inds][R_left_to_peak_inds] < rho_bulk)[0]   # find the last index with (R < Rpeak) and (rho < rho_bulk)
+		if(len(R_left_peak_ind) == 0):
+			R_left_peak_ind = 0
+		else:
+			R_left_peak_ind = R_left_peak_ind[-1] + 1
+		R_peak_left = R_centers[ok_inds][R_left_to_peak_inds][R_left_peak_ind]
+		fit_inds = ok_inds & (R_centers >= R_peak_left)
+		R_right_peak_ind = max(0, np.argmax(Rdens[fit_inds] < rho_bulk) - 1)   # first index with (R > Rpeak) and (rho < rho_bulk)
+		R_peak_right = R_centers[fit_inds][R_right_peak_ind]
+		peak_inds = fit_inds & (R_centers >= R_peak_left) & (R_centers <= R_peak_right)
+		R_peak_avg = np.average(R_centers[peak_inds], weights=Rdens[peak_inds])  # w *= R_centers[fit_inds][peak_inds] because  dV = r dphi dr
+		#rho_fit_params[1] = np.sqrt(np.average((Rdens[peak_inds] - R_peak_avg)**2, weights=Rdens[peak_inds]) / (1 - 1/np.sum(peak_inds)))
+		rho_fit_params[1] = np.sqrt(np.average((Rdens[peak_inds] - R_peak_avg)**2, weights=Rdens[peak_inds])) * 0.581368  # * 0.610968
+		rho_fit_params[0] = R_peak_right
+		
+		opt_fnc_full = lambda prm: np.sum(((rho_fit_sgmfnc_template(R_centers[fit_inds], prm, rho_bulk, Ncl, L2, capilar_correction_min=R_centers[fit_inds][R_right_peak_ind + 3], mode=mode, A=Rdens[ok_inds][Rdens_maxind] - rho_bulk) - Rdens[fit_inds]) / d_Rdens[fit_inds])**2)
+		#rho_fit_params[3] = 0
+		prm3_opt_options = {}
+		if(strict_bounds):
+			rho_fit_params[3] = (min(Rdens[fit_inds]) - rho_bulk) * R_peak_right
+			prm3_opt_options['bounds'] = (min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3]))
+		
+		rho_fit_params[3] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho_fit_params, x, 3)), **prm3_opt_options).x
+		
+		if(strict_bounds):
+			#[0]: (rho_fit_params[0] / 1.05, rho_fit_params[0] * 1.05)
+			opt_bounds = ((rho_fit_params[0] - rho_fit_params[1]/5, rho_fit_params[0] + rho_fit_params[1]/5), \
+						(rho_fit_params[1] / 2, rho_fit_params[1] * 2), \
+						(rho_fit_params[2] - (R_centers[1] - R_centers[0]) * 1.1, rho_fit_params[2] + (R_centers[1] - R_centers[0]) * 1.1), \
+						(min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3])))
+		else:
+			R0_estimate = np.sqrt(Ncl / np.pi)
+			opt_bounds = ((0, 1), (0.1, R0_estimate), (R0_estimate / 3, R0_estimate * 3), (-1,1))
+			# [0]: desnity [0;1]
+			# [1]: width. It is (0;None) but really it is < 2 so here it is
+			# [2]: R0 ~ np.sqrt(Ncl / np.pi)
+			# [3]: unclear, but usually |a| << 1
+		
+		if(debug % 2 == 0):
+			fig, ax, _ = my.get_fig('R', r'$\phi_2$', yscl='log')
+			ax.errorbar(R_centers[fit_inds], Rdens[fit_inds], d_Rdens[fit_inds])
+			ax.errorbar(R_centers[peak_inds], Rdens[peak_inds], d_Rdens[peak_inds])
+			ax.plot([min(R_centers[fit_inds]), max(R_centers[fit_inds])], [rho_bulk]*2, '--')
+			#ax.plot([min(R_centers[fit_inds]), max(R_centers[fit_inds])], [rho_bulk]*2, '--')
+			ax.plot(R_centers[ok_inds], rho_fit_sgmfnc_template(R_centers[ok_inds], rho_fit_params, rho_bulk, Ncl, L2, capilar_correction_min=R_peak_right, mode=mode))
+			plt.show()
+		
+		rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params)
+		if(np.any([((rho_fit_optim_res.x[i] < opt_bounds[i][0]) or (opt_bounds[i][1] < rho_fit_optim_res.x[i])) for i in range(len(rho_fit_params))])):
+			rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params, bounds=opt_bounds)
+		
+		rho_fit_params = rho_fit_optim_res.x
+		
+		if(isinstance(rho_fit_optim_res.hess_inv, scipy.optimize._lbfgsb_py.LbfgsInvHessProduct)):
+			d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.todense().diagonal())
+		else:
+			d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.diagonal())
+		
+		if(debug % 3 == 0):
+			fig, ax, _ = my.get_fig('R', r'$\phi_2$', yscl='log')
+			ax.errorbar(R_centers[fit_inds], Rdens[fit_inds], d_Rdens[fit_inds])
+			ax.errorbar(R_centers[peak_inds], Rdens[peak_inds], d_Rdens[peak_inds])
+			ax.plot([min(R_centers[fit_inds]), max(R_centers[fit_inds])], [rho_bulk]*2, '--')
+			ax.plot([R_peak_right] * 2, [min(Rdens[fit_inds]), max(Rdens[fit_inds])], '--')
+			
+			ax.plot(R_centers[ok_inds], rho_fit_sgmfnc_template(R_centers[ok_inds], rho_fit_params, rho_bulk, Ncl, L2, capilar_correction_min=R_peak_right, mode=mode))
+			plt.show()
+		
+		
 	#print(rho_fit_params, d_rho_fit_params)
 	#input('ok')
 	
