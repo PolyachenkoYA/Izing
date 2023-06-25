@@ -3150,7 +3150,9 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 								N_fourier=N_fourier, seeds=found_IDs, \
 								to_plot=False)
 					
-					OP0_closest_ind = np.argmin(np.abs(OP_interfaces - OP0[i_Temp, i_phi1]))
+					#OP0_closest_ind = np.argmin(np.abs(OP_interfaces - OP0[i_Temp, i_phi1]))
+					#OP0_closest_ind = np.argmin(np.abs(np.log(1/PB - 1)))
+					OP0_closest_ind = np.argmin(np.abs(PB - 0.5))
 					chi2_rho0[i_Temp, i_phi1] = rho_chi2[i_Temp, i_phi1, 0, OP0_closest_ind]
 					chi2_rho1[i_Temp, i_phi1] = rho_chi2[i_Temp, i_phi1, 1, OP0_closest_ind]
 					chi2_rho2[i_Temp, i_phi1] = rho_chi2[i_Temp, i_phi1, 2, OP0_closest_ind]

@@ -235,7 +235,7 @@ def get_sigmoid_fit(PB, d_PB, OP, sgminv_fnc, d_sgminv_fnc=None, sgminv_dx=1e-5,
 	N_OP = len(OP)
 	PB_sigmoid = np.empty(N_OP)
 	d_PB_sigmoid = np.empty(N_OP)
-
+	
 	if(d_sgminv_fnc is None):
 		d_sgminv_fnc = lambda x, y: (sgminv_fnc(x + sgminv_dx) - sgminv_fnc(x - sgminv_dx)) / (2 * sgminv_dx)
 	PB_sigmoid[ok_inds] = sgminv_fnc(PB[ok_inds]) #-np.log(1 / PB[ok_inds] - 1)
@@ -243,7 +243,7 @@ def get_sigmoid_fit(PB, d_PB, OP, sgminv_fnc, d_sgminv_fnc=None, sgminv_dx=1e-5,
 	d_PB_sigmoid[ok_inds] = d_PB[ok_inds] * d_sgminv_fnc(PB[ok_inds], PB_sigmoid[ok_inds])
 	PB_sigmoid[~ok_inds] = max(PB_sigmoid[ok_inds]) * bad_points_mult
 	d_PB_sigmoid[~ok_inds] = max(d_PB_sigmoid[ok_inds]) * bad_points_mult
-
+	
 	OP0_guess =  OP[ok_inds][np.argmin(abs( PB_sigmoid[ok_inds] - sgminv_fnc(1/2)))]
 	if(fit_w is None):
 		fit_w = abs(OP[0] - OP0_guess) / 5
@@ -252,10 +252,10 @@ def get_sigmoid_fit(PB, d_PB, OP, sgminv_fnc, d_sgminv_fnc=None, sgminv_dx=1e-5,
 	if(np.sum(linfit_inds) < N_min_points_for_fit):
 		dOP = abs(OP - OP0_guess)
 		linfit_inds = (dOP <= np.sort(dOP)[N_min_points_for_fit - 1])
-
+	
 	linfit = np.polyfit(OP[linfit_inds], PB_sigmoid[linfit_inds], 1, w=1/d_PB_sigmoid[linfit_inds])
 	OP0 = - linfit[1] / linfit[0]
-
+	
 	return PB_sigmoid, d_PB_sigmoid, linfit, linfit_inds, OP0
 
 def plot_sgm_fit(ax, ax_log, ax_sgm, x_lbl, clr, \
@@ -500,16 +500,16 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	d_ln_k_AB = np.sqrt((d_flux0 / flux0)**2 + np.sum((d_probs / probs)**2))
 	Temp = 4 / e[1, 1]
 	swap_type_move = (MC_move_mode in [move_modes['swap'], move_modes['long_swap']])
-
+	
 	print('Nt:', Nt)
 	#print('N_init_guess: ', np.exp(np.mean(np.log(Nt))) / Nt)
 	print('flux0 = (%s) 1/step' % (my.errorbar_str(flux0, d_flux0)))
 	print('-log10(P_i):', -np.log(probs) / np.log(10))
 	print('d_P_i / P_i:', d_probs / probs)
 	k_AB, k_AB_low, k_AB_up, d_k_AB = get_log_errors(ln_k_AB, d_ln_k_AB, lbl='k_AB', print_scale=print_scale_k)
-
+	
 	OP_interfaces_scaled = OP_interfaces / OP_scale[interface_mode]
-
+	
 	N_OP_interfaces = len(OP_interfaces_scaled)
 	P_B = np.empty(N_OP_interfaces)
 	d_P_B = np.empty(N_OP_interfaces)
@@ -518,7 +518,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	for i in range(N_OP_interfaces - 2, -1, -1):
 		P_B[i] = P_B[i + 1] * probs[i]
 		d_P_B[i] = P_B[i] * (1 - P_B[i]) * np.sqrt((d_P_B[i + 1] / P_B[i + 1])**2 + (d_probs[i] / probs[i])**2) if(np.all(d_probs[i] / probs[i] < 10)) else P_B[i] * 0.99
-
+	
 	#P_B_opt, P_B_opt_fnc, P_B_opt_fnc_inv = PB_fit_optimize(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], OP_interfaces_scaled[0], OP_interfaces_scaled[-1], P_B[0], P_B[-1], tht0=[0, 0.15])
 	#P_B_x0_opt = P_B_opt.x[0]
 	#P_B_s_opt = P_B_opt.x[1]
@@ -527,25 +527,26 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		get_sigmoid_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
 						sgminv_fnc=lambda x: -np.log(1/x - 1), \
 						d_sgminv_fnc=lambda x, y: 1/(x*(1-x)))
-
+	
 	P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv = \
 		get_sigmoid_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
 						sgminv_fnc=lambda x: scipy.special.erfinv(2 * x - 1), \
 						d_sgminv_fnc=lambda x, y: np.sqrt(np.pi) * np.exp(y**2))
-
+	ZeldovichG = linfit_erfinv[0] / np.sqrt(np.pi)
+	
 	OP_optimize_f_interp_vals = 1 - np.log(P_B) / np.log(P_B[0])
 	d_OP_optimize_f_interp_vals = d_P_B / P_B / np.log(P_B[0])
 	#M_optimize_f_interp_fit = lambda OP: (1 - np.log(P_B_opt_fnc(OP)) / np.log(P_B[0]))
 	OP_optimize_f_interp_interp1d = scipy.interpolate.interp1d(OP_interfaces_scaled, OP_optimize_f_interp_vals, fill_value='extrapolate')
 	#OP_optimize_f_desired = np.linspace(0, 1, N_OP_interfaces)
 	OP_optimize_f_desired = np.concatenate((np.linspace(0, OP_optimize_f_interp_interp1d(OP0_erfinv * 1.05), N_OP_interfaces - 1), np.array([1])))
-
+	
 	# ===== numerical inverse ======
 	OP_optimize_new_OP_interfaces = np.zeros(N_OP_interfaces, dtype=np.intc)
 	OP_optimize_new_OP_guess = min(OP_interfaces_scaled) + (max(OP_interfaces_scaled) - min(OP_interfaces_scaled)) * (np.arange(N_OP_interfaces) / N_OP_interfaces)
 	for i in range(N_OP_interfaces - 2):
 		OP_optimize_new_OP_interfaces[i + 1] = int(np.round(scipy.optimize.root(lambda x: OP_optimize_f_interp_interp1d(x) - OP_optimize_f_desired[i + 1], OP_optimize_new_OP_guess[i + 1]).x[0] * OP_scale[interface_mode]) + 0.1)
-
+	
 	if(interface_mode == 'M'):
 		OP_optimize_new_OP_interfaces = OP_interfaces[0] + 2 * np.round((OP_optimize_new_OP_interfaces - OP_interfaces[0]) / 2)
 		OP_optimize_new_OP_interfaces = np.int_(OP_optimize_new_OP_interfaces + 0.1 * np.sign(OP_optimize_new_OP_interfaces))
@@ -553,11 +554,11 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		OP_optimize_new_OP_interfaces = np.int_(np.round(OP_optimize_new_OP_interfaces))
 	OP_optimize_new_OP_interfaces[0] = OP_interfaces[0]
 	OP_optimize_new_OP_interfaces[-1] = OP_interfaces[-1]
-
+	
 	OP_optimize_new_OP_interfaces_original = np.copy(OP_optimize_new_OP_interfaces)
 	if(OP_optim_minstep is None):
 		OP_optim_minstep = OP_step[interface_mode]
-
+	
 	# if(np.any(OP_optimize_new_OP_interfaces[1:] - OP_optimize_new_OP_interfaces[:-1] < OP_optim_minstep)):
 		# print('WARNING: too close interfaces, removing duplicates')
 		# for i in range(N_OP_interfaces - 1):
@@ -576,7 +577,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	N_new_interfaces = len(OP_optimize_new_OP_interfaces)
 	#print('N_M_i =', N_new_interfaces, '\nM_new:\n', OP_optimize_new_OP_interfaces, '\nM_new_original:\n', OP_optimize_new_OP_interfaces_original)
 	print('OP_new (using OP_step_min = %f):\n' % OP_optim_minstep, OP_optimize_new_OP_interfaces + (L2 if(interface_mode == 'M') else 0))
-
+	
 	if(OP_hist_edges is not None):
 		OP_hist_lens = (OP_hist_edges[1:] - OP_hist_edges[:-1])
 		OP_hist_centers = (OP_hist_edges[1:] + OP_hist_edges[:-1]) / 2
@@ -584,7 +585,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	else:
 		OP_hist_centers = None
 		OP_hist_lens = None
-
+	
 	if(to_do_hists):
 		state_Rdens_centers, state_centered_Rdens_total, d_state_centered_Rdens = \
 			tuple([None] * 3)
@@ -641,18 +642,18 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 					for k in range(N_species):
 						state_centered_crds_per_interface[i][k] = \
 							np.concatenate(tuple([state_centered_crds[i][j][k] for j in range(N_init_states[i])]), axis=0)
-
+					
 					assert(OP_hist_edges is not None), 'ERROR: no "OP_hist_edges" provided but "OP_init_states" is asked to be analyzed (_states != None)'
 					OP_init_hist[:, i], _ = np.histogram(OP_init_states[i], bins=OP_hist_edges * OP_scale[interface_mode])
 					OP_init_hist[:, i] = OP_init_hist[:, i] / N_init_states[i]
 					d_OP_init_hist[:, i] = np.sqrt(OP_init_hist[:, i] * (1 - OP_init_hist[:, i]) / N_init_states[i])
-
+				
 				cluster_centered_crds_all = np.concatenate(tuple(cluster_centered_crds_per_interface), axis=0)
 				def stepped_linspace(x, dx, margin=1e-3):
 					mn = min(x) - dx * margin
 					mx = max(x) + dx * margin
 					return np.linspace(mn, mx, int((mx - mn) / dx + 0.5))
-
+				
 				# ==== cluster ====
 				cluster_map_edges = [stepped_linspace(cluster_centered_crds_all[:, 0], cluster_map_dx), \
 									 stepped_linspace(cluster_centered_crds_all[:, 1], cluster_map_dx)]
@@ -660,7 +661,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				cluster_map_centers = [(cluster_map_edges[0][1:] + cluster_map_edges[0][:-1]) / 2, \
 										(cluster_map_edges[1][1:] + cluster_map_edges[1][:-1]) / 2]
 				cluster_Rdens_centers = (cluster_Rdens_edges[1:] + cluster_Rdens_edges[:-1]) / 2
-
+				
 				# ==== state ====
 				state_map_edges = [stepped_linspace([-L/2, L/2], cluster_map_dx), \
 									 stepped_linspace([-L/2, L/2], cluster_map_dx)]
@@ -668,7 +669,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				state_map_centers = [(state_map_edges[0][1:] + state_map_edges[0][:-1]) / 2, \
 										(state_map_edges[1][1:] + state_map_edges[1][:-1]) / 2]
 				state_Rdens_centers = (state_Rdens_edges[1:] + state_Rdens_edges[:-1]) / 2
-
+				
 				cluster_centered_map_total = [[]] * N_OP_interfaces
 				cluster_centered_maps = [[]] * N_OP_interfaces
 				cluster_centered_Rdens_total = [[]] * N_OP_interfaces
@@ -685,7 +686,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				for i in range(N_OP_interfaces):
 					# ==== cluster ====
 					Rs_local = np.linalg.norm(cluster_centered_crds_per_interface[i], axis=1)
-
+					
 					cluster_centered_map_total[i], _, _ = \
 						np.histogram2d(cluster_centered_crds_per_interface[i][:, 0], \
 										cluster_centered_crds_per_interface[i][:, 1], \
@@ -693,7 +694,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 					cluster_centered_Rdens_total[i], _ = \
 						np.histogram(Rs_local, \
 									bins=cluster_Rdens_edges)
-
+					
 					rho_fourier2D_local = np.empty((2, N_init_states[i]))
 					for k in range(N_fourier):
 						for j in range(N_init_states[i]):
@@ -701,7 +702,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							rho_fourier2D_local[0, j] = np.mean(np.cos(theta_local))
 							rho_fourier2D_local[1, j] = np.mean(np.sin(theta_local))
 						rho_fourier2D[i, :, k] = np.mean(np.abs(rho_fourier2D_local), axis=1)
-
+					
 					cluster_centered_maps[i] = np.empty((cluster_centered_map_total[i].shape[0], cluster_centered_map_total[i].shape[1], N_init_states[i]))
 					cluster_centered_Rdens_s[i] = np.empty((cluster_centered_Rdens_total[i].shape[0], N_init_states[i]))
 					for j in range(N_init_states[i]):
@@ -709,22 +710,22 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							np.histogram2d(cluster_centered_crds[i][j][:, 0], \
 										cluster_centered_crds[i][j][:, 1], \
 										bins=cluster_map_edges)
-
+						
 						cluster_centered_Rdens_s[i][:, j], _ = \
 							np.histogram(np.linalg.norm(cluster_centered_crds[i][j], axis=1), \
 										bins=cluster_Rdens_edges)
-
+					
 					d_cluster_centered_map_total[i] = np.std(cluster_centered_maps[i], axis=2)
 					d_cluster_centered_Rdens_total[i] = np.std(cluster_centered_Rdens_s[i], axis=1)
-
+					
 					cluster_centered_map_norm = N_init_states[i] * cluster_map_dx**2
 					cluster_centered_map_total[i] = cluster_centered_map_total[i] / cluster_centered_map_norm
 					d_cluster_centered_map_total[i] = d_cluster_centered_map_total[i] / cluster_centered_map_norm * np.sqrt(N_init_states[i])
-
+					
 					cluster_centered_Rdens_norm = N_init_states[i] * (np.pi * (cluster_Rdens_edges[1:]**2 - cluster_Rdens_edges[:-1]**2))
 					cluster_centered_Rdens_total[i] = cluster_centered_Rdens_total[i] / cluster_centered_Rdens_norm
 					d_cluster_centered_Rdens_total[i] = d_cluster_centered_Rdens_total[i] / cluster_centered_Rdens_norm * np.sqrt(N_init_states[i])
-
+					
 					# ==== state ====
 					state_centered_map_total[i] = [[]] * N_species
 					state_centered_Rdens_total[i] = [[]] * N_species
@@ -737,11 +738,11 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							np.histogram2d(state_centered_crds_per_interface[i][k][:, 0] - L/2, \
 											 state_centered_crds_per_interface[i][k][:, 1] - L/2, \
 											 bins=state_map_edges)
-
+						
 						state_centered_Rdens_total[i][k], _ = \
 							np.histogram(np.linalg.norm(state_centered_crds_per_interface[i][k] - L/2, axis=1), \
 										 bins=state_Rdens_edges)
-
+						
 						state_centered_maps[i][k] = np.empty((state_centered_map_total[i][k].shape[0], state_centered_map_total[i][k].shape[1], N_init_states[i]))
 						state_centered_Rdens_s[i][k] = np.empty((state_centered_Rdens_total[i][k].shape[0], N_init_states[i]))
 						for j in range(N_init_states[i]):
@@ -749,24 +750,24 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 								np.histogram2d(state_centered_crds[i][j][k][:, 0], \
 											state_centered_crds[i][j][k][:, 1], \
 											bins=state_map_edges)
-
+							
 							state_centered_Rdens_s[i][k][:, j], _ = \
 								np.histogram(np.linalg.norm(state_centered_crds[i][j][k], axis=1), \
 											bins=state_Rdens_edges)
-
+						
 						#print(state_centered_Rdens_s[i][k].shape)
 						d_state_centered_map[i][k] = np.std(state_centered_maps[i][k], axis=2)
 						d_state_centered_Rdens[i][k] = np.std(state_centered_Rdens_s[i][k], axis=1)
 						#print(np.std(state_centered_Rdens_s[i][k], axis=1).shape)
-
+						
 						state_centered_map_norm = N_init_states[i] * cluster_map_dx**2
 						state_centered_map_total[i][k] = state_centered_map_total[i][k] / state_centered_map_norm
 						d_state_centered_map[i][k] = d_state_centered_map[i][k] / state_centered_map_norm * np.sqrt(N_init_states[i])
-
+						
 						state_centered_Rdens_norm = N_init_states[i] * (np.pi * (state_Rdens_edges[1:]**2 - state_Rdens_edges[:-1]**2))
 						state_centered_Rdens_total[i][k] = state_centered_Rdens_total[i][k] / state_centered_Rdens_norm
 						d_state_centered_Rdens[i][k] = d_state_centered_Rdens[i][k] / state_centered_Rdens_norm * np.sqrt(N_init_states[i])
-
+				
 				if(to_save_npz):
 					print('writing', npz_states_filepath)
 					np.savez(npz_states_filepath, \
@@ -783,11 +784,11 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							state_centered_Rdens_total=state_centered_Rdens_total, \
 							d_state_centered_Rdens=d_state_centered_Rdens, \
 							rho_fourier2D=rho_fourier2D)
-
+			
 			else:
 				print(npz_states_filepath, 'loading')
 				npz_data = np.load(npz_states_filepath, allow_pickle=True)
-
+				
 				OP_hist_centers = npz_data['OP_hist_centers']
 				OP_init_hist = npz_data['OP_init_hist']
 				d_OP_init_hist = npz_data['d_OP_init_hist']
@@ -801,18 +802,18 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				state_centered_Rdens_total = npz_data['state_centered_Rdens_total']
 				d_state_centered_Rdens = npz_data['d_state_centered_Rdens']
 				rho_fourier2D = npz_data['rho_fourier2D']
-
+			
 			if(to_plot_hists):
 				# ============ plot ===========
 				ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
-
+				
 				# ==== cluster ====
 				fig_OPinit_hists, ax_OPinit_hists, _ = my.get_fig(y_lbl, r'$p_i(' + x_lbl + ')$', title=r'$p(' + x_lbl + ')$; ' + ThL_lbl, yscl='log')
 				fig_cluster_Rdens, ax_cluster_Rdens, _ = my.get_fig('r', r'$\rho$', title=r'$\rho(r)$; ' + ThL_lbl)
 				fig_cluster_Rdens_log, ax_cluster_Rdens_log, _ = my.get_fig('r', r'$\rho$', title=r'$\rho(r)$; ' + ThL_lbl, yscl='logit')
 				fig_cluster_map = [[]] * N_OP_interfaces
 				ax_cluster_map = [[]] * N_OP_interfaces
-
+				
 				# ==== state ====
 				fig_state_map = [[]] * N_species
 				ax_state_map = [[]] * N_species
@@ -825,15 +826,15 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 					fig_state_Rdens_log[k], ax_state_Rdens_log[k], _ = my.get_fig('r', r'$\rho_%d$' % k, title=(r'$\rho_%d(r)$; ' % k) + ThL_lbl, yscl='logit')
 					fig_state_map[k] = [[]] * N_OP_interfaces
 					ax_state_map[k] = [[]] * N_OP_interfaces
-
+				
 				for i in range(N_OP_interfaces):
 					ax_OPinit_hists.bar(OP_hist_centers, OP_init_hist[:, i], yerr=d_OP_init_hist[:, i], width=OP_hist_lens, align='center', label='OP = ' + str(OP_interfaces[i]), alpha=Ms_alpha)
-
+					
 					# ==== cluster ====
 					cluster_lbl = r'$OP[%d] = %d$; ' % (i, OP_interfaces[i])
 					ax_cluster_Rdens.errorbar(cluster_Rdens_centers, cluster_centered_Rdens_total[i], yerr=d_cluster_centered_Rdens_total[i], label=cluster_lbl)
 					ax_cluster_Rdens_log.errorbar(cluster_Rdens_centers, cluster_centered_Rdens_total[i], yerr=d_cluster_centered_Rdens_total[i], label=cluster_lbl)
-
+					
 					fig_cluster_map[i], ax_cluster_map[i], fig_id = my.get_fig('x', 'y', title=cluster_lbl + ThL_lbl)
 					im = ax_cluster_map[i].imshow(cluster_centered_map_total[i], \
 											extent = [min(cluster_map_centers[1]), max(cluster_map_centers[1]), \
@@ -841,22 +842,22 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 											interpolation ='bilinear', origin ='lower', aspect='auto')
 					plt.figure(fig_id)
 					cbar = plt.colorbar(im)
-
+					
 					# ==== state ====
 					for k in range(N_species):
 						ax_state_Rdens[k].errorbar(state_Rdens_centers, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens[i][k], label=cluster_lbl)
 						ax_state_Rdens_log[k].errorbar(state_Rdens_centers, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens[i][k], label=cluster_lbl)
-
+				
 				my.add_legend(fig_OPinit_hists, ax_OPinit_hists)
 				my.add_legend(fig_cluster_Rdens, ax_cluster_Rdens)
 				my.add_legend(fig_cluster_Rdens_log, ax_cluster_Rdens_log)
 				for k in range(N_species):
 					my.add_legend(fig_state_Rdens[k], ax_state_Rdens[k])
 					my.add_legend(fig_state_Rdens_log[k], ax_state_Rdens_log[k])
-
+	
 	rho = None
 	d_rho = None
-
+	
 	ax_PB_log = None
 	ax_PB = None
 	ax_PB_sgm = None
@@ -868,13 +869,13 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	if(OP_data is not None):
 		assert(OP_interfaces[0] < OP_match_BF_to), 'ERROR: OP_interfaces start at %d, but the state is match to BF only through %d' % (OP_interfaces[0], OP_match_BF_to)
 		#assert(OP_match_BF_to < OP_sample_BF_to), 'ERROR: OP_match_to = %d >= OP_sample_to = %d' % (OP_match_BF_to, OP_sample_BF_to)
-
+		
 		Nt_total = len(OP_data)
 		Nt_totals = np.empty(N_OP_interfaces, dtype=np.intc)
 		Nt_totals[0] = Nt[0]
 		OP = [OP_data[ : Nt_totals[0]]]
 		times = [time_data[ : Nt_totals[0]]]
-
+		
 		def get_jumps(OP, OP_interfaces, k):
 			OP_next = OP_interfaces[k + 1]
 			OP_init = OP_interfaces[k]
@@ -891,7 +892,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				traj_jumps = OP_traj[1:] - OP_traj[:-1]
 				jumps.append(traj_jumps)
 			return np.concatenate(tuple(jumps))
-
+		
 		OP_jumps = [OP[0][1:] - OP[0][:-1]]   # 1st run is different from others - it's BF and with no stops (it's a single trajectory)
 		for i in range(1, N_OP_interfaces):
 			Nt_totals[i] = Nt_totals[i-1] + Nt[i]
@@ -899,7 +900,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			OP_jumps.append(get_jumps(OP[i], OP_interfaces, i - 1))
 			times.append(time_data[Nt_totals[i-1] : Nt_totals[i]])
 		del OP_data
-
+		
 		# The number of bins cannot be arbitrary because OP is descrete, thus it's a good idea if all the bins have 1 descrete value inside or all the bins have 2 or etc.
 		# It's not good if some bins have e.g. 1 possible OP value, and others have 2 possible values.
 		# There are 'L^2 + 1' possible values of OP, because '{OP \in [-L^2; L^2]} and {dM = 2}'
@@ -908,7 +909,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 											(OP_possible_jumps[interface_mode][1:] + OP_possible_jumps[interface_mode][:-1]) / 2, \
 											[OP_possible_jumps[interface_mode][-1] + OP_step[interface_mode] / 2]))
 		OP_jumps_hist_lens = (OP_jumps_hist_edges[1:] - OP_jumps_hist_edges[:-1])
-
+		
 		small_rho = 1e-2 / Nt_totals[-1] / N_OP_hist
 		rho_s = np.zeros((N_OP_hist, N_OP_interfaces))
 		d_rho_s = np.zeros((N_OP_hist, N_OP_interfaces))
@@ -931,7 +932,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			#d_rho_s[OP_hist_ok_inds, i] = np.sqrt(OP_hist[OP_hist_ok_inds] * (1 - OP_hist[OP_hist_ok_inds] / Nt[i])) / OP_hist_lens[OP_hist_ok_inds] / Nt[i]
 			rho_s[OP_hist_ok_inds[:, i], i] = OP_hist[OP_hist_ok_inds[:, i]] / OP_hist_lens[OP_hist_ok_inds[:, i]] / N_init_states[i]   # \pi(q, l_i)
 			d_rho_s[OP_hist_ok_inds[:, i], i] = np.sqrt(OP_hist[OP_hist_ok_inds[:, i]] * (1 - OP_hist[OP_hist_ok_inds[:, i]] / Nt[i])) / OP_hist_lens[OP_hist_ok_inds[:, i]] / N_init_states[i]
-
+			
 			if(i > 0):
 				timesteps.append(np.arange(Nt[i]) + Nt_totals[i-1])
 				#rho_w[i-1] = (1 if(i == 0) else P_B[0] / P_B[i - 1])
@@ -941,7 +942,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				rho_for_sum[:, i-1] = rho_s[:, i] * rho_w[i-1]
 				#d_rho_for_sum[OP_hist_ok_inds, i] = rho_for_sum[OP_hist_ok_inds, i] * np.sqrt((d_rho_s[OP_hist_ok_inds, i] / rho_s[OP_hist_ok_inds, i])**2 + (0 if(i == 0) else np.sum((d_probs[:i] / probs[:i])**2)))
 				d_rho_for_sum[OP_hist_ok_inds[:, i], i-1] = rho_for_sum[OP_hist_ok_inds[:, i], i-1] * np.sqrt((d_rho_s[OP_hist_ok_inds[:, i], i] / rho_s[OP_hist_ok_inds[:, i], i])**2 + (d_rho_w[i-1] / rho_w[i-1])**2)
-
+		
 		rho = np.sum(rho_for_sum, axis=1)
 		d_rho = np.sqrt(np.sum(d_rho_for_sum**2, axis=1))
 		OP_hist_ok_inds_FFS = (rho > 0)
@@ -949,7 +950,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		d_F = np.zeros(N_OP_hist)
 		F[OP_hist_ok_inds_FFS] = -np.log(rho[OP_hist_ok_inds_FFS] * OP_hist_lens[OP_hist_ok_inds_FFS])
 		d_F[OP_hist_ok_inds_FFS] = d_rho[OP_hist_ok_inds_FFS] / rho[OP_hist_ok_inds_FFS]
-
+		
 		BF_inds = OP_hist_centers <= OP_match_BF_to / OP_scale[interface_mode]
 		# print(BF_inds)
 		# print(OP_hist_lens[BF_inds])
@@ -957,7 +958,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		# input(str(OP_hist_centers))
 		F_BF = -np.log(rho_s[BF_inds, 0] * OP_hist_lens[BF_inds])
 		d_F_BF = d_rho_s[BF_inds, 0] / rho_s[BF_inds, 0]
-
+		
 		FFS_match_points_inds = (OP_hist_centers > OP_interfaces[0] / OP_scale[interface_mode]) & BF_inds
 		BF_match_points = (OP_hist_centers[BF_inds] > OP_interfaces[0] / OP_scale[interface_mode])
 		#print(d_F.shape, FFS_match_points_inds.shape, d_F_BF.shape, BF_match_points.shape)
@@ -967,55 +968,55 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		#F_shift = np.sum(dF_FFS_BF * w2) / np.sum(w2)
 		F_shift = np.average(dF_FFS_BF, weights=w2)
 		F_BF = F_BF + F_shift
-
+		
 		BF_OP_border = OP_interfaces[0] + OP_step[interface_mode] * 3
 		N_points_to_match_F_to = (OP_match_BF_to - BF_OP_border) / OP_step[interface_mode]
 		if(N_points_to_match_F_to < 5):
 			print('WARNING: Only few (%s) points to match F_BF to' % (my.f2s(N_points_to_match_F_to)))
-
+		
 		state_A_FFS_inds = (OP_hist_centers <= BF_OP_border / OP_scale[interface_mode]) & BF_inds
 		state_A_BF_inds = OP_hist_centers[BF_inds] <= BF_OP_border / OP_scale[interface_mode]
 		rho[state_A_FFS_inds] = np.exp(-F_BF[state_A_BF_inds]) / OP_hist_lens[state_A_FFS_inds]
 		d_rho[state_A_FFS_inds] = rho[state_A_FFS_inds] * d_F_BF[state_A_BF_inds]
-
+		
 		F = -np.log(rho * OP_hist_lens)
 		#F_BF = F_BF - min(F)
 		#F = F - min(F)
 		F_BF = F_BF - F[0]
 		F = F - F[0]
 		d_F = d_rho / rho
-
+		
 		ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
-
+		
 		if(to_plot_time_evol):
 			fig_OP, ax_OP, _ = my.get_fig('step', y_lbl, title=x_lbl + '(step); ' + ThL_lbl)
-
+			
 			for i in range(N_OP_interfaces):
 				ax_OP.plot(timesteps[i][::stride], OP[i][::stride], label='data, i=%d' % (i))
-
+			
 			my.add_legend(fig_OP, ax_OP)
-
+		
 		if(to_plot_hists):
 			fig_OPhists, ax_OPhists, _ = my.get_fig(y_lbl, r'$\rho_i(' + x_lbl + ') \cdot P(i | A)$', title=r'$\rho(' + x_lbl + ')$; ' + ThL_lbl, yscl='log')
 			for i in range(N_OP_interfaces - 1):
 				ax_OPhists.bar(OP_hist_centers, rho_for_sum[:, i], yerr=d_rho_for_sum[:, i], width=OP_hist_lens, align='center', label=str(i), alpha=Ms_alpha)
-
+			
 			for i in range(N_OP_interfaces):
 				ax_OPhists.plot([OP_interfaces_scaled[i]] * 2, [min(rho), max(rho)], '--', label=('interfaces' if(i == 0) else None), color=my.get_my_color(0))
 			my.add_legend(fig_OPhists, ax_OPhists)
-
+			
 			fig_OPjumps_hists, ax_OPjumps_hists, _ = my.get_fig('d' + x_lbl, 'probability', title=x_lbl + ' jumps distribution; ' + ThL_lbl, yscl='log')
 			for i in range(N_OP_interfaces):
 				ax_OPjumps_hists.plot(OP_possible_jumps[interface_mode], OP_jumps_hists[:, i], label='$' + x_lbl + ' \in (' + str((OP_min_default[interface_mode]) if(i == 0) else OP_interfaces_scaled[i-1]) + ';' + str(OP_interfaces_scaled[i]) + ']$')
 			my.add_legend(fig_OPjumps_hists, ax_OPjumps_hists)
-
+			
 			fig_F, ax_F, _ = my.get_fig(y_lbl, r'$F(' + x_lbl + r') = -T \ln(\rho(%s) \cdot d%s(%s))$' % (x_lbl, x_lbl, x_lbl), title=r'$F(' + x_lbl + ')$; ' + ThL_lbl)
 			ax_F.errorbar(OP_hist_centers[BF_inds], F_BF, yerr=d_F_BF, fmt='.', label='$F_{BF}$')
 			ax_F.errorbar(OP_hist_centers, F, yerr=d_F, fmt='.', label='$F_{total}$')
 			for i in range(N_OP_interfaces):
 				ax_F.plot([OP_interfaces_scaled[i]] * 2, [min(F), max(F)], '--', label=('interfaces' if(i == 0) else None), color=my.get_my_color(0))
 			my.add_legend(fig_F, ax_F)
-
+	
 	if(to_plot_hists):
 		plot_PB_AB(ThL_lbl, x_lbl, y_lbl, \
 					interface_mode, OP_interfaces_scaled[:-1], P_B[:-1], d_PB=d_P_B[:-1], \
@@ -1040,13 +1041,13 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			ax_fl.plot([min(OP_interfaces_scaled), OP_optimize_new_OP_interfaces[i] / OP_scale[interface_mode]], [OP_optimize_f_interp_interp1d(OP_optimize_new_OP_interfaces[i] / OP_scale[interface_mode])] * 2, '--', label=None, color=my.get_my_color(3))
 		#ax_fl.plot([min(OP_interfaces_scaled), max(OP_interfaces_scaled)], [0, 1], '--', label=r'$interpolation$')
 		ax_fl_i.plot([0, N_OP_interfaces - 1], [0, 1], '--', label=r'$ideal$')
-
+		
 		my.add_legend(fig_fl, ax_fl)
 		my.add_legend(fig_fl_i, ax_fl_i)
-
+	
 	return ln_k_AB, d_ln_k_AB, P_B, d_P_B, \
 			P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, \
-			P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, \
+			P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, ZeldovichG, \
 			rho, d_rho, OP_hist_centers, OP_hist_lens, \
 			state_Rdens_centers, state_centered_Rdens_total, d_state_centered_Rdens, \
 			cluster_centered_map_total, cluster_map_centers, rho_fourier2D, \
@@ -1065,46 +1066,6 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 	#traj_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
 	traj_basepath = '/scratch/gpfs/yp1065/Izing/npzs'
 	#traj_basepath = '/scratch/gpfs/yp1065/Izing/nvt'
-	
-	# traj_basename_olds = ['MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
-					# '_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					# (('_phi' + my.join_lbls(init_composition[1:], '_')) if(swap_type_move) \
-						# else ('_muT' + my.join_lbls(mu[1:], '_'))) + \
-					# '_NinitStates' + '_'.join([str(n) for n in N_init_states]) + \
-					# '_OPs' + '_'.join([str(ops) for ops in OP_interfaces]) + \
-					# '_stab' + str(stab_step) + \
-					# '_OPbf' + str(OP_sample_BF_to) + '_' + str(OP_match_BF_to) + \
-					# '_stride' + str(timeevol_stride) + \
-					# '_initGenMode' + str(init_gen_mode) + \
-					# '_timeData' + str(to_get_timeevol) + \
-					# '_ID' + str(lattice_gas.get_seed()), \
-					# 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
-					# '_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					# (('_phi' + my.join_lbls(init_composition[1:], '_')) if(swap_type_move) \
-						# else ('_muT' + my.join_lbls(mu[1:], '_'))) + \
-					# '_NinitStates' + '_'.join([str(n) for n in N_init_states[:2]]) + \
-					# '_OPs' + '_'.join([str(ops) for ops in OP_interfaces]) + \
-					# '_stab' + str(stab_step) + \
-					# '_OPbf' + str(OP_sample_BF_to) + '_' + str(OP_match_BF_to) + \
-					# '_stride' + str(timeevol_stride) + \
-					# '_initGenMode' + str(init_gen_mode) + \
-					# '_timeData' + str(to_get_timeevol) + \
-					# '_Nfourier' + str(N_fourier) + \
-					# '_ID' + str(lattice_gas.get_seed())]
-	
-	# traj_basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
-					# '_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					# (('_phi' + my.join_lbls(init_composition[1:], '_')) if(swap_type_move) \
-						# else ('_muT' + my.join_lbls(mu[1:], '_'))) + \
-					# '_NinitStates' + '_'.join([str(n) for n in N_init_states[:2]]) + \
-					# '_OPs' + '_'.join([str(ops) for ops in (np.append(OP_interfaces[[0, len(OP_interfaces)-1]], len(OP_interfaces)))]) + \
-					# '_stab' + str(stab_step) + \
-					# '_OPbf' + str(OP_sample_BF_to) + '_' + str(OP_match_BF_to) + \
-					# '_stride' + str(timeevol_stride) + \
-					# '_initGenMode' + str(init_gen_mode) + \
-					# '_timeData' + str(to_get_timeevol) + \
-					# '_Nfourier' + str(N_fourier) + \
-					# '_ID' + str(lattice_gas.get_seed())
 	
 	traj_basename, traj_basename_olds = \
 		izing.get_FFS_AB_npzTrajBasename(MC_move_mode, L, e, \
@@ -1186,7 +1147,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 	
 	ln_k_AB, d_ln_k_AB, P_B, d_P_B, \
 		P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, \
-		P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, \
+		P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, ZeldovichG, \
 		rho, d_rho, OP_hist_centers, OP_hist_lens, \
 		state_Rdens_centers, state_centered_Rdens_total, d_state_centered_Rdens, \
 		cluster_centered_map_total, cluster_map_centers, rho_fourier2D, \
@@ -1207,7 +1168,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 	return probs, d_probs, ln_k_AB, d_ln_k_AB, flux0, d_flux0, rho, d_rho, \
 			OP_hist_centers, OP_hist_lens, P_B, d_P_B, \
 			P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, \
-			P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, \
+			P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, ZeldovichG, \
 			state_Rdens_centers, state_centered_Rdens_total, d_state_centered_Rdens, \
 			cluster_centered_map_total, cluster_map_centers, rho_fourier2D
 
@@ -2016,7 +1977,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 	if(verbose is None):
 		verbose = lattice_gas.get_verbose()
 	L2 = L**2
-
+	
 	old_seed = lattice_gas.get_seed()
 	if(seeds is None):
 		seeds = [old_seed]
@@ -2025,11 +1986,11 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		assert(N_seeds == N_runs), 'ERROR: N_seeds = %d != N_runs = %d' % (N_seeds, N_runs)
 	else:
 		seeds = np.arange(N_runs) + seeds[0]
-
+	
 	if(to_get_timeevol is None):
 		to_get_timeevol = ('BF' == mode)
 	swap_type_move = (MC_move_mode in [move_modes['swap'], move_modes['long_swap']])
-
+	
 	if('BF' in mode):
 		assert(Nt_per_BF_run is not None), 'ERROR: BF mode but no Nt_per_run provided'
 		# if(OP_A is None):
@@ -2039,18 +2000,18 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			stab_step = int(min(L2, Nt_per_BF_run / 2) * (-stab_step))
 		if(timeevol_stride < 0):
 			timeevol_stride = np.int_(- Nt_per_BF_run / timeevol_stride)
-
+	
 	elif('FFS' in mode):
 		assert(N_init_states_AB is not None), 'ERROR: FFS_AB mode but no "N_init_states_AB" provided'
 		assert(OP_interfaces_AB is not None), 'ERROR: FFS_AB mode but no "OP_interfaces_AB" provided'
 		if(to_get_timeevol):
 			assert(timeevol_stride > 0), 'ERROR: timeevol_stride = %d <= 0 for FFS-style mode' % (timeevol_stride)
-
+		
 		N_OP_interfaces_AB = len(OP_interfaces_AB)
 		OP_AB = OP_interfaces_AB / OP_scale[interface_mode]
 		if(mode == 'FFS_AB'):
 			OP = np.copy(OP_AB)
-
+	
 	ln_k_AB_data = np.empty(N_runs)
 	ln_k_BA_data = np.empty(N_runs)
 	k_AB_BFcount_N_data = np.empty(N_runs)
@@ -2059,14 +2020,14 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 	if(mode == 'BF'):
 		ln_k_bc_AB_data = np.empty(N_runs)
 		ln_k_bc_BA_data = np.empty(N_runs)
-
+	
 	elif(mode == 'BF_2sides'):
 		Nt_states = Nt_per_BF_run // timeevol_stride
 		phi_0_data = np.empty((N_species, N_runs))
 		phi_1_data = np.empty((N_species, N_runs))
 		phi_0_evol_data = np.empty((N_species, Nt_states, N_runs))
 		phi_1_evol_data = np.empty((N_species, Nt_states, N_runs))
-
+	
 	elif('FFS' in mode):
 		flux0_AB_data = np.empty(N_runs)
 		probs_AB_data = np.empty((N_OP_interfaces_AB - 1, N_runs))
@@ -2082,16 +2043,17 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		PB_linfit_erfinv_data = np.empty((2, N_runs))
 		PB_linfit_erfinv_inds_data = np.empty((N_OP_interfaces_AB - 1, N_runs), dtype=bool)
 		OP0_erfinv_AB_data = np.empty(N_runs)
+		ZeldovichG_AB_data = np.empty(N_runs)
 		cluster_centered_map_total_interps = [[]] * N_runs
 		cluster_map_XYlims = np.zeros(2)
 		rho_fourier2D_data = np.empty((N_OP_interfaces_AB, 2, N_fourier, N_runs))
-
+	
 	npz_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
 	npz_basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
 					'_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
 					(('_phi' + my.join_lbls(init_composition[1:], '_')) if(swap_type_move) \
 						else ('_muT' + my.join_lbls(mu[1:], '_')))
-
+	
 	for i in range(N_runs):
 		lattice_gas.init_rand(seeds[i])
 		if(mode == 'BF'):
@@ -2100,7 +2062,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								'_Nstates' + str(N_saved_states_max) + \
 								'_ID' + str(lattice_gas.get_seed()) + '_manyBF'
 			npz_BF_filepath = os.path.join(npz_basepath, npz_BF_filename + '.npz')
-
+			
 			if((not os.path.isfile(npz_BF_filepath)) or to_recomp):
 				F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
 					rho_fncs[i], d_rho_fncs[i], k_bc_AB_BF, k_bc_BA_BF, \
@@ -2114,7 +2076,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								init_composition=init_composition, \
 								R_clust_init=R_clust_init, \
 								to_save_npz=to_save_npz, to_recomp=(to_recomp > 1))
-
+				
 				if(to_save_npz):
 					print('writing', npz_BF_filepath)
 					np.savez(npz_BF_filepath, F_new=F_new, d_F_new=d_F_new, \
@@ -2125,11 +2087,11 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 							k_bc_AB_BF=k_bc_AB_BF, k_bc_BA_BF=k_bc_BA_BF, \
 							k_AB_BF=k_AB_BF, k_BA_BF=k_BA_BF, \
 							k_AB_BFcount=k_AB_BFcount)
-
+			
 			else:
 				print('loading', npz_BF_filepath)
 				npz_data = np.load(npz_BF_filepath, allow_pickle=True)
-
+				
 				F_new = npz_data['F_new']
 				d_F_new = npz_data['d_F_new']
 				OP_hist_centers_new = npz_data['OP_hist_centers_new']
@@ -2141,7 +2103,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				k_AB_BF = npz_data['k_AB_BF']
 				k_BA_BF = npz_data['k_BA_BF']
 				k_AB_BFcount = npz_data['k_AB_BFcount']
-
+			
 			ln_k_bc_AB_data[i] = np.log(k_bc_AB_BF * 1)   # proc_T returns 'k', not 'log(k)'; *1 for units [1/step]
 			ln_k_bc_BA_data[i] = np.log(k_bc_BA_BF * 1)
 			ln_k_AB_data[i] = np.log(k_AB_BF * 1)
@@ -2152,14 +2114,14 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								'_ID' + str(lattice_gas.get_seed()) + \
 								'_BF2sides'
 			npz_BF2s_filepath = os.path.join(npz_basepath, npz_BF2s_filename + '.npz')
-
+			
 			if((not os.path.isfile(npz_BF2s_filepath)) or to_recomp):
 				phi_0_data[:, i], _, phi_1_data[:, i], _, \
 					phi_0_evol_data[:, :, i], phi_1_evol_data[:, :, i], = \
 						run_phi01_pair(MC_move_mode, L, e, mu, Nt_per_BF_run, interface_mode, \
 									timeevol_stride, stab_step, verbose=verbose, \
 									to_plot_timeevol=to_plot_time_evol)
-
+				
 				if(to_save_npz):
 					print('writing', npz_BF2s_filepath)
 					np.savez(npz_BF2s_filepath, \
@@ -2170,12 +2132,12 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			else:
 				print('loading', npz_BF2s_filepath)
 				npz_data = np.load(npz_BF2s_filepath, allow_pickle=True)
-
+				
 				phi_0_data[:, i] = npz_data['phi_0_data']
 				phi_1_data[:, i] = npz_data['phi_1_data']
 				phi_0_evol_data[:, :, i] = npz_data['phi_0_evol_data']
 				phi_1_evol_data[:, :, i] = npz_data['phi_1_evol_data']
-
+		
 		elif(mode  == 'BF_AB'):
 			npz_BFAB_filename = npz_basename + '_stride' + str(timeevol_stride) + \
 								'_Nt' + str(Nt_per_BF_run) + \
@@ -2183,7 +2145,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								'_ID' + str(lattice_gas.get_seed()) + \
 								'_BFAB'
 			npz_BFAB_filepath = os.path.join(npz_basepath, npz_BFAB_filename + '.npz')
-
+			
 			if((not os.path.isfile(npz_BFAB_filepath)) or to_recomp):
 				F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
 					rho_fncs[i], d_rho_fncs[i], _, _, _, _, _, _, _, _, _, _, _, \
@@ -2197,7 +2159,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								init_composition=init_composition, \
 								R_clust_init=R_clust_init, \
 								to_save_npz=to_save_npz, to_recomp=(to_recomp > 1))
-
+				
 				if(to_save_npz):
 					print('writing', npz_BFAB_filepath)
 					np.savez(npz_BFAB_filepath, \
@@ -2211,7 +2173,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			else:
 				print('loading', npz_BFAB_filepath)
 				npz_data = np.load(npz_BFAB_filepath, allow_pickle=True)
-
+				
 				F_new = npz_data['F_new']
 				d_F_new = npz_data['d_F_new']
 				OP_hist_centers_new = npz_data['OP_hist_centers_new']
@@ -2220,7 +2182,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				d_rho_fncs[i] = npz_data['d_rho_fncs']
 				k_AB_BFcount = npz_data['k_AB_BFcount']
 				k_AB_BFcount_N_data[i] = npz_data['k_AB_BFcount_N_data']
-
+			
 			ln_k_AB_data[i] = np.log(k_AB_BFcount * 1)
 		elif(mode == 'FFS_AB'):
 			npz_FFSAB_filename_olds = [npz_basename + '_OPab' + str(OP_A) + '_' + str(OP_B) + \
@@ -2243,7 +2205,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								'_Nfourier' + str(N_fourier) + \
 								'_ID' + str(lattice_gas.get_seed()) + \
 								'_FFSAB']
-
+			
 			npz_FFSAB_filename_new = npz_basename + \
 								(('_stride' + str(timeevol_stride)) if(to_get_timeevol) else '') + \
 								'_Ninit' + '_'.join([str(n) for n in N_init_states_AB[:2]]) + \
@@ -2251,17 +2213,17 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								'_Nfourier' + str(N_fourier) + \
 								'_ID' + str(lattice_gas.get_seed()) + \
 								'_FFSAB'
-
+			
 			npz_FFSAB_filepath_olds = [os.path.join(npz_basepath, fn + '.npz') for fn in npz_FFSAB_filename_olds]
 			npz_FFSAB_filepath_new = os.path.join(npz_basepath, npz_FFSAB_filename_new + '.npz')
-
+			
 			npz_FFSAB_filepath = keep_new_npz_file(npz_FFSAB_filepath_olds, npz_FFSAB_filepath_new)
-
+			
 			if((not os.path.isfile(npz_FFSAB_filepath)) or (to_recomp > 0)):
 				probs_AB_data[:, i], _, ln_k_AB_data[i], _, flux0_AB_data[i], _, rho_new, d_rho_new, OP_hist_centers_new, OP_hist_lens_new, \
 					PB_AB_data[:, i], d_PB_AB_data[:, i], \
 					PB_sigmoid_data[:, i], d_PB_sigmoid_data[:, i], PB_linfit_sigmoid_data[:, i], PB_linfit_sigmoid_inds_data[:, i], OP0_sigmoid_AB_data[i], \
-					PB_erfinv_data[:, i], d_PB_erfinv_data[:, i], PB_linfit_erfinv_data[:, i], PB_linfit_erfinv_inds_data[:, i], OP0_erfinv_AB_data[i], \
+					PB_erfinv_data[:, i], d_PB_erfinv_data[:, i], PB_linfit_erfinv_data[:, i], PB_linfit_erfinv_inds_data[:, i], OP0_erfinv_AB_data[i], ZeldovichG_AB_data[i], \
 					state_Rdens_centers_new, state_centered_Rdens_total_new, d_state_centered_Rdens_new, \
 					cluster_centered_map_total_new, cluster_map_centers_new, rho_fourier2D_data[:, :, :, i] = \
 						proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states_AB, \
@@ -2276,7 +2238,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								to_save_npz=to_save_npz, \
 								to_do_hists=True, \
 								N_fourier=N_fourier)
-
+				
 				if(to_save_npz):
 					print('writing', npz_FFSAB_filepath)
 					np.savez(npz_FFSAB_filepath, \
@@ -2298,6 +2260,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 							PB_linfit_erfinv_data=PB_linfit_erfinv_data[:, i], \
 							PB_linfit_erfinv_inds_data=PB_linfit_erfinv_inds_data[:, i], \
 							OP0_erfinv_AB_data=OP0_erfinv_AB_data[i], \
+							ZeldovichG_AB_data=ZeldovichG_AB_data[i], \
 							state_Rdens_centers_new=state_Rdens_centers_new, \
 							state_centered_Rdens_total_new=state_centered_Rdens_total_new, \
 							d_state_centered_Rdens_new=d_state_centered_Rdens_new, \
@@ -2307,7 +2270,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			else:
 				print('loading', npz_FFSAB_filepath)
 				npz_data = np.load(npz_FFSAB_filepath, allow_pickle=True)
-
+				
 				probs_AB_data[:, i] = npz_data['probs_AB_data']
 				ln_k_AB_data[i] = npz_data['ln_k_AB_data']
 				flux0_AB_data[i] = npz_data['flux0_AB_data']
@@ -2327,24 +2290,25 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				PB_linfit_erfinv_data[:, i] = npz_data['PB_linfit_erfinv_data']
 				PB_linfit_erfinv_inds_data[:, i] = npz_data['PB_linfit_erfinv_inds_data']
 				OP0_erfinv_AB_data[i] = npz_data['OP0_erfinv_AB_data']
+				ZeldovichG_AB_data[i] = npz_data['ZeldovichG_AB_data']
 				state_Rdens_centers_new = npz_data['state_Rdens_centers_new']
 				state_centered_Rdens_total_new = npz_data['state_centered_Rdens_total_new']
 				d_state_centered_Rdens_new = npz_data['d_state_centered_Rdens_new']
 				cluster_centered_map_total_new = npz_data['cluster_centered_map_total_new']
 				cluster_map_centers_new = npz_data['cluster_map_centers_new']
 				rho_fourier2D_data[:, :, :, i] = npz_data['rho_fourier2D_data']
-
+			
 			if(i == 0):
 				state_centered_Rdens_total_data = [[]] * N_OP_interfaces_AB
-
+				
 				for j in range(N_OP_interfaces_AB):
 					state_centered_Rdens_total_data[j] = [[]] * N_species
 					for k in range(N_species):
 						state_centered_Rdens_total_data[j][k] = \
 							np.empty((len(state_centered_Rdens_total_new[j][k]), N_runs))
-
+			
 			cluster_centered_map_total_interps[i] = [[]] * N_OP_interfaces_AB
-
+			
 			for j in range(2):
 				cluster_map_XYmax_local = max(abs(cluster_map_centers_new[j]))
 				if(cluster_map_XYlims[j] < cluster_map_XYmax_local):
@@ -2355,13 +2319,13 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 						(cluster_map_centers_new[0], cluster_map_centers_new[1]), \
 						cluster_centered_map_total_new[j],
 						bounds_error=False, fill_value=0)
-
+				
 				#print(cluster_centered_map_total_interps[i][j])
 				#input('ok')
-
+				
 				for k in range(N_species):
 					state_centered_Rdens_total_data[j][k][:, i] = state_centered_Rdens_total_new[j][k]
-
+			
 			if(to_get_timeevol):
 				rho_fncs[i] = scipy.interpolate.interp1d(OP_hist_centers_new, rho_new, fill_value='extrapolate')
 				d_rho_fncs[i] = scipy.interpolate.interp1d(OP_hist_centers_new, d_rho_new, fill_value='extrapolate')
@@ -2370,12 +2334,12 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				F_new = -np.log(rho_AB * OP_hist_lens_new)
 				d_F_new = d_rho_AB / rho_AB
 				F_new = F_new - F_new[0]
-
+		
 		if(verbose > 0):
 			print(r'%s %lf %%' % (mode, (i+1) / (N_runs) * 100))
 		else:
 			print('%s %lf %%                             \r' % (mode, (i+1) / (N_runs) * 100), end='')
-
+		
 		if(to_get_timeevol):
 			if(i == 0):
 				OP_hist_centers = OP_hist_centers_new
@@ -2388,16 +2352,16 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					rel_err = abs(c_new - c) / scl
 					miss_inds = rel_err > err_thr
 					assert(np.all(~miss_inds)), r'ERROR: %s from i=0 and i=%d does not match:\nold: %s\nnew: %s\nerr: %s' % (arr_name, i, str(c[miss_inds]), str(c_new[miss_inds]), str(rel_err[miss_inds]))
-
+				
 				check_OP_centers_match(OP_hist_centers, i, OP_hist_centers_new, 'OP_hist_centers', max(abs(OP_hist_centers[1:] - OP_hist_centers[:-1])))
 				check_OP_centers_match(OP_hist_lens, i, OP_hist_lens_new, 'OP_hist_lens', max(OP_hist_lens))
 			F_data[:, i] = F_new
 			d_F_data[:, i] = d_F_new
-
+	
 	print(mode, 'DONE                                   ')
-
+	
 	ln_k_AB, d_ln_k_AB = get_average(ln_k_AB_data)
-
+	
 	if(to_get_timeevol):
 		F, d_F = get_average(F_data, axis=1)
 	else:
@@ -2405,48 +2369,50 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		d_F = None
 		OP_hist_centers = None
 		OP_hist_lens = None
-
+	
 	if(mode == 'BF_AB'):
 		k_AB_BFcount_N, d_k_AB_BFcount_N = get_average(k_AB_BFcount_N_data)
-
+	
 	if(mode == 'BF_2sides'):
 		phi_0, d_phi_0 = get_average(phi_0_data, axis=1)
 		phi_1, d_phi_1 = get_average(phi_1_data, axis=1)
 		phi_0_evol, d_phi_0_evol = get_average(phi_0_evol_data, axis=2)
 		phi_1_evol, d_phi_1_evol = get_average(phi_1_evol_data, axis=2)
-
+	
 	elif(mode == 'BF'):
 		ln_k_bc_AB, d_ln_k_bc_AB = get_average(ln_k_bc_AB_data)
 		ln_k_bc_BA, d_ln_k_bc_BA = get_average(ln_k_bc_BA_data)
 		ln_k_BA, d_ln_k_BA = get_average(ln_k_BA_data)
-
+	
 	elif('FFS' in mode):
 		flux0_AB, d_flux0_AB = get_average(flux0_AB_data, mode='log')
 		OP0_sigmoid_AB, d_OP0_sigmoid_AB = get_average(OP0_sigmoid_AB_data)
 		OP0_erfinv_AB, d_OP0_erfinv_AB = get_average(OP0_erfinv_AB_data)
+		ZeldovichG_AB, d_ZeldovichG_AB = get_average(ZeldovichG_AB_data)
 		probs_AB, d_probs_AB = get_average(probs_AB_data, mode='log', axis=1)
 		PB_AB, d_PB_AB = get_average(PB_AB_data, mode='log', axis=1)
-
+		
 		rho_fourier2D, d_rho_fourier2D = get_average(rho_fourier2D_data, axis=3)
 		rho_fourier2D_Abs = np.linalg.norm(rho_fourier2D, axis=1)
 		d_rho_fourier2D_Abs = np.sqrt(np.sum((d_rho_fourier2D * rho_fourier2D)**2, axis=1)) / rho_fourier2D_Abs
 		# TODO: implement this for single FFS_AB
-
+		
 		#Temp = 4 / e[1,1]
 		#Nc_0 = table_data.Nc_reference_data[str(Temp)] if(str(Temp) in table_data.Nc_reference_data) else None
 		PB_sigmoid, d_PB_sigmoid, linfit_sigmoid_AB, linfit_sigmoid_AB_inds, _ = \
 			get_sigmoid_fit(PB_AB[:-1], d_PB_AB[:-1], OP_AB[:-1], \
 							sgminv_fnc=lambda x: -np.log(1/x - 1), \
 							d_sgminv_fnc=lambda x, y: 1/(x*(1-x)))
-
+		
 		PB_erfinv, d_PB_erfinv, linfit_erfinv_AB, linfit_erfinv_AB_inds, _ = \
 			get_sigmoid_fit(PB_AB[:-1], d_PB_AB[:-1], OP_AB[:-1], \
 							sgminv_fnc=lambda x: scipy.special.erfinv(2 * x - 1), \
 							d_sgminv_fnc=lambda x, y: np.exp(y**2) * np.sqrt(np.pi))
-
+		
 		#PB_erfinv = scipy.special.erfinv(2 * PB_AB[:-1] - 1)
 		#d_PB_erfinv = (scipy.special.erfinv(2 * (PB_AB[:-1] + d_PB_AB[:-1]) - 1) - scipy.special.erfinv(2 * (PB_AB[:-1] - d_PB_AB[:-1]) - 1)) / 2
-
+		
+		rho_chi2 = None
 		if(state_Rdens_centers_new is not None):
 			Rmax_cluster_draw = max(cluster_map_XYlims)
 			cluster_map_x = np.linspace(-Rmax_cluster_draw, Rmax_cluster_draw, int(Rmax_cluster_draw * 2) + 1)
@@ -2456,7 +2422,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			for j in range(N_OP_interfaces_AB):
 				for i in range(N_runs):
 					cluster_centered_map_total_data[:, :, i, j] = cluster_centered_map_total_interps[i][j]((cluster_map_X, cluster_map_Y))
-
+			
 			state_centered_Rdens_total = [[]] * N_OP_interfaces_AB
 			d_state_centered_Rdens_total = [[]] * N_OP_interfaces_AB
 			cluster_centered_map_total = [[]] * N_OP_interfaces_AB
@@ -2464,7 +2430,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			for j in range(N_OP_interfaces_AB):
 				cluster_centered_map_total[j], d_cluster_centered_map_total[j] = \
 					get_average(cluster_centered_map_total_data[:, :, :, j], axis=2)
-
+				
 				state_centered_Rdens_total[j] = [[]] * N_species
 				d_state_centered_Rdens_total[j] = [[]] * N_species
 				for k in range(N_species):
@@ -2473,16 +2439,70 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					
 			rho_fit_params = np.empty((N_species, 4, N_OP_interfaces_AB))
 			d_rho_fit_params = np.empty((N_species, 4, N_OP_interfaces_AB))
-			species_to_fit_rho_inds = np.array([0, 1], dtype=int)
-			for k in species_to_fit_rho_inds:
+			species_to_fit_rho_inds = np.array([0, 1], dtype=int)   # , 2
+			rho_fit_fncs = []
+			rho_splines = []
+			rho_chi2 = np.empty((N_species, N_OP_interfaces_AB))
+			R_peak = np.empty((N_species, N_OP_interfaces_AB))
+			R_fit_minmax = np.empty((2, N_species, N_OP_interfaces_AB))
+			for k in range(N_species):
+				rho_fit_fncs.append([])
 				for j in range(N_OP_interfaces_AB):
-					rho_fit_params[k, :, j], d_rho_fit_params[k, :, j] = \
-						rho_fit_full(state_Rdens_centers_new, \
-									state_centered_Rdens_total[j][k], \
-									d_state_centered_Rdens_total[j][k], \
-									init_composition[k], \
-									OP_interfaces_AB[j], L2, \
-									debug=(k==1))
+					if(k in species_to_fit_rho_inds):
+						rho_fit_params[k, :, j], d_rho_fit_params[k, :, j] = \
+							rho_fit_full(state_Rdens_centers_new, \
+										state_centered_Rdens_total[j][k], \
+										d_state_centered_Rdens_total[j][k], \
+										init_composition[k], \
+										OP_interfaces_AB[j], L2, \
+										fit_error_name='specie-N%d' % k, \
+										mode=k)
+						rho_fit_fncs[k].append(lambda r, \
+													pp1=rho_fit_params[k, :, j], \
+													pp2=init_composition[k], \
+													pp3=OP_interfaces_AB[j], \
+													pp4=L2, pp5=k: \
+												rho_fit_sgmfnc_template(r, pp1, pp2, pp3, pp4, mode=pp5))
+						
+						R_peak[k, j] = rho_fit_params[k, 2, j]
+						R_fit_minmax[1, k, j] = R_peak[k, j] + rho_fit_params[k, 1, j] * 25
+					else:
+						rho_fit_fnc_new, R_fit_minmax[1, k, j], R_peak[k, j], rho_spline_new = \
+							rho_fit_spline(state_Rdens_centers_new, \
+											state_centered_Rdens_total[j][k], \
+											d_state_centered_Rdens_total[j][k], \
+											init_composition[k], L2)   # s=-0.8, k=5
+						rho_fit_fncs[k].append(rho_fit_fnc_new)
+					
+					rho_const_inds = state_Rdens_centers_new >= R_fit_minmax[1, k, j]
+					R_fit_inds = (state_Rdens_centers_new >= R_peak[k, j]) & (state_Rdens_centers_new < R_fit_minmax[1, k, j])
+					peak_ind = np.argmin(np.abs(state_Rdens_centers_new - R_peak[k, j]))
+					
+					rho_inf = \
+						np.average(state_centered_Rdens_total[j][k][rho_const_inds], \
+								weights=1/d_state_centered_Rdens_total[j][k][rho_const_inds]**2)
+					R_fit_left_ind = \
+						np.argmax((state_centered_Rdens_total[j][k][R_fit_inds] - rho_inf) * \
+								  (state_centered_Rdens_total[j][k][peak_ind] - rho_inf) < 0)
+					R_fit_minmax[0, k, j] = state_Rdens_centers_new[R_fit_inds][R_fit_left_ind]
+					rho_chi2_inds = (state_Rdens_centers_new >= R_fit_minmax[0, k, j]) & (state_Rdens_centers_new < R_fit_minmax[1, k, j])
+					rho_chi2[k, j] = np.mean(((state_centered_Rdens_total[j][k][rho_chi2_inds] - rho_inf) / d_state_centered_Rdens_total[j][k][rho_chi2_inds])**2)
+					# if((rho_chi2[k, j] > 100) and (k==2)):
+						# fig,ax, _ = my.get_fig('R', 'f')
+						# ax.errorbar(state_Rdens_centers_new[rho_chi2_inds], state_centered_Rdens_total[j][k][rho_chi2_inds], d_state_centered_Rdens_total[j][k][rho_chi2_inds])
+						# ax.errorbar(state_Rdens_centers_new[rho_const_inds], state_centered_Rdens_total[j][k][rho_const_inds], d_state_centered_Rdens_total[j][k][rho_const_inds])
+						# ax.plot([])
+						
+						# print(rho_inf)
+						# print(state_centered_Rdens_total[j][k][peak_ind])
+						# print(state_centered_Rdens_total[j][k][R_fit_inds])
+						# print((state_centered_Rdens_total[j][k][R_fit_inds] - rho_inf) * \
+								  # (state_centered_Rdens_total[j][k][peak_ind] - rho_inf))
+						# print(state_centered_Rdens_total[j][k][rho_chi2_inds])
+						# print(d_state_centered_Rdens_total[j][k][rho_chi2_inds])
+						# print(((state_centered_Rdens_total[j][k][rho_chi2_inds] - rho_inf) / d_state_centered_Rdens_total[j][k][rho_chi2_inds])**2)
+						# #input('ok')
+						# plt.show()
 			
 			sgmfit_species_id = 0
 			assert(sgmfit_species_id in species_to_fit_rho_inds), 'ERROR: Species N%d to be used for width estimation but this specie is not included in species to be fit: %s' % (sgmfit_species_id, str(species_to_fit_rho_inds))
@@ -2492,7 +2512,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				np.polyfit(np.log(OP_interfaces_AB[sgm_logfit_inds]), \
 							np.log(rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds]), \
 							1, cov=True, w=1 / (d_rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds] / rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds]))
-
+	
 	if(to_plot):
 		if(state_Rdens_centers_new is not None):
 			# =============== Rdens ================
@@ -2504,34 +2524,37 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			for k in range(N_species):
 				fig_state_Rdens[k], ax_state_Rdens[k], _ = my.get_fig('r', r'$\phi_%d$' % k, title=(r'$\phi_%d(r)$; ' % k) + ThL_lbl)
 				fig_state_Rdens_log[k], ax_state_Rdens_log[k], _ = my.get_fig('r', r'$\phi_%d$' % k, title=(r'$\phi_%d(r)$; ' % k) + ThL_lbl, yscl='logit')
-
+			
 			fig_rho_fourier, ax_rho_fourier, _ = my.get_fig('$n$', r'$\sim F_n[\phi]$', title=r'$F[\phi(\theta)](n)$')
-
+			
 			if(interfacesIDs_to_plot_dens == 'main'):
 				interfacesIDs_to_plot_dens = np.array([0, np.argmin(np.abs(OP_interfaces_AB - OP0_erfinv_AB)), len(OP_interfaces_AB) - 1], dtype=int)
 			elif(interfacesIDs_to_plot_dens == 'all'):
 				interfacesIDs_to_plot_dens = np.arange(len(N_OP_interfaces_AB))
 			N_interfaces_to_plot = len(interfacesIDs_to_plot_dens)
-
+			
 			fig_cluster_map = [[]] * N_interfaces_to_plot
 			ax_cluster_map = [[]] * N_interfaces_to_plot
-
+			
 			ax_rho_fourier.plot([0, N_fourier], [0] * 2, '--', label='F=0')
 			for i, OPind in enumerate(interfacesIDs_to_plot_dens):
 				cluster_lbl = r'$OP[%d] = %d$; ' % (OPind, OP_interfaces_AB[OPind])
-
+				
 				ax_rho_fourier.errorbar(np.arange(N_fourier+1), np.append(1, rho_fourier2D_Abs[OPind, :]), \
 										yerr = np.append(0, d_rho_fourier2D_Abs[OPind, :]), \
 										label=cluster_lbl, color=my.get_my_color(i))
 				
-				for k in species_to_fit_rho_inds:
+				for k in range(N_species):
+					#chi2_lbl = r'$\chi_{%s,%s}^2 = %s$' % (my.f2s(R_fit_minmax[0, k, OPind]), my.f2s(R_fit_minmax[1, k, OPind]), my.f2s(rho_chi2[k, OPind]))
+					chi2_lbl = r'$\chi^2 = %s$' % (my.f2s(rho_chi2[k, OPind]))
+#										rho_fit_sgmfnc_template(state_Rdens_centers_new, rho_fit_params[k, :, OPind], init_composition[k], OP_interfaces_AB[OPind], L2, mode=k), \
 					ax_state_Rdens[k].plot(state_Rdens_centers_new, \
-										rho_fit_fnc_template(state_Rdens_centers_new, rho_fit_params[k, :, OPind], init_composition[k], OP_interfaces_AB[OPind], L2), \
-										'--', color=my.get_my_color(i))
+										rho_fit_fncs[k][OPind](state_Rdens_centers_new), \
+										'--', color=my.get_my_color(i), label=chi2_lbl)
 					ax_state_Rdens_log[k].plot(state_Rdens_centers_new, \
-										rho_fit_fnc_template(state_Rdens_centers_new, rho_fit_params[k, :, OPind], init_composition[k], OP_interfaces_AB[OPind], L2), \
-										'--', color=my.get_my_color(i))
-
+										rho_fit_fncs[k][OPind](state_Rdens_centers_new), \
+										'--', color=my.get_my_color(i), label=chi2_lbl)
+				
 				fig_cluster_map[i], ax_cluster_map[i], fig_cluster_map_id = my.get_fig('x', 'y', title=cluster_lbl + ThL_lbl)
 				im_cluster_map = ax_cluster_map[i].imshow(cluster_centered_map_total[OPind], \
 										extent = [min(cluster_map_y), max(cluster_map_y), \
@@ -2539,24 +2562,24 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 										interpolation ='bilinear', origin ='lower', aspect='auto')
 				plt.figure(fig_cluster_map_id)
 				cbar = plt.colorbar(im_cluster_map)
-
+				
 				for k in range(N_species):
 					ax_state_Rdens[k].errorbar(state_Rdens_centers_new, \
 											state_centered_Rdens_total[OPind][k], \
 											yerr=d_state_centered_Rdens_total[OPind][k], \
-											label=cluster_lbl, color=my.get_my_color(i))
+											label=cluster_lbl, color=my.get_my_color(i), fmt='.-')
 					ax_state_Rdens_log[k].errorbar(state_Rdens_centers_new, \
 											state_centered_Rdens_total[OPind][k], \
 											yerr=d_state_centered_Rdens_total[OPind][k],
-											label=cluster_lbl, color=my.get_my_color(i))
-
+											label=cluster_lbl, color=my.get_my_color(i), fmt='.-')
+			
 			for k in range(N_species):
 				Rdens_lims = [min(state_Rdens_centers_new), max(state_Rdens_centers_new)]
 				ax_state_Rdens[k].plot(Rdens_lims, [init_composition[k]] * 2, '--', \
 										label='$\phi_{bulk} = %s$' % (my.f2s(init_composition[k], n=4)))
 				ax_state_Rdens_log[k].plot(Rdens_lims, [init_composition[k]] * 2, '--', \
 										label='$\phi_{bulk} = %s$' % (my.f2s(init_composition[k], n=4)))
-
+			
 			fig_rhoW, ax_rhoW, _ = my.get_fig(r'$N_{clust}$', r'$w_{\rho_{%d}}$' % (sgmfit_species_id), xscl='log', yscl='log')
 			#fig_rhoW, ax_rhoW, _ = my.get_fig(r'$N_{clust}$', r'$w_{\rho_{%d}}$' % (sgmfit_species_id), xscl='log')
 			ax_rhoW.errorbar(OP_interfaces_AB, rho_fit_params[sgmfit_species_id, 1, :],  yerr=d_rho_fit_params[sgmfit_species_id, 1, :], fmt='.', label='data')
@@ -2564,14 +2587,14 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 						'--', label=r'$k = %s$' % (my.errorbar_str(sgm_logfit[0], np.sqrt(sgm_logfit_cov[0,0]))))
 			ax_rhoW.plot([sgm_logfit_Nmin] * 2, [min(rho_fit_params[sgmfit_species_id, 1, :]), max(rho_fit_params[sgmfit_species_id, 1, :])], \
 						'--', label=r'$N_{min} = N^* = %s$' % (my.f2s(sgm_logfit_Nmin)))
-
+			
 			my.add_legend(fig_rhoW, ax_rhoW)
 			my.add_legend(fig_rho_fourier, ax_rho_fourier)
-
+			
 			for k in range(N_species):
 				my.add_legend(fig_state_Rdens[k], ax_state_Rdens[k])
 				my.add_legend(fig_state_Rdens_log[k], ax_state_Rdens_log[k])
-
+		
 		if(to_plot_k_distr):
 			plot_k_distr(np.exp(ln_k_AB_data) / 1, N_k_bins, 'k_{AB}', units='step')
 			plot_k_distr(ln_k_AB_data, N_k_bins, r'\ln(k_{AB} \cdot 1step)')
@@ -2583,12 +2606,12 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				plot_k_distr(ln_k_bc_AB_data, N_k_bins, r'\ln(k_{bc, AB} \cdot 1step)')
 				plot_k_distr(np.exp(ln_k_bc_BA_data) / 1, N_k_bins, r'k_{bc, BA}', units='step')
 				plot_k_distr(ln_k_bc_BA_data, N_k_bins, r'\ln(k_{bc, BA} \cdot 1step)')
-
+		
 		if(to_plot_committer is None):
 			to_plot_committer = ('FFS' in mode)
 		else:
 			assert(not (('BF' in mode) and to_plot_committer)), 'ERROR: BF mode used but commiter requested'
-
+		
 		if(to_plot_committer):
 			ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
 			plot_PB_AB(ThL_lbl, feature_label[interface_mode], title[interface_mode], \
@@ -2600,13 +2623,13 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 						linfit_erfinv=linfit_erfinv_AB, linfit_erfinv_inds=linfit_erfinv_AB_inds, \
 						OP0_erfinv=OP0_erfinv_AB, d_OP0_erfinv=d_OP0_erfinv_AB, \
 						clr=my.get_my_color(1))
-
+	
 	lattice_gas.init_rand(old_seed)
-
+	
 	if(mode == 'BF'):
 		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, ln_k_BA, d_ln_k_BA, ln_k_bc_AB, d_ln_k_bc_AB, ln_k_bc_BA, d_ln_k_bc_BA
 	elif(mode == 'FFS_AB'):
-		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, probs_AB, d_probs_AB, PB_AB, d_PB_AB, OP0_erfinv_AB, d_OP0_erfinv_AB
+		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, probs_AB, d_probs_AB, PB_AB, d_PB_AB, OP0_erfinv_AB, d_OP0_erfinv_AB, ZeldovichG_AB, d_ZeldovichG_AB, rho_chi2
 	elif(mode == 'BF_AB'):
 		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, k_AB_BFcount_N, d_k_AB_BFcount_N
 	elif(mode == 'BF_2sides'):
@@ -2614,84 +2637,253 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 # 	if(mode == 'FFS'):
 # 		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, ln_k_BA, d_ln_k_BA, flux0_AB, d_flux0_AB, flux0_BA, d_flux0_BA, probs_AB, d_probs_AB, probs_BA, d_probs_BA, PB_AB, d_PB_AB, PA_BA, d_PA_BA, OP0_AB, d_OP0_AB, OP0_BA, d_OP0_BA
 
-def rho_fit_fnc_template(r, prm, rho_bulk, Ncl, L2, capilar_correction_min=4, capilar_correction_max=25, capilar_correction_sgm=-5, verbose=False):
-	rho_inf = (rho_bulk - prm[0] * (Ncl / L2)) / (1 - Ncl / L2)
+def get_rho_inf(rho_bulk, rho_0, Ncl, L2):
 	#rho_inf = (rho_bulk) / (1 - Ncl / L2)
+	return (rho_bulk - rho_0 * (Ncl / L2)) / (1 - Ncl / L2)
+
+def rho_fit_sgmfnc_template(r, prm, rho_bulk, Ncl, L2, \
+						capilar_correction_min=0, \
+						capilar_correction_min_sgm=-0.2, \
+ 						capilar_correction_max=-25, \
+						capilar_correction_max_sgm=-5, \
+						mode=0, A=0, \
+						verbose=False):
+# 						capilar_correction_min=-4, \
+	rho_inf = get_rho_inf(rho_bulk, prm[0], Ncl, L2)
+	
 	if(verbose):
 		print('Ncl =', Ncl, '; rho_inf =', rho_inf)
 	
-	if(capilar_correction_sgm < 0):
-		capilar_correction_sgm *= -prm[1]
+	if(capilar_correction_min == 0):
+		if(mode in [0,1]):
+			#capilar_correction_min = prm[2] + np.sign(prm[0] - rho_inf) * prm[1] * np.log(1/rho_inf - 1)
+			capilar_correction_min = -np.abs(np.log(1/rho_inf - 1))
+		elif(mode in [2]):
+			capilar_correction_min = -1.8
+	if(capilar_correction_min < 0):
+		capilar_correction_min = prm[2] - capilar_correction_min * prm[1]
+	if(capilar_correction_min_sgm < 0):
+		capilar_correction_min_sgm *= -prm[1]
+	if(capilar_correction_max == 0):
+		capilar_correction_max = np.sqrt(L2)
+		capilar_correction_max_sgm = capilar_correction_max / 100
+	if(capilar_correction_max < 0):
+		capilar_correction_max = prm[2] - capilar_correction_max * prm[1]
+	if(capilar_correction_max_sgm < 0):
+		capilar_correction_max_sgm *= -prm[1]
 		
-	return prm[0] + (rho_inf - prm[0]) / (1 + np.exp(-((r - prm[2]) / prm[1]))) + \
-			prm[3] / r * np.heaviside(r - (prm[2] + prm[1] * capilar_correction_min), 0) / (1 + np.exp((r - (prm[2] + prm[1] * capilar_correction_max)) / capilar_correction_sgm))
+	if(mode in [0, 1]):
+		return prm[0] + (rho_inf - prm[0]) / (1 + np.exp(-((r - prm[2]) / prm[1]))) + \
+				prm[3] / r / (1 + np.exp(-(r - capilar_correction_min) / capilar_correction_min_sgm)) / (1 + np.exp((r - capilar_correction_max) / capilar_correction_max_sgm))
+	elif(mode in [2]):
+		return rho_bulk + A * np.exp(-(np.abs(r - prm[2]) / prm[1])**4) + \
+			prm[3] / r / (1 + np.exp(-(r - prm[0]) / capilar_correction_min_sgm)) / (1 + np.exp((r - capilar_correction_max) / capilar_correction_max_sgm))
 
-def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl, L2, debug=True):
-	ok_ind = (d_Rdens > 0)
+def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl, L2, mode=0, \
+				sgmfit_rho_min=0.1, sgmfit_rho_max=0.9, Rdens_eps=-1e-2, \
+				fit_error_name='', debug=1, strict_bounds=True):
+	ok_inds = (d_Rdens > 0) & (Rdens < 1)
+	fit_error_name = fit_error_name + '; rho_bulk = ' + str(rho_bulk)
 	
-	rho_fit_params = np.empty(4)
-	rho_fit_params[0] = Rdens[0]   # argmin(r)
-	rho_linsgm_inds = (Rdens > 0.1) & (Rdens < 0.9) & (d_Rdens > 0)
-	assert(np.any(rho_linsgm_inds)), 'ERROR: no points suited for sigmoidal fit of %s' % (fit_error_name)  #specie-N%d
-	
-	# if(debug):
-		# fig, ax, _ = my.get_fig('R', r'$\rho$', yscl='logit')
-		# ax.errorbar(R_centers, Rdens, yerr=d_Rdens)
+	if(mode in [0, 1]):
+		rho_fit_params = np.empty(4)
+		rho_fit_params[0] = Rdens[ok_inds][0]   # argmin(r)
+		rho_inf = get_rho_inf(rho_bulk, rho_fit_params[0], Ncl, L2)
+		rho_linsgm_inds = (Rdens > sgmfit_rho_min) & (Rdens < sgmfit_rho_max) & ok_inds
+		assert(np.any(rho_linsgm_inds)), 'ERROR: no points suited for sigmoidal fit of %s' % (fit_error_name)
 		
-		# fig2, ax2, _ = my.get_fig('R', r'$\rho$')
-		# print(R_centers[rho_linsgm_inds])
-		# ax2.errorbar(R_centers[rho_linsgm_inds], -np.log(max(Rdens)/Rdens[rho_linsgm_inds] - 1))
-		# # ax2.errorbar(R_centers[rho_linsgm_inds], -np.log(rho_bulk/Rdens[rho_linsgm_inds] - 1), yerr=abs((1 - Rdens[rho_linsgm_inds] / rho_bulk) * \
-									# # (Rdens[rho_linsgm_inds] / d_Rdens[rho_linsgm_inds])))
+		max_Rdens = max(Rdens[ok_inds])
+		min_Rdens = min(Rdens[ok_inds])
+		if(Rdens_eps < 0):
+			Rdens_eps *= -min_Rdens
+		Rdens_scaled = (max_Rdens - Rdens[rho_linsgm_inds] + Rdens_eps) / (max_Rdens - min_Rdens + Rdens_eps)
+		rho_linsgmfit = np.polyfit(R_centers[rho_linsgm_inds], \
+									-np.log(1 / Rdens_scaled - 1), \
+									1, \
+									w = Rdens_scaled * (1 - Rdens_scaled) / d_Rdens[rho_linsgm_inds])
+		rho_fit_params[1] = 1 / abs(rho_linsgmfit[0])
+		rho_fit_params[2] = -rho_linsgmfit[1] / rho_linsgmfit[0]
 		
-		# plt.show()
-	
-	rho_linsgmfit = np.polyfit(R_centers[rho_linsgm_inds], \
-								-np.log(max(Rdens)/Rdens[rho_linsgm_inds] - 1), \
-								1, \
-								w = abs((1 - Rdens[rho_linsgm_inds] / Rdens[-1]) * \
-									(Rdens[rho_linsgm_inds] / d_Rdens[rho_linsgm_inds]))\
-								)
-	rho_fit_params[1] = 1 / abs(rho_linsgmfit[0])
-	rho_fit_params[2] = -rho_linsgmfit[1] * rho_fit_params[1]
-	
-	opt_fnc_full = lambda prm: np.sum(((rho_fit_fnc_template(R_centers[ok_ind], prm, rho_bulk, Ncl, L2) - Rdens[ok_ind]) / d_Rdens[ok_ind])**2)
-	#rho_fit_params[3] = 0
-	rho_fit_params[3] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho_fit_params, x, 3))).x
-	#print(j, OP_interfaces_AB[j], rho_fit_params[3, j])
-	
-	# if(debug and False):
-		# print(rho_fit_params)
+		#R_correction = rho_fit_params[2] + rho_fit_params[1] * abs(np.log(1/rho_inf - 1))
+		R_correction = R_centers[ok_inds][np.argmax((Rdens[ok_inds] > rho_inf) if(rho_bulk > 0.5) else (Rdens[ok_inds] < rho_inf))]
 		
-		# fig, ax, _ = my.get_fig('R', r'$\rho$', yscl='logit')
-		# ax.errorbar(R_centers, Rdens, yerr=d_Rdens)
-		# ax.plot(R_centers, rho_fit_fnc_template(R_centers, rho_fit_params, rho_bulk, Ncl, L2), '--')
+		opt_fnc_full = lambda prm: np.sum(((rho_fit_sgmfnc_template(R_centers[ok_inds], prm, rho_bulk, Ncl, L2, mode=mode) - Rdens[ok_inds]) / d_Rdens[ok_inds])**2)   # , capilar_correction_min=R_correction
+		#rho_fit_params[3] = 0
+		prm3_opt_options = {}
+		if(strict_bounds):
+			rho_fit_params[3] = R_correction * \
+								((max(Rdens[ok_inds]) - rho_inf) if(rho_bulk > 0.5) \
+								else (min(Rdens[ok_inds]) - rho_inf))
+			prm3_opt_options['bounds'] = (min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3]))
 		
-		# plt.show()
-	
-	R0_estimate = np.sqrt(Ncl / np.pi)
-	opt_bounds = ((0, 1), (0.1, R0_estimate), (R0_estimate / 3, R0_estimate * 3), (-1,1))
-	# [0]: desnity [0;1]
-	# [1]: width. It is (0;None) but really it is < 2 so here it is
-	# [0]: R0 ~ np.sqrt(Ncl / np.pi)
-	# [3]: unclear, but usually |a| << 1
-	rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params)
-	if(np.any([((rho_fit_optim_res.x[i] < opt_bounds[i][0]) or (opt_bounds[i][1] < rho_fit_optim_res.x[i])) for i in range(4)])):
-		rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params, bounds=opt_bounds)
-	
-	rho_fit_params = rho_fit_optim_res.x
-	
-	if(isinstance(rho_fit_optim_res.hess_inv, scipy.optimize._lbfgsb_py.LbfgsInvHessProduct)):
-		d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.todense().diagonal())
-	else:
-		d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.diagonal())
-	
-	
-	#print(j, OP_interfaces_AB[j], rho_fit_params[3, j])
-	# if(debug or True):
-		# print(rho_fit_params, d_rho_fit_params)
+		rho_fit_params[3] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho_fit_params, x, 3)), **prm3_opt_options).x
+		
+		if(strict_bounds):
+			#[0]: (max([0, 1 - 5 * (1 - rho_fit_params[0])]), 1) if(rho_fit_params[0] > 0.5) else (0, min([1, 5 * rho_fit_params[0]])
+			d_rho_fit_params_0 = d_Rdens[ok_inds][0]
+			opt_bounds = ((0, min(1, rho_fit_params[0] + d_rho_fit_params_0 * 10)) if(rho_bulk > 0.5) else (max(0, rho_fit_params[0] - d_rho_fit_params_0 * 10), 1), \
+						(rho_fit_params[1] / 2, rho_fit_params[1] * 2), \
+						(rho_fit_params[2] / 2, rho_fit_params[2] * 2), \
+						(min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3])))
+		else:
+			R0_estimate = np.sqrt(Ncl / np.pi)
+			opt_bounds = ((0, 1), (0.1, R0_estimate), (R0_estimate / 3, R0_estimate * 3), (-1,1))
+			# [0]: desnity [0;1]
+			# [1]: width. It is (0;None) but really it is < 2 so here it is
+			# [2]: R0 ~ np.sqrt(Ncl / np.pi)
+			# [3]: unclear, but usually |a| << 1
+		
+		rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params)
+		if(np.any([((rho_fit_optim_res.x[i] < opt_bounds[i][0]) or (opt_bounds[i][1] < rho_fit_optim_res.x[i])) for i in range(len(rho_fit_params))])):
+			rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params, bounds=opt_bounds)
+		
+		rho_fit_params = rho_fit_optim_res.x
+		
+		if(isinstance(rho_fit_optim_res.hess_inv, scipy.optimize._lbfgsb_py.LbfgsInvHessProduct)):
+			d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.todense().diagonal())
+		else:
+			d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.diagonal())
+	elif(mode in [2]):
+		### !!!!!!!! not supported
+		rho_fit_params = np.empty(4)
+		
+		# R_peak_left, R_peak_right, R_peak_rhomax, R_peak_avg, \
+			# rho_max, peak_width, rho_inf, fit_inds, peak_inds = \
+					# get_peak_features(R_centers, Rdens, rho_bulk, L2, ok_inds=ok_inds, iter=2)
+		
+		# rho_fit_params[2] = R_peak_rhomax
+		# rho_fit_params[1] = peak_width
+		# rho_fit_params[0] = R_peak_right
+		
+		# opt_fnc_full = lambda prm: np.sum(((rho_fit_sgmfnc_template(R_centers[fit_inds], prm, rho_bulk, Ncl, L2, capilar_correction_min=R_peak_right + peak_width/5, mode=mode, A=rho_max - rho_bulk) - Rdens[fit_inds]) / d_Rdens[fit_inds])**2)
+		# #rho_fit_params[3] = 0
+		# prm3_opt_options = {}
+		# if(strict_bounds):
+			# rho_fit_params[3] = (min(Rdens[fit_inds]) - rho_bulk) * R_peak_right
+			# prm3_opt_options['bounds'] = (min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3]))
+		
+		# rho_fit_params[3] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho_fit_params, x, 3)), **prm3_opt_options).x
+		
+		# if(strict_bounds):
+			# #[0]: (rho_fit_params[0] / 1.05, rho_fit_params[0] * 1.05)
+			# opt_bounds = ((rho_fit_params[0] - rho_fit_params[1]/5, rho_fit_params[0] + rho_fit_params[1]/5), \
+						# (rho_fit_params[1] / 2, rho_fit_params[1] * 2), \
+						# (rho_fit_params[2] - (R_centers[1] - R_centers[0]) * 1.1, rho_fit_params[2] + (R_centers[1] - R_centers[0]) * 1.1), \
+						# (min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3])))
+		# else:
+			# R0_estimate = np.sqrt(Ncl / np.pi)
+			# opt_bounds = ((0, 1), (0.1, R0_estimate), (R0_estimate / 3, R0_estimate * 3), (-1,1))
+			# # [0]: desnity [0;1]
+			# # [1]: width. It is (0;None) but really it is < 2 so here it is
+			# # [2]: R0 ~ np.sqrt(Ncl / np.pi)
+			# # [3]: unclear, but usually |a| << 1
+		
+		# if(debug % 2 == 0):
+			# fig, ax, _ = my.get_fig('R', r'$\phi_2$', yscl='log')
+			# ax.errorbar(R_centers[fit_inds], Rdens[fit_inds], d_Rdens[fit_inds])
+			# ax.errorbar(R_centers[peak_inds], Rdens[peak_inds], d_Rdens[peak_inds])
+			# ax.plot([min(R_centers[fit_inds]), max(R_centers[fit_inds])], [rho_bulk]*2, '--')
+			# #ax.plot([min(R_centers[fit_inds]), max(R_centers[fit_inds])], [rho_bulk]*2, '--')
+			# ax.plot(R_centers[ok_inds], rho_fit_sgmfnc_template(R_centers[ok_inds], rho_fit_params, rho_bulk, Ncl, L2, capilar_correction_min=R_peak_right, mode=mode))
+			# plt.show()
+		
+		# rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params)
+		# if(np.any([((rho_fit_optim_res.x[i] < opt_bounds[i][0]) or (opt_bounds[i][1] < rho_fit_optim_res.x[i])) for i in range(len(rho_fit_params))])):
+			# rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params, bounds=opt_bounds)
+		
+		# rho_fit_params = rho_fit_optim_res.x
+		
+		# if(isinstance(rho_fit_optim_res.hess_inv, scipy.optimize._lbfgsb_py.LbfgsInvHessProduct)):
+			# d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.todense().diagonal())
+		# else:
+			# d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.diagonal())
+		
+		# if(debug % 3 == 0):
+			# fig, ax, _ = my.get_fig('R', r'$\phi_2$', yscl='log')
+			# ax.errorbar(R_centers[fit_inds], Rdens[fit_inds], d_Rdens[fit_inds])
+			# ax.errorbar(R_centers[peak_inds], Rdens[peak_inds], d_Rdens[peak_inds])
+			# ax.plot([min(R_centers[fit_inds]), max(R_centers[fit_inds])], [rho_bulk]*2, '--')
+			# ax.plot([R_peak_right] * 2, [min(Rdens[fit_inds]), max(Rdens[fit_inds])], '--')
+			
+			# ax.plot(R_centers[ok_inds], rho_fit_sgmfnc_template(R_centers[ok_inds], rho_fit_params, rho_bulk, Ncl, L2, capilar_correction_min=R_peak_right, mode=mode))
+			# plt.show()
+		
+		
+	#print(rho_fit_params, d_rho_fit_params)
+	#input('ok')
 	
 	return rho_fit_params, d_rho_fit_params
+
+def get_peak_features(R_centers, Rdens, rho_bulk, L2, d_Rdens=None, rho_inf=None, ok_inds=None, iter=1):
+	if(ok_inds is None):
+		ok_inds = (Rdens >= 0)   # all True
+	if(rho_inf is None):
+		rho_inf = rho_bulk
+	
+	Rdens_maxind = np.argmax(Rdens[ok_inds])
+	R_peak_rhomax = R_centers[ok_inds][Rdens_maxind]
+	rho_max = Rdens[Rdens_maxind]
+	R_left_to_peak_inds = ok_inds & (R_centers < R_peak_rhomax)
+	rho_core_max = (Rdens[R_left_to_peak_inds][0] * 2) if(d_Rdens is None) \
+					else (Rdens[R_left_to_peak_inds][0] + 4 * d_Rdens[R_left_to_peak_inds][0])
+	R_left_peak_ind = np.where(Rdens[R_left_to_peak_inds] < rho_core_max)[0]   # find the last index with (R < Rpeak) and (rho < rho_core_max_estimate)
+	if(len(R_left_peak_ind) == 0):
+		R_left_peak_ind = 0
+	else:
+		R_left_peak_ind = min(R_left_peak_ind[-1] + 1, np.sum(R_left_to_peak_inds) - 1)
+	R_peak_left = R_centers[R_left_to_peak_inds][R_left_peak_ind]
+	fit_inds = ok_inds & (R_centers >= R_peak_left)
+	R_right_to_peak_inds = ok_inds & (R_centers > R_peak_rhomax)
+	R_right_peak_ind = max(0, np.argmax(Rdens[R_right_to_peak_inds] < rho_inf) - 1)   # first index with (R > Rpeak) and (rho < rho_inf)
+	R_peak_right = R_centers[R_right_to_peak_inds][R_right_peak_ind]
+	peak_inds = fit_inds & (R_centers <= R_peak_right)
+	if(np.sum(peak_inds) < 2):
+		fig, ax, _ = my.get_fig('R', r'$\phi_{fit}$')
+		ax.errorbar(R_centers[fit_inds], Rdens[fit_inds], yerr=d_Rdens[fit_inds])
+		ax.plot([min(R_centers[fit_inds]), max(R_centers[fit_inds])], [rho_inf]*2, '--')
+		ax.plot([R_peak_right]*2, [min(Rdens[fit_inds]), max(Rdens[fit_inds])], '--')
+		plt.show()
+	if(np.all(Rdens[peak_inds] <= rho_inf)):
+		fig, ax, _ = my.get_fig('R', r'$\phi_{peak}$')
+		print(R_centers[peak_inds])
+		ax.errorbar(R_centers[peak_inds], Rdens[peak_inds], yerr=d_Rdens[peak_inds])
+		ax.plot([min(R_centers[peak_inds]), max(R_centers[peak_inds])], [rho_inf]*2, '--')
+		plt.show()
+	R_peak_avg = np.average(R_centers[peak_inds], weights=np.maximum(Rdens[peak_inds] - rho_inf, 0))  # w *= R_centers[fit_inds][peak_inds] because  dV = r dphi dr
+	#rho_fit_params[1] = np.sqrt(np.average((Rdens[peak_inds] - R_peak_avg)**2, weights=Rdens[peak_inds]) / (1 - 1/np.sum(peak_inds)))
+	peak_width = np.sqrt(np.average((Rdens[peak_inds] - R_peak_avg)**2, weights=Rdens[peak_inds])) * 0.6  # * 0.581368  # * 0.610968
+	
+	inside_inds = (R_centers < R_peak_right)
+	rho_inf = (L2 * rho_bulk - np.trapz(Rdens[inside_inds] * 2*np.pi * R_centers[inside_inds], x=R_centers[inside_inds])) / (L2 - np.pi * R_peak_right**2)
+	
+	iter -= 1
+	
+	return (R_peak_left, R_peak_right, R_peak_rhomax, R_peak_avg, rho_max, peak_width, rho_inf, fit_inds, peak_inds) if(iter==0) \
+			else get_peak_features(R_centers, Rdens, rho_bulk, L2, d_Rdens=d_Rdens, rho_inf=rho_inf, ok_inds=ok_inds, iter=iter)
+
+def rho_fit_spline(R_centers, Rdens, d_Rdens, rho_bulk, L2, s=None, ext='const', k=3, Rmax_fit=-4, rho_inf_inter=4):
+	R_peak_left, R_peak_right, R_peak_rhomax, R_peak_avg, \
+		rho_max, peak_width, rho_inf, _, peak_inds = \
+				get_peak_features(R_centers, Rdens, rho_bulk, L2, d_Rdens=d_Rdens, iter=rho_inf_inter)
+	
+	if(Rmax_fit < 0):
+		Rmax_fit = R_peak_right - Rmax_fit * (R_peak_right - R_peak_left)
+	fit_inds = (R_centers >= R_peak_right) & (R_centers < Rmax_fit)
+	
+	if(s is not None):
+		if(s < 0):
+			s = -s * np.sum(fit_inds)
+	
+	spl = scipy.interpolate.UnivariateSpline(R_centers[fit_inds], Rdens[fit_inds], w=1/d_Rdens[fit_inds], ext=ext, s=s, k=k)
+	full_fnc = lambda r, \
+					R_peak_right_loc=R_peak_right, \
+					Rmax_fit_loc=Rmax_fit, \
+					Rdens_max_loc=max(Rdens[fit_inds]), \
+					spl_loc=spl, \
+					rho_inf_loc=rho_inf: \
+				np.piecewise(r, [r < R_peak_right_loc, (r >= R_peak_right_loc) & (r < Rmax_fit_loc), r >= Rmax_fit_loc], [Rdens_max_loc, lambda x: spl_loc(x), rho_inf_loc])
+	
+	return full_fnc, Rmax_fit, R_peak_rhomax, spl
 
 def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 						N_init_states, OP_interfaces, init_gen_mode=-3, \
@@ -2700,7 +2892,7 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 						seeds=None):
 	L2 = L**2
 	N_mu = mu_arr.shape[0]
-
+	
 	ln_k_AB = np.empty(N_mu)
 	d_ln_k_AB = np.empty(N_mu)
 	flux0_A = np.empty(N_mu)
@@ -2716,7 +2908,7 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 	k_AB_max = np.empty(N_mu)
 	d_k_AB = np.empty(N_mu)
 	N_OP_interfaces = np.empty(N_mu, dtype=int)
-
+	
 	npy_filename = interface_mode + '_eT11_12_22_' + str(e[1,1]) + '_' + str(e[1,2]) + '_' + str(e[2,2]) \
 				+ '_L' + str(L) \
 				+ '_mu1T_' + ((str(min(mu_arr[:, 1])) + '_' + str(max(mu_arr[:, 1]))) if(max(mu_arr[:, 1]) > min(mu_arr[:, 1])) else str(mu_arr[0, 1])) \
@@ -2725,11 +2917,11 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 				+ '_Nruns' + str(N_runs) + '_Ninit'	+ str(N_init_states[0]) \
 				+ '_Nstates' + str(N_init_states[-1]) \
 				+ '_OP0' + (str(min(OP_interfaces[0]))) + '.npz'
-
+	
 	if(os.path.isfile(npy_filename) and (not to_recomp)):
 		print('loading from "' + npy_filename + '"')
 		npy_data = np.load(npy_filename, allow_pickle=True)
-
+		
 		mu_arr = npy_data['mu_arr']
 		k_AB_mean = npy_data['k_AB']
 		k_AB_errbars = npy_data['d_k_AB']
@@ -2737,12 +2929,12 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 		d_OP0_AB = npy_data['d_P_B']
 	else:
 		print('file\n"%s"\nnot found, computing' % npy_filename)
-
+		
 		for i_mu in range(N_mu):
 			N_OP_interfaces[i_mu] = len(OP_interfaces[i_mu])
 			_, _, _, _, ln_k_AB[i_mu], d_ln_k_AB[i_mu], flux0_A[i_mu], \
 				d_flux0_A[i_mu], prob_AB_new, d_prob_AB_new, PB_AB_new, d_PB_AB_new, \
-				OP0_AB[i_mu], d_OP0_AB[i_mu] = \
+				OP0_AB[i_mu], d_OP0_AB[i_mu], _, _, _ = \
 					run_many(MC_move_mode, L, e, mu_arr[i_mu, :], N_runs, interface_mode, \
 						stab_step=stab_step, \
 						N_init_states_AB=N_init_states, \
@@ -2752,6 +2944,8 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 						to_get_timeevol=False, to_plot_committer=False, \
 						to_recomp=max([0, to_recomp - 1]), \
 						to_save_npz=to_save_npy, seeds=seeds)
+			# ZeldovichG_AB, d_ZeldovichG_AB, rho_chi2 are ommitted
+			
 			prob_AB.append(prob_AB_new)
 			d_prob_AB.append(d_prob_AB_new)
 			PB_AB.append(PB_AB_new)
@@ -2762,23 +2956,23 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 			#print((N_OP_interfaces - 1, N_mu))
 			#input('hi')
 			k_AB_mean[i_mu], k_AB_min[i_mu], k_AB_max[i_mu], d_k_AB[i_mu] = get_log_errors(ln_k_AB[i_mu], d_ln_k_AB[i_mu], lbl='k_AB_' + str(i_mu))
-
+		
 		k_AB_errbars = np.concatenate(((k_AB_mean - k_AB_min)[np.newaxis, :], (k_AB_max - k_AB_mean)[np.newaxis, :]), axis=0)
-
+		
 		if(to_save_npy):
 			np.savez(npy_filename, mu_arr=mu_arr, k_AB=k_AB_mean, d_k_AB=k_AB_errbars, P_B=OP0_AB, d_P_B=d_OP0_AB)
 			print('saved "' + npy_filename + '"')
-
+	
 	if(to_plot):
 		TL_lbl = '$\epsilon_{11, 22}/T = ' + my.f2s(e[1,1]) + ',' + my.f2s(e[2,2]) + '$; L = ' + str(L)
 		fig_k, ax_k, _ = my.get_fig('$\mu_1/T$', '$k_{AB} / L^2$ [trans/(sweep $\cdot l^2$)]', '$k_{AB}(\mu)$; ' + TL_lbl, yscl='log')
 		#fig_Nc, ax_Nc, _ = my.get_fig('$\mu_1/T$', '$N_c$', '$N_c(\mu)$; ' + TL_lbl, xscl='log', yscl='log')
 		fig_Nc, ax_Nc, _ = my.get_fig('$\mu_1/T$', '$N_c$', '$N_c(\mu)$; ' + TL_lbl, yscl='log')
-
+		
 		ax_k.errorbar(mu_arr[:, 1], k_AB_mean, yerr=k_AB_errbars, fmt='.', label='data')
-
+		
 		ax_Nc.errorbar(mu_arr[:, 1], OP0_AB, yerr=d_OP0_AB, fmt='.', label='data')
-
+		
 		Temp = 4 / e[1,1]
 		Temp_key = str(round(Temp, 1))
 		if((Temp_key in table_data.k_AB_reference_data) and (Temp_key in table_data.Nc_reference_data)):
@@ -2786,18 +2980,18 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 			mu_kAB_ref = table_data.k_AB_reference_data[Temp_key][0, :] * 2 / Temp - 2 * e[1,1] + mu_shift
 			#mu_Nc_ref = table_data.Nc_reference_data[Temp_key][0, :]
 			mu_Nc_ref = table_data.Nc_reference_data[Temp_key][0, :] * 2 / Temp - 2 * e[1,1] + mu_shift
-
+			
 			#k_AB_ref = table_data.k_AB_reference_data[Temp_key][1, :] / table_data.L_reference ** 2
 			k_AB_ref = table_data.k_AB_reference_data[Temp_key][1, :]
 			Nc_AB_ref = table_data.Nc_reference_data[Temp_key][1, :]
-
+			
 			ax_k.plot(mu_kAB_ref, k_AB_ref, '-o', label='reference')
 			ax_Nc.plot(mu_Nc_ref, Nc_AB_ref, '-o', label='reference')
-
+			
 			fig_k_err, ax_k_err, _ = my.get_fig('$\mu_1/T$', '$[max(\ln(k_{my, ref})) / min(\ln(k_{my, ref})) - 1]$', '$\ln(k)_{error}(\mu)$; ' + TL_lbl, yscl='log')
 			#fig_Nc_err, ax_Nc_err, _ = my.get_fig('$\mu_1/T$', '$[max(Nc_{my, ref}) / min(Nc_{my, ref}) - 1]$', '$Nc_{error}(\mu)$; ' + TL_lbl, xscl='log', yscl='log')
 			fig_Nc_err, ax_Nc_err, _ = my.get_fig('$\mu_1/T$', '$[max(Nc_{my, ref}) / min(Nc_{my, ref}) - 1]$', '$Nc_{error}(\mu)$; ' + TL_lbl, yscl='log')
-
+			
 			fig_k_ratio, ax_k_ratio, _ = my.get_fig('$\mu_1/T$', '$k_{my} / k_{ref}$', '$k_{error}(\mu)$; ' + TL_lbl)
 			def get_k_err_vals(k, d_ln_k, k_ref):
 				r = np.exp(np.abs(np.log(k / k_ref)))
@@ -2809,13 +3003,13 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 			mu_Nc_ref_inds = np.array([np.argmin(np.abs(mu_Nc_ref - mu_my)) for mu_my in mu_arr[:, 1]])
 			k_err, d_k_err = get_k_err_vals(np.log(k_AB_mean), np.abs(d_ln_k_AB / np.log(k_AB_mean)), np.log(k_AB_ref[mu_kAB_ref_inds]))
 			Nc_err, d_Nc_err = get_k_err_vals(OP0_AB, d_OP0_AB / OP0_AB, Nc_AB_ref[mu_Nc_ref_inds])
-
+			
 			ax_k_err.errorbar(mu_arr[:, 1], k_err, yerr=d_k_err, fmt='.', label='data')
 			my.add_legend(fig_k_err, ax_k_err)
-
+			
 			ax_k_ratio.errorbar(mu_arr[:, 1], k_AB_mean / k_AB_ref[mu_kAB_ref_inds], yerr=d_ln_k_AB * abs(k_AB_mean / k_AB_ref[mu_kAB_ref_inds]), fmt='.', label='data')
 			my.add_legend(fig_k_ratio, ax_k_ratio)
-
+			
 			ax_Nc_err.errorbar(mu_arr[:, 1], Nc_err, yerr=d_Nc_err, fmt='.', label='data')
 			my.add_legend(fig_Nc_err, ax_Nc_err)
 		my.add_legend(fig_k, ax_k)
@@ -2890,8 +3084,14 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 	d_flux0 = np.zeros((N_Temps, N_phi1s))
 	OP0 = np.zeros((N_Temps, N_phi1s))
 	d_OP0 = np.zeros((N_Temps, N_phi1s))
+	ZeldovichG = np.zeros((N_Temps, N_phi1s))
+	d_ZeldovichG = np.zeros((N_Temps, N_phi1s))
 	Temps_grid = np.zeros((N_Temps, N_phi1s))
 	phi1s_grid = np.zeros((N_Temps, N_phi1s))
+	rho_chi2 = np.zeros((N_Temps, N_phi1s, N_species, N_OP_interfaces))
+	chi2_rho0 = np.zeros((N_Temps, N_phi1s))
+	chi2_rho1 = np.zeros((N_Temps, N_phi1s))
+	chi2_rho2 = np.zeros((N_Temps, N_phi1s))
 	for i_Temp, Temp in enumerate(Temp_s):
 		for i_phi1, phi1 in enumerate(phi1_s):
 			n_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][my.f2s(Temp, n=2)][my.f2s(phi1, n=5)]
@@ -2925,14 +3125,16 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 				
 				N_found_npzs = len(found_IDs)
 				if(N_found_npzs > 0):
-					Temps_grid[i_Temp][i_phi1] = Temp
-					phi1s_grid[i_Temp][i_phi1] = phi1
+					Temps_grid[i_Temp, i_phi1] = Temp
+					phi1s_grid[i_Temp, i_phi1] = phi1
 					
 					F, d_F, M_hist_centers, OP_hist_lens, \
-						ln_k[i_Temp][i_phi1], d_ln_k[i_Temp][i_phi1], \
-						flux0[i_Temp][i_phi1], d_flux0[i_Temp][i_phi1], \
+						ln_k[i_Temp, i_phi1], d_ln_k[i_Temp, i_phi1], \
+						flux0[i_Temp, i_phi1], d_flux0[i_Temp, i_phi1], \
 						prob, d_prob, PB, d_PB, \
-						OP0[i_Temp][i_phi1], d_OP0[i_Temp][i_phi1] = \
+						OP0[i_Temp, i_phi1], d_OP0[i_Temp, i_phi1], \
+						ZeldovichG[i_Temp, i_phi1], d_ZeldovichG[i_Temp, i_phi1], \
+						rho_chi2[i_Temp, i_phi1, :, :] = \
 							run_many(MC_move_mode, L, e_use, mu, N_found_npzs, \
 								interface_mode, stab_step=stab_step, \
 								N_init_states_AB=N_init_states, \
@@ -2947,25 +3149,61 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 								to_recomp=max([to_recomp - 1, 0]), \
 								N_fourier=N_fourier, seeds=found_IDs, \
 								to_plot=False)
+					
+					#OP0_closest_ind = np.argmin(np.abs(OP_interfaces - OP0[i_Temp, i_phi1]))
+					#OP0_closest_ind = np.argmin(np.abs(np.log(1/PB - 1)))
+					OP0_closest_ind = np.argmin(np.abs(PB - 0.5))
+					chi2_rho0[i_Temp, i_phi1] = rho_chi2[i_Temp, i_phi1, 0, OP0_closest_ind]
+					chi2_rho1[i_Temp, i_phi1] = rho_chi2[i_Temp, i_phi1, 1, OP0_closest_ind]
+					chi2_rho2[i_Temp, i_phi1] = rho_chi2[i_Temp, i_phi1, 2, OP0_closest_ind]
+	
+	d_chi2_rho0, d_chi2_rho1, d_chi2_rho2 = \
+		tuple([(chi2 / 100) for chi2 in [chi2_rho0, chi2_rho1, chi2_rho2]])
+	# I do not have an estimate for d_chi2 so this is necessary to make 
 	
 	ok_inds = (flux0.flatten() > 0)
 	N_ok_points = np.sum(ok_inds)
 	
-	ln_k_arr, d_ln_k_arr, OP0_arr, d_OP0_arr, flux0_arr, d_flux0_arr, Temps_arr, phi1s_arr = \
-		tuple([arr.flatten()[ok_inds] for arr in [ln_k, d_ln_k, OP0, d_OP0, flux0, d_flux0, Temps_grid, phi1s_grid]])
+	# ==== flatten all the data and extract only good poits ====
+	ln_k_arr, d_ln_k_arr, OP0_arr, d_OP0_arr, ZeldovichG_arr, d_ZeldovichG_arr, \
+	flux0_arr, d_flux0_arr, chi2_rho0_arr, d_chi2_rho0_arr, chi2_rho1_arr, d_chi2_rho1_arr, \
+	chi2_rho2_arr, d_chi2_rho2_arr, Temps_arr, phi1s_arr = \
+		tuple([arr.flatten()[ok_inds] for arr in \
+			[ln_k, d_ln_k, OP0, d_OP0, ZeldovichG, d_ZeldovichG, \
+			flux0, d_flux0, chi2_rho0, d_chi2_rho0, chi2_rho1, d_chi2_rho1, \
+			chi2_rho2, d_chi2_rho2, Temps_grid, phi1s_grid]])
 	
-	ln_flux0_arr = np.log(flux0_arr)
-	d_ln_flux0_arr = d_flux0_arr / flux0_arr
-	ln_OP0_arr = np.log(OP0_arr)
-	d_ln_OP0_arr = d_OP0_arr / OP0_arr
+	# ==== turn selected data_pairs into their logs ====
+	ln_flux0_arr, d_ln_flux0_arr, ln_OP0_arr, d_ln_OP0_arr, \
+	ln_ZeldovichG_arr, d_ln_ZeldovichG_arr, ln_chi2_rho0_arr, d_ln_chi2_rho0_arr, \
+	ln_chi2_rho1_arr, d_ln_chi2_rho1_arr, ln_chi2_rho2_arr, d_ln_chi2_rho2_arr = \
+		tuple([item for data_pair in \
+					[[np.log(data_pair[0]), data_pair[1] / data_pair[0]] for data_pair in \
+					[[flux0_arr, d_flux0_arr], [OP0_arr, d_OP0_arr], \
+					 [ZeldovichG_arr, d_ZeldovichG_arr], \
+					 [chi2_rho0_arr, d_chi2_rho0_arr], \
+					 [chi2_rho1_arr, d_chi2_rho1_arr], \
+					 [chi2_rho2_arr, d_chi2_rho2_arr]]] \
+				for item in data_pair])
 	
 	if(N_ok_points >= fit_ord**2):
-		ln_OP0_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_OP0_arr, dz=d_ln_OP0_arr, xord=fit_ord, yord=fit_ord)
-		ln_k_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_k_arr, dz=d_ln_k_arr, xord=fit_ord, yord=fit_ord)
-		ln_flux0_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_flux0_arr, dz=d_ln_flux0_arr, xord=fit_ord, yord=fit_ord)
+		#chi2_rho0_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_ZeldovichG_arr, dz=d_ln_ZeldovichG_arr, xord=fit_ord, yord=fit_ord)
+		
+		data_arr_pairs = [[ln_OP0_arr, d_ln_OP0_arr], \
+						  [ln_k_arr, d_ln_k_arr], \
+						  [ln_flux0_arr, d_ln_flux0_arr], \
+						  [ln_ZeldovichG_arr, d_ln_ZeldovichG_arr], \
+						  [ln_chi2_rho0_arr, d_ln_chi2_rho0_arr], \
+						  [ln_chi2_rho1_arr, d_ln_chi2_rho1_arr], \
+						  [ln_chi2_rho2_arr, d_ln_chi2_rho2_arr]]
+		N_data_pairs = len(data_arr_pairs)
+		for i in range(N_data_pairs):
+			data_arr_pairs[i].append(fit_Tphi1_grid(Temps_arr, phi1s_arr, data_arr_pairs[i][0], dz=data_arr_pairs[i][1], xord=fit_ord, yord=fit_ord)[0])
+			# this makes the pair [z, dz, fitfnc]
 		
 		N_OP0_constr = len(OP0_constraint_s)
 		OP0consr_Tphi1_sets = []
+		ln_OP0_fitfnc = data_arr_pairs[0][2]
 		if(N_OP0_constr > 0):
 			for i in range(N_OP0_constr):
 				OP0consr_Tphi1_sets.append(my.find_optim_manifold(lambda x: np.abs(ln_OP0_fitfnc(x[0], x[1]) - np.log(OP0_constraint_s[i])), \
@@ -2974,19 +3212,15 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 	
 	if(to_plot):
 		if(N_ok_points >= fit_ord**2):
-			fig_OP0, ax_OP0 = plot_Tphi1_data(Temps_arr, phi1s_arr, \
-					ln_OP0_arr, d_ln_OP0_arr, '$\ln(N^*)$', ln_OP0_fitfnc, \
-					OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
-			fig_ln_k, ax_ln_k = plot_Tphi1_data(Temps_arr, phi1s_arr, \
-					ln_k_arr, d_ln_k_arr, '$\ln(k)$', ln_k_fitfnc, \
-					OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
-			fig_ln_flux0, ax_ln_flux0 = plot_Tphi1_data(Temps_arr, phi1s_arr, \
-					ln_flux0_arr, d_ln_flux0_arr, '$\ln(\Phi_A)$', ln_flux0_fitfnc, \
-					OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
-			
-			# my.add_legend(fig_OP0, ax_OP0)
-			# my.add_legend(fig_ln_k, ax_ln_k)
-			# my.add_legend(fig_ln_flux0, ax_ln_flux0)
+			figs = [[]] * N_data_pairs
+			axs = [[]] * N_data_pairs
+			data_names = ['$\ln(N^*)$', '$\ln(k)$', '$\ln(\Phi_A)$', '$\ln(\Gamma)$', r'$\ln(\chi^2_{dip,0})$', r'$\ln(\chi^2_{dip,1})$', r'$\ln(\chi^2_{dip,2})$']
+			assert(len(data_names) == N_data_pairs), 'ERROR: data_names = %s\nhas %d elements, but N_data_pairs = %d' % (str(data_names), len(data_names), N_data_pairs)
+			for i in range(N_data_pairs):
+				figs[i], axs[i] = plot_Tphi1_data(Temps_arr, phi1s_arr, \
+						data_arr_pairs[i][0], data_arr_pairs[i][1], data_names[i], data_arr_pairs[i][2], \
+						OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
+				
 
 def plot_Tphi1_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$', \
 				N_draw_points=1000, draw_only_inside_convexhull=True, \
@@ -3027,11 +3261,26 @@ def plot_Tphi1_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$'
 		fig_vsY, ax_vsY, _ = my.get_fig(y_lbl, z_lbl, title='%s(%s | $N^*$)' % (z_lbl, y_lbl))
 		for i in range(N_OP0_constr):
 			if(OP0consr_Tphi1_sets[i].shape[0] > 0):
-				ax.plot3D(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1], z_fitfnc(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1]), '.', label='$N^* = %d$' % OP0_constraint_s[i])
+				ax.plot3D(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1], \
+						z_fitfnc(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1]), \
+						'.', label='$N^* = %d$' % OP0_constraint_s[i], \
+						color=my.get_my_color(i+1))
 				
-				ax_vsX.plot(OP0consr_Tphi1_sets[i][:, 0], z_fitfnc(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1]), '.')
+				ax_vsX.plot(OP0consr_Tphi1_sets[i][:, 0], \
+							z_fitfnc(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1]), \
+							'.', label='$N^* = %d$' % OP0_constraint_s[i], \
+							color=my.get_my_color(i+1))
 				
-				ax_vsY.plot(OP0consr_Tphi1_sets[i][:, 1], z_fitfnc(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1]), '.')
+				ax_vsY.plot(OP0consr_Tphi1_sets[i][:, 1], \
+							z_fitfnc(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1]), \
+							'.', label='$N^* = %d$' % OP0_constraint_s[i], \
+							color=my.get_my_color(i+1))
+		
+		ax_vsX.set_xlim([min(x), max(x)])
+		ax_vsY.set_xlim([min(y), max(y)])
+		
+		my.add_legend(fig_vsX, ax_vsX)
+		my.add_legend(fig_vsY, ax_vsY)
 	
 	if(to_add_legend):
 		my.add_legend(fig, ax)
@@ -3142,9 +3391,9 @@ def main():
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 246 -my_seeds 500 501 502 503 504 505 506 507 508 509 510 511 512 513 514 515 516 517 518 519 520 521 522 523 524 525 526 527 528 529 530 531 532 533 534 535 536 537 538 539 540 541 542 543 544 545 546 547 548 549 550 551 552 553 554 555 556 557 558 559 560 561 562 563 564 565 566 567 568 569 570 571 572 573 574 575 576 577 578 579 580 581 582 583 584 585 586 587 588 589 590 591 592 593 594 595 596 597 598 599 600 601 602 603 604 605 606 607 608 609 610 612 613 614 615 616 617 618 619 620 621 622 623 624 626 627 628 629 630 631 632 633 634 635 636 637 638 639 640 641 642 643 644 645 646 647 648 649 650 651 652 653 654 655 656 657 658 659 660 661 662 663 664 665 666 667 668 669 670 671 672 673 674 675 676 677 678 679 680 681 682 683 684 685 687 688 689 690 691 692 693 694 695 696 697 698 699 700 701 702 703 704 705 706 707 708 709 710 711 712 713 714 715 716 717 718 719 720 721 722 723 724 725 726 728 729 730 731 732 733 734 735 736 737 738 739 740 741 742 743 744 745 746 747 748 749 -to_recomp 1 -font_mode present
 	# python run.py -mode FFS_AB_many -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.985 0.015 0.00 -OP_interfaces_set_IDs nvt16 -N_runs 5 -my_seeds 500 501 502 503 504 -to_recomp 1 -font_mode present
 	
-	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present -OP0_constr_s 30
+	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present -OP0_constr_s 15 20 30 50 100
 	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present -OP0_constr_s 30 20
-	# python run.py -mode FFS_AB_many -init_composition 0.9745 0.0155 0.01 -Temp 1.0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -to_recomp 1 -font_mode present -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -OP_interfaces_set_IDs nvt -my_seeds FFS_auto
+	# python run.py -mode FFS_AB_many -init_composition 0.975 0.015 0.01 -Temp 1.0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -font_mode present -MC_move_mode swap -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -OP_interfaces_set_IDs nvt -my_seeds FFS_auto -to_recomp 1
 	
 	# TODO: run failed IDs with longer times
 	
@@ -3404,60 +3653,23 @@ def main():
 				stab_step=stab_step, init_composition=init_composition, \
 				R_clust_init=R_clust_init, to_animate=to_animate, \
 				to_save_npz=to_save_npz, to_recomp=to_recomp)
-
+	
 	elif(mode == 'BF_mu_grid'):
-
-		mu1_vec = [4, 5, 6]
-		mu2_vec = [5, 7.5, 10]
-
-		mu1_vec = [4, 5]
-		mu2_vec = [5, 10]
-
-		#mu1_vec = [5,6]
-		#mu2_vec = [7.5, 10]
-
-		mu1_vec = [4, 4.5, 4.95, 5.0, 5.03, 5.1, 5.12, 6, 7, 10]
-		mu2_vec = [10, 11, 15, 20, 50, 100]
-
-		mu1_vec = np.linspace(4.8, 5.2, 41)
-		mu2_vec = np.linspace(4,10,61)
-
-		#mu1_vec = np.linspace(4.8, 5.2, 41)
-		#mu2_vec = np.linspace(0,4,41)
-
-		#mu1_vec = np.linspace(5.4, 5.8, 41)
-		#mu2_vec = np.linspace(0,10,101)
-
-		mu1_vec = np.linspace(5.8, 10, 43)
-		mu2_vec = np.linspace(2, 4, 21)
-
-		mu1_vec = np.linspace(5.8, 10, 43)
-		mu2_vec = np.linspace(3, 4, 101)
-
-		mu1_vec = np.linspace(2, 8, 301)
-		mu2_vec = np.linspace(2, 5, 151)
-
-		mu1_vec = np.linspace(2, 8, 601)
-		mu2_vec = np.linspace(4, 5, 100)
-
-		mu1_vec = np.linspace(2, 3, 21)   # t=1.03
-		mu2_vec = np.linspace(4, 6, 41)
-
 		mu1_vec = np.linspace(3, 3.3, 16)   # t=0.8
 		mu2_vec = np.linspace(4, 6, 21)
-
+		
 		map_phase_difference(MC_move_mode, Ls[0], e, [np.array(mu1_vec), np.array(mu2_vec)], \
 							Nt, interface_mode, \
 							to_plot_timeevol=to_plot_timeevol, \
 							stab_step=stab_step, \
 							to_plot_debug=False)
-
+	
 	elif(mode == 'BF_2sides'):
 		err = cost_fnc(MC_move_mode, Ls[0], e, mu[0, :], Nt, interface_mode,
 					target_states0[target_phase_id0, :], target_states1[target_phase_id1, :], \
 					timeevol_stride, stab_step, verbose=verbose, \
 					to_plot_timeevol=True, seeds=my_seeds)
-
+	
 	elif(mode == 'BF_2sides_many'):
 		phi_0, d_phi_0, phi_1, d_phi_1, \
 			phi_0_evol, d_phi_0_evol, phi_1_evol, d_phi_1_evol= \
@@ -3466,15 +3678,15 @@ def main():
 					mode='BF_2sides', timeevol_stride=timeevol_stride, \
 					to_plot_time_evol=False, to_recomp=to_recomp, \
 					to_save_npz=to_save_npz, verbose=verbose, seeds=my_seeds)
-
+		
 		if(to_plot_timeevol):
 			plot_avg_phi_evol(phi_0, d_phi_0, phi_0_evol, d_phi_0_evol, phi_0, stab_step, timeevol_stride, r'$\vec{\varphi}_0$', time_scl='linear')    #  * np.sqrt(N_runs - 1)
 			plot_avg_phi_evol(phi_1, d_phi_0, phi_1_evol, d_phi_1_evol, phi_1, stab_step, timeevol_stride, r'$\vec{\varphi}_1$', time_scl='linear')    #  * np.sqrt(N_runs - 1)
-
+		
 		if(to_plot_target_phase):
 			plot_Q_target_phase_data(target_states0_all, target_phase_id0, phi_0, d_phi_0, '0', cost_mode)
 			plot_Q_target_phase_data(target_states1_all, target_phase_id1, phi_1, d_phi_1, '1', cost_mode)
-
+	
 	elif(mode == 'BF_2sides_muOpt'):
 		N_targets = target_states0.shape[0]
 		phi_0 = np.empty((N_targets, N_species))
@@ -3486,7 +3698,7 @@ def main():
 		d_phi_0_evol = np.empty((N_targets, N_species, Nt_states))
 		phi_1_evol = np.empty((N_targets, N_species, Nt_states))
 		d_phi_1_evol = np.empty((N_targets, N_species, Nt_states))
-
+		
 		Temp_opt_arr = np.empty(N_targets)
 		mu_opt_arr = np.empty((2, N_targets))
 		for i in range(N_targets):
@@ -3495,7 +3707,7 @@ def main():
 						Nt, interface_mode, N_runs, cost_mode, \
 						stab_step_FFS=stab_step, seeds=my_seeds,
 						opt_mode=opt_mode, verbose=verbose)
-
+			
 			if(opt_mode == 0):
 				e_opt = e
 				mu_opt = np.array([0] + list(x_opt.x))
@@ -3507,7 +3719,7 @@ def main():
 				mu_opt_arr[:, i] = x_opt.x[1:] / Temp_opt_arr[i]
 				e_opt = e
 				mu_opt = np.array([0] + list(mu_opt_arr[:, i]))
-
+			
 			phi_0[i, :], d_phi_0[i, :], phi_1[i, :], d_phi_1[i, :], \
 				phi_0_evol[i, :, :], d_phi_0_evol[i, :, :], \
 				phi_1_evol[i, :, :], d_phi_1_evol[i, :, :] = \
@@ -3517,7 +3729,7 @@ def main():
 						to_save_npz=to_save_npz, to_recomp=to_recomp, \
 						to_plot_time_evol=False, verbose=max(verbose - 1, 0), \
 						seeds=my_seeds)
-
+			
 			if(to_plot_timeevol):
 				states_timesteps = np.arange(Nt_states) * timeevol_stride
 				metastab_inds = (states_timesteps > stab_step) & (states_timesteps < (stab_step + 5 * L2))
@@ -3529,16 +3741,16 @@ def main():
 					d_phi_1[i, j] = np.std(phi_1_evol[i, j, metastab_inds])
 				plot_avg_phi_evol(phi_0[i, :], d_phi_0[i, :], phi_0_evol[i, :, :], d_phi_0_evol[i, :, :], target_states0[i, :], stab_step, timeevol_stride, r'$\vec{\varphi}_0$')
 				plot_avg_phi_evol(phi_1[i, :], d_phi_1[i, :], phi_1_evol[i, :, :], d_phi_1_evol[i, :, :], target_states1[i, :], stab_step, timeevol_stride, r'$\vec{\varphi}_1$')
-
+		
 		TMuOpt_filename = 'TMuOpt_stab2000_time4000.npz'
 		np.savez(TMuOpt_filename, Temp_opt_arr=Temp_opt_arr, mu_opt_arr=mu_opt_arr)
 		print('%s written' % TMuOpt_filename)
-
+		
 		if(to_plot_target_phase):
 			plot_Q_target_phase_data(target_states0_all, target_phase_id0, phi_0, d_phi_0, '0', cost_mode)
 			plot_Q_target_phase_data(target_states1_all, target_phase_id1, phi_1, d_phi_1, '1', cost_mode)
 			#plt.show()
-
+	
 	elif(mode == 'BF_AB'):
 		proc_T(MC_move_mode, Ls[0], e, mu[0, :], Nt, interface_mode, \
 				OP_A=OP_0[0], OP_B=OP_max[0], N_spins_up_init=N_spins_up_init, \
@@ -3549,7 +3761,7 @@ def main():
 				stab_step=stab_step, init_composition=init_composition, \
 				R_clust_init=R_clust_init, \
 				to_save_npz=to_save_npz, to_recomp=to_recomp)
-
+	
 	elif(mode == 'BF_many'):
 		run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, Nt_per_BF_run=Nt, \
 				stab_step=stab_step, \
@@ -3560,7 +3772,7 @@ def main():
 				R_clust_init=R_clust_init, \
 				to_save_npz=to_save_npz, to_recomp=to_recomp, \
 				seeds=my_seeds)
-
+	
 	elif(mode == 'BF_AB_many'):
 		run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode,
 				Nt_per_BF_run=Nt, stab_step=stab_step, \
@@ -3571,7 +3783,7 @@ def main():
 				R_clust_init=R_clust_init, \
 				to_save_npz=to_save_npz, to_recomp=to_recomp, \
 				seeds=my_seeds)
-
+	
 	elif(mode == 'FFS_AB'):
 		proc_FFS_AB(MC_move_mode, Ls[0], e, mu[0, :], N_init_states_AB, \
 					OP_interfaces_AB[0], interface_mode, \
@@ -3587,11 +3799,11 @@ def main():
 					to_plot_time_evol=to_plot_timeevol, \
 					to_plot_hists=True, \
 					N_fourier=N_fourier)
-
+	
 	elif(mode == 'FFS_AB_many'):
 		F_FFS, d_F_FFS, M_hist_centers_FFS, OP_hist_lens_FFS, ln_k_AB_FFS, d_ln_k_AB_FFS, \
 			flux0_AB_FFS, d_flux0_AB_FFS, prob_AB_FFS, d_prob_AB_FFS, PB_AB_FFS, d_PB_AB_FFS, \
-			OP0_AB, d_OP0_AB = \
+			OP0_AB, d_OP0_AB, ZeldovichG_AB, d_ZeldovichG_AB, chi2_rho = \
 				run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, \
 					stab_step=stab_step, \
 					N_init_states_AB=N_init_states_AB, \
@@ -3605,11 +3817,12 @@ def main():
 					init_composition=init_composition, \
 					to_save_npz=to_save_npz, to_recomp=to_recomp, \
 					N_fourier=N_fourier, seeds=my_seeds)
-
+		
 		get_log_errors(np.log(flux0_AB_FFS), d_flux0_AB_FFS / flux0_AB_FFS, lbl='flux0_AB', print_scale=print_scale_flux)
 		k_AB_FFS_mean, k_AB_FFS_min, k_AB_FFS_max, d_k_AB_FFS = get_log_errors(ln_k_AB_FFS, d_ln_k_AB_FFS, lbl='k_AB_FFS', print_scale=print_scale_k)
-		print(my.errorbar_str(OP0_AB, d_OP0_AB))
-
+		print('N* =', my.errorbar_str(OP0_AB, d_OP0_AB))
+		print('ZeldovichG =', my.errorbar_str(ZeldovichG_AB, d_ZeldovichG_AB))
+	
 	elif('mu' in mode):
 		get_mu_dependence(MC_move_mode, mu, Ls[0], e, N_runs, interface_mode, \
 						N_init_states_AB, OP_interfaces_AB, init_gen_mode=init_gen_mode, \
@@ -3660,10 +3873,10 @@ def main():
 			d_PB_AB_FFS = np.empty((N_OP_interfaces, N_L))
 			OP0_AB = np.empty(N_L)
 			d_OP0_AB = np.empty(N_L)
-
+			
 		for i_l in range(N_L):
 			set_OP_defaults(Ls[i_l]**2)
-
+			
 			if('BF' in mode):
 				F_FFS_new, d_F_FFS_new, OP_hist_centers_new, OP_hist_lens_new, \
 					ln_k_AB[i_l], d_ln_k_AB[i_l], k_AB_BFcount_N[i_l], d_k_AB_BFcount_N[i_l] = \
@@ -3684,7 +3897,7 @@ def main():
 					flux0_AB_FFS[i_l], d_flux0_AB_FFS[i_l], \
 					prob_AB_FFS[:, i_l], d_prob_AB_FFS[:, i_l], \
 					PB_AB_FFS[:, i_l], d_PB_AB_FFS[:, i_l], \
-					OP0_AB[i_l], d_OP0_AB[i_l] = \
+					OP0_AB[i_l], d_OP0_AB[i_l], _, _, _ = \
 						run_many(MC_move_mode, Ls[i_l], e, mu[0, :], N_runs, interface_mode, \
 							stab_step=stab_step, \
 							N_init_states_AB=N_init_states_AB, \
@@ -3697,24 +3910,26 @@ def main():
 							to_save_npz=to_save_npz, to_recomp=to_recomp, \
 							to_plot_committer=False, seeds=my_seeds, \
 							N_fourier=N_fourier)
+				# ZeldG, d_ZeldG, chi2_rho are ignored
+				
 				F_FFS.append(F_FFS_new)
 				d_F_FFS.append(d_F_FFS_new)
 				OP_hist_centers_FFS.append(OP_hist_centers_FFS_new)
 				OP_hist_lens_FFS.append(OP_hist_lens_FFS_new)
 				print(my.errorbar_str(OP0_AB[i_l], d_OP0_AB[i_l]))
-
+			
 			k_AB_mean[i_l], k_AB_min[i_l], k_AB_max[i_l], d_k_AB[i_l] = \
 				get_log_errors(ln_k_AB[i_l], d_ln_k_AB[i_l], lbl='k_AB_L' + str(Ls[i_l]), print_scale=print_scale_k)
-
+			
 			#k_AB_BFcount_N_mean[i_l], k_AB_BFcount_N_min[i_l], k_AB_BFcount_N_max[i_l], d_k_AB_BFcount_N[i_l] = \
 			#	get_log_errors(np.log(k_AB_BFcount_N[i_l]), d_k_AB_BFcount_N[i_l] / k_AB_BFcount_N[i_l], lbl='N_AB_L' + str(Ls[i_l]))
-
+		
 		if('FFS' in mode):
 			P_AB = k_AB_mean / flux0_AB_FFS
 			d_P_AB = P_AB * np.sqrt(d_ln_k_AB**2 + (d_flux0_AB_FFS / flux0_AB_FFS)**2)
 			PB_lin = -np.log(1/PB_AB_FFS[:-1, :] - 1)   # remove P_B == 1 at [-1]
 			d_PB_lin = d_PB_AB_FFS[:-1, :] / (PB_AB_FFS[:-1, :] * (1 - PB_AB_FFS[:-1, :]))
-
+			
 			if(N_L > 1):
 				i_L_max = np.argmax(Ls)
 				Dlt_PB_lin = np.empty((PB_lin.shape[0], PB_lin.shape[1]))
@@ -3722,27 +3937,27 @@ def main():
 				for i_l in range(N_L):
 					Dlt_PB_lin[:, i_l] = PB_lin[:, i_l] - PB_lin[:, i_L_max]
 					d_Dlt_PB_lin[:, i_l] = np.sqrt(d_PB_lin[:, i_l]**2 + d_PB_lin[:, i_L_max]**2)
-
+		
 		Th_lbl = '$\epsilon_{11, 22}/T = ' + my.f2s(e[1,1]) + ',' + my.f2s(e[2,2]) + '$; $\mu_{1,2}/T = ' + my.f2s(mu[1]) + ',' + my.f2s(mu[2]) + '$'
-
+		
 		fig_kAB_L, ax_kAB_L, _ = my.get_fig('L', r'$k_{AB} / L^2$ [trans / (sweep $\cdot l^2$)]', title=r'$k_{AB}(L)$; ' + Th_lbl, xscl='log')
 		ax_kAB_L.errorbar(Ls, k_AB_mean, yerr=d_k_AB, fmt='.')
-
+		
 		if('BF' in mode):
 			fig_kABcount_L, ax_kABcount_L, _ = my.get_fig('L', r'$N_{AB}$ [event]', title=r'$N_{AB}(L)$; ' + Th_lbl, xscl='log')
 			ax_kABcount_L.errorbar(Ls, k_AB_BFcount_N, yerr=d_k_AB_BFcount_N, fmt='.')
-
+		
 		if('FFS' in mode):
 			fig_flux0_L, ax_flux0_L, _ = my.get_fig('L', r'$\Phi_{A} / L^2$ [trans / (sweep $\cdot l^2$)]', title=r'$\Phi_{A}(L)$; ' + Th_lbl, xscl='log')
 			fig_P_L, ax_P_L, _ = my.get_fig('L', r'$P_{AB}$', title=r'$P_{AB}(L)$; ' + Th_lbl, xscl='log')
-
+			
 			ax_flux0_L.errorbar(Ls, flux0_AB_FFS, yerr=d_flux0_AB_FFS, fmt='.')
 			ax_P_L.errorbar(Ls, P_AB, yerr=d_P_AB, fmt='.')
-
+			
 			if(N_L > 1):
 				fig_PB_L, ax_PB_L, _ = my.get_fig('$CS$', r'$-\ln(1/P_{B} - 1)$', title=r'$P_{B}(L, CS)$; ' + Th_lbl)
 				fig_dPB_L, ax_dPB_L, _ = my.get_fig('$CS$', r'$\Delta \ln(1/P_{B} - 1)$', title=r'$P_{B}(L, CS)$; ' + Th_lbl)
-
+				
 				for i_l in range(N_L):
 					ax_PB_L.errorbar(OP_interfaces_AB[i_l][:-1], PB_lin[:, i_l], yerr=d_PB_lin[:, i_l], \
 									label='L = ' + str(Ls[i_l]))
@@ -3752,24 +3967,24 @@ def main():
 						ax_dPB_L.errorbar(OP_interfaces_AB[i_l][:-1], Dlt_PB_lin[:, i_l], yerr=d_Dlt_PB_lin[:, i_l], \
 										label='L = ' + str(Ls[i_l]))
 				ax_PB_L.plot([min(OP_interfaces_AB[0][:-1]), max(OP_interfaces_AB[0][:-1])], [0] * 2, '--', label=r'$P_B = 1/2$')
-
+				
 				my.add_legend(fig_PB_L, ax_PB_L)
 				my.add_legend(fig_dPB_L, ax_dPB_L)
-
+			
 			if(interface_mode == 'CS'):
 				fig_Nc_L, ax_Nc_L, _ = my.get_fig('L', '$N_c$', title='$N_c(L)$; ' + Th_lbl, xscl='log')
 				ax_Nc_L.errorbar(Ls, OP0_AB, yerr=d_OP0_AB, fmt='.')
 			elif(interface_mode == 'M'):
 				fig_Nc_L, ax_Nc_L, _ = my.get_fig('L', '$m_c + 1$', title='$m_c(L)$; ' + Th_lbl, xscl='log', yscl='log')
 				ax_Nc_L.errorbar(Ls, OP0_AB + 1, yerr=d_OP0_AB, fmt='.')
-
+	
 	elif('compare' in mode):
 		F_FFS, d_F_FFS, OP_hist_centers_FFS, OP_hist_lens_FFS, \
 			ln_k_AB_FFS, d_ln_k_AB_FFS, \
 			flux0_AB_FFS, d_flux0_AB_FFS, \
 			prob_AB_FFS, d_prob_AB_FFS, \
 			PB_AB_FFS, d_PB_AB_FFS, \
-			OP0_AB, d_OP0_AB = \
+			OP0_AB, d_OP0_AB, _, _, _ = \
 				run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, \
 					stab_step=stab_step, \
 					N_init_states_AB=N_init_states_AB, \
@@ -3782,7 +3997,8 @@ def main():
 					to_get_timeevol=to_get_timeevol, \
 					to_save_npz=to_save_npz, to_recomp=to_recomp, \
 					N_fourier=N_fourier, seeds=my_seeds)
-
+		# ZeldG, d_ZeldG, chi2_rho are ignored
+		
 		F_BF, d_F_BF, M_hist_centers_BF, M_hist_lens_BF, ln_k_AB_BF, d_ln_k_AB_BF, ln_k_BA_BF, d_ln_k_BA_BF, \
 			ln_k_bc_AB_BF, d_ln_k_bc_AB_BF, ln_k_bc_BA_BF, d_ln_k_bc_BA_BF = \
 				run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, \
@@ -3797,21 +4013,21 @@ def main():
 						seeds=my_seeds)
 		#F_BF = F_BF - min(F_BF)
 		F_BF = F_BF - F_BF[0]
-
+		
 		#assert(np.all(abs(M_hist_centers_BF - OP_hist_centers_FFS) < (M_hist_centers_BF[0] - M_hist_centers_BF[1]) * 1e-3)), 'ERROR: returned M_centers do not match'
 		#assert(np.all(abs(M_hist_lens_BF - OP_hist_lens_FFS) < M_hist_lens_BF[0] * 1e-3)), 'ERROR: returned M_centers do not match'
-
+		
 		k_bc_AB_BF_mean, k_bc_AB_BF_min, k_bc_AB_BF_max, d_k_bc_AB_BF = get_log_errors(ln_k_bc_AB_BF, d_ln_k_bc_AB_BF, lbl='k_bc_AB_BF', print_scale=print_scale_k)
 		k_AB_BF_mean, k_AB_BF_min, k_AB_BF_max, d_k_AB_BF = get_log_errors(ln_k_AB_BF, d_ln_k_AB_BF, lbl='k_AB_BF', print_scale=print_scale_k)
 		get_log_errors(np.log(flux0_AB_FFS), d_flux0_AB_FFS / flux0_AB_FFS, lbl='flux0_AB', print_scale=print_scale_flux)
 		k_AB_FFS_mean, k_AB_FFS_min, k_AB_FFS_max, d_k_AB_FFS = get_log_errors(ln_k_AB_FFS, d_ln_k_AB_FFS, lbl='k_AB_FFS', print_scale=print_scale_k)
-
+		
 		k_bc_BA_BF_mean, k_bc_BA_BF_min, k_bc_BA_BF_max, d_k_bc_BA_BF = get_log_errors(ln_k_bc_BA_BF, d_ln_k_bc_BA_BF, lbl='k_bc_BA_BF', print_scale=print_scale_k)
 		k_BA_BF_mean, k_BA_BF_min, k_BA_BF_max, d_k_BA_BF = get_log_errors(ln_k_BA_BF, d_ln_k_BA_BF, lbl='k_BA_BF', print_scale=print_scale_k)
 		#if('AB' not in mode):
 		#	get_log_errors(np.log(flux0_BA_FFS), d_flux0_BA_FFS / flux0_BA_FFS, lbl='flux0_BA', print_scale=print_scale_flux)
 		#	k_BA_FFS_mean, k_BA_FFS_min, k_BA_FFS_max, d_k_BA_FFS = get_log_errors(ln_k_BA_FFS, d_ln_k_BA_FFS, lbl='k_BA_FFS', print_scale=print_scale_k)
-
+		
 		ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, swap_type_move)
 		fig_F, ax_F, _ = my.get_fig(title[interface_mode], r'$F / J$', title=r'$F(' + feature_label[interface_mode] + ')$; ' + ThL_lbl)
 		ax_F.errorbar(M_hist_centers_BF, F_BF, yerr=d_F_BF, label='BF')
@@ -3828,13 +4044,53 @@ def main():
 		if(interface_mode == 'CS'):
 			ax_F.plot([BC_cluster_size] * 2, F_lims, '--', label='$S_{BC} = L^2 / \pi$')
 		my.add_legend(fig_F, ax_F)
-
+	
 	else:
 		print('ERROR: mode=%s is not supported' % (mode))
-
+	
 	if(to_show_on_screen):
 		plt.show()
 
 if(__name__ == "__main__"):
 	main()
 
+'''
+	elif(mode == 'BF_mu_grid'):
+		mu1_vec = [4, 5, 6]
+		mu2_vec = [5, 7.5, 10]
+		
+		mu1_vec = [4, 5]
+		mu2_vec = [5, 10]
+		
+		#mu1_vec = [5,6]
+		#mu2_vec = [7.5, 10]
+		
+		mu1_vec = [4, 4.5, 4.95, 5.0, 5.03, 5.1, 5.12, 6, 7, 10]
+		mu2_vec = [10, 11, 15, 20, 50, 100]
+		
+		mu1_vec = np.linspace(4.8, 5.2, 41)
+		mu2_vec = np.linspace(4,10,61)
+		
+		#mu1_vec = np.linspace(4.8, 5.2, 41)
+		#mu2_vec = np.linspace(0,4,41)
+		
+		#mu1_vec = np.linspace(5.4, 5.8, 41)
+		#mu2_vec = np.linspace(0,10,101)
+		
+		mu1_vec = np.linspace(5.8, 10, 43)
+		mu2_vec = np.linspace(2, 4, 21)
+
+		mu1_vec = np.linspace(5.8, 10, 43)
+		mu2_vec = np.linspace(3, 4, 101)
+
+		mu1_vec = np.linspace(2, 8, 301)
+		mu2_vec = np.linspace(2, 5, 151)
+
+		mu1_vec = np.linspace(2, 8, 601)
+		mu2_vec = np.linspace(4, 5, 100)
+
+		mu1_vec = np.linspace(2, 3, 21)   # t=1.03
+		mu2_vec = np.linspace(4, 6, 41)
+
+
+'''
