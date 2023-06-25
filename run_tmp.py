@@ -2443,6 +2443,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			rho_fit_fncs = []
 			rho_splines = []
 			rho_chi2 = np.empty((N_species, N_OP_interfaces_AB))
+			R_peak = np.empty((N_species, N_OP_interfaces_AB))
+			R_fit_minmax = np.empty((2, N_species, N_OP_interfaces_AB))
 			for k in range(N_species):
 				rho_fit_fncs.append([])
 				for j in range(N_OP_interfaces_AB):
@@ -2462,19 +2464,19 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 													pp4=L2, pp5=k: \
 												rho_fit_sgmfnc_template(r, pp1, pp2, pp3, pp4, mode=pp5))
 						
-						R_peak = rho_fit_params[k, 2, j]
-						R_fit_max = R_peak + rho_fit_params[k, 1, j] * 25
+						R_peak[k, j] = rho_fit_params[k, 2, j]
+						R_fit_minmax[1, k, j] = R_peak[k, j] + rho_fit_params[k, 1, j] * 25
 					else:
-						rho_fit_fnc_new, R_fit_max, R_peak, rho_spline_new = \
+						rho_fit_fnc_new, R_fit_minmax[1, k, j], R_peak[k, j], rho_spline_new = \
 							rho_fit_spline(state_Rdens_centers_new, \
 											state_centered_Rdens_total[j][k], \
 											d_state_centered_Rdens_total[j][k], \
 											init_composition[k], L2)   # s=-0.8, k=5
 						rho_fit_fncs[k].append(rho_fit_fnc_new)
 					
-					rho_const_inds = state_Rdens_centers_new >= R_fit_max
-					R_fit_inds = (state_Rdens_centers_new >= R_peak) & (state_Rdens_centers_new < R_fit_max)
-					peak_ind = np.argmin(np.abs(state_Rdens_centers_new - R_peak))
+					rho_const_inds = state_Rdens_centers_new >= R_fit_minmax[1, k, j]
+					R_fit_inds = (state_Rdens_centers_new >= R_peak[k, j]) & (state_Rdens_centers_new < R_fit_minmax[1, k, j])
+					peak_ind = np.argmin(np.abs(state_Rdens_centers_new - R_peak[k, j]))
 					
 					rho_inf = \
 						np.average(state_centered_Rdens_total[j][k][rho_const_inds], \
@@ -2482,8 +2484,25 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					R_fit_left_ind = \
 						np.argmax((state_centered_Rdens_total[j][k][R_fit_inds] - rho_inf) * \
 								  (state_centered_Rdens_total[j][k][peak_ind] - rho_inf) < 0)
-					rho_chi2_inds = (state_Rdens_centers_new >= state_Rdens_centers_new[R_fit_left_ind]) & (state_Rdens_centers_new < R_fit_max)
+					R_fit_minmax[0, k, j] = state_Rdens_centers_new[R_fit_inds][R_fit_left_ind]
+					rho_chi2_inds = (state_Rdens_centers_new >= R_fit_minmax[0, k, j]) & (state_Rdens_centers_new < R_fit_minmax[1, k, j])
 					rho_chi2[k, j] = np.mean(((state_centered_Rdens_total[j][k][rho_chi2_inds] - rho_inf) / d_state_centered_Rdens_total[j][k][rho_chi2_inds])**2)
+					# if((rho_chi2[k, j] > 100) and (k==2)):
+						# fig,ax, _ = my.get_fig('R', 'f')
+						# ax.errorbar(state_Rdens_centers_new[rho_chi2_inds], state_centered_Rdens_total[j][k][rho_chi2_inds], d_state_centered_Rdens_total[j][k][rho_chi2_inds])
+						# ax.errorbar(state_Rdens_centers_new[rho_const_inds], state_centered_Rdens_total[j][k][rho_const_inds], d_state_centered_Rdens_total[j][k][rho_const_inds])
+						# ax.plot([])
+						
+						# print(rho_inf)
+						# print(state_centered_Rdens_total[j][k][peak_ind])
+						# print(state_centered_Rdens_total[j][k][R_fit_inds])
+						# print((state_centered_Rdens_total[j][k][R_fit_inds] - rho_inf) * \
+								  # (state_centered_Rdens_total[j][k][peak_ind] - rho_inf))
+						# print(state_centered_Rdens_total[j][k][rho_chi2_inds])
+						# print(d_state_centered_Rdens_total[j][k][rho_chi2_inds])
+						# print(((state_centered_Rdens_total[j][k][rho_chi2_inds] - rho_inf) / d_state_centered_Rdens_total[j][k][rho_chi2_inds])**2)
+						# #input('ok')
+						# plt.show()
 			
 			sgmfit_species_id = 0
 			assert(sgmfit_species_id in species_to_fit_rho_inds), 'ERROR: Species N%d to be used for width estimation but this specie is not included in species to be fit: %s' % (sgmfit_species_id, str(species_to_fit_rho_inds))
@@ -2526,13 +2545,15 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 										label=cluster_lbl, color=my.get_my_color(i))
 				
 				for k in range(N_species):
+					#chi2_lbl = r'$\chi_{%s,%s}^2 = %s$' % (my.f2s(R_fit_minmax[0, k, OPind]), my.f2s(R_fit_minmax[1, k, OPind]), my.f2s(rho_chi2[k, OPind]))
+					chi2_lbl = r'$\chi^2 = %s$' % (my.f2s(rho_chi2[k, OPind]))
 #										rho_fit_sgmfnc_template(state_Rdens_centers_new, rho_fit_params[k, :, OPind], init_composition[k], OP_interfaces_AB[OPind], L2, mode=k), \
 					ax_state_Rdens[k].plot(state_Rdens_centers_new, \
 										rho_fit_fncs[k][OPind](state_Rdens_centers_new), \
-										'--', color=my.get_my_color(i))
+										'--', color=my.get_my_color(i), label=chi2_lbl)
 					ax_state_Rdens_log[k].plot(state_Rdens_centers_new, \
 										rho_fit_fncs[k][OPind](state_Rdens_centers_new), \
-										'--', color=my.get_my_color(i))
+										'--', color=my.get_my_color(i), label=chi2_lbl)
 				
 				fig_cluster_map[i], ax_cluster_map[i], fig_cluster_map_id = my.get_fig('x', 'y', title=cluster_lbl + ThL_lbl)
 				im_cluster_map = ax_cluster_map[i].imshow(cluster_centered_map_total[OPind], \
@@ -2608,7 +2629,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 	if(mode == 'BF'):
 		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, ln_k_BA, d_ln_k_BA, ln_k_bc_AB, d_ln_k_bc_AB, ln_k_bc_BA, d_ln_k_bc_BA
 	elif(mode == 'FFS_AB'):
-		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, probs_AB, d_probs_AB, PB_AB, d_PB_AB, OP0_erfinv_AB, d_OP0_erfinv_AB, ZeldovichG_AB, d_ZeldovichG_AB#, rho_chi2
+		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, flux0_AB, d_flux0_AB, probs_AB, d_probs_AB, PB_AB, d_PB_AB, OP0_erfinv_AB, d_OP0_erfinv_AB, ZeldovichG_AB, d_ZeldovichG_AB, rho_chi2
 	elif(mode == 'BF_AB'):
 		return F, d_F, OP_hist_centers, OP_hist_lens, ln_k_AB, d_ln_k_AB, k_AB_BFcount_N, d_k_AB_BFcount_N
 	elif(mode == 'BF_2sides'):
@@ -2726,83 +2747,66 @@ def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl, L2, mode=0, \
 		### !!!!!!!! not supported
 		rho_fit_params = np.empty(4)
 		
-		# Rdens_maxind = np.argmax(Rdens[ok_inds])
-		# #rho_fit_params[0] = Rdens[ok_inds][Rdens_maxind] - rho_bulk
-		# rho_fit_params[2] = R_centers[ok_inds][Rdens_maxind]
-		# R_left_to_peak_inds = R_centers[ok_inds] < rho_fit_params[2]
-		# R_left_peak_ind = np.where(Rdens[ok_inds][R_left_to_peak_inds] < rho_bulk)[0]   # find the last index with (R < Rpeak) and (rho < rho_bulk)
-		# if(len(R_left_peak_ind) == 0):
-			# R_left_peak_ind = 0
+		# R_peak_left, R_peak_right, R_peak_rhomax, R_peak_avg, \
+			# rho_max, peak_width, rho_inf, fit_inds, peak_inds = \
+					# get_peak_features(R_centers, Rdens, rho_bulk, L2, ok_inds=ok_inds, iter=2)
+		
+		# rho_fit_params[2] = R_peak_rhomax
+		# rho_fit_params[1] = peak_width
+		# rho_fit_params[0] = R_peak_right
+		
+		# opt_fnc_full = lambda prm: np.sum(((rho_fit_sgmfnc_template(R_centers[fit_inds], prm, rho_bulk, Ncl, L2, capilar_correction_min=R_peak_right + peak_width/5, mode=mode, A=rho_max - rho_bulk) - Rdens[fit_inds]) / d_Rdens[fit_inds])**2)
+		# #rho_fit_params[3] = 0
+		# prm3_opt_options = {}
+		# if(strict_bounds):
+			# rho_fit_params[3] = (min(Rdens[fit_inds]) - rho_bulk) * R_peak_right
+			# prm3_opt_options['bounds'] = (min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3]))
+		
+		# rho_fit_params[3] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho_fit_params, x, 3)), **prm3_opt_options).x
+		
+		# if(strict_bounds):
+			# #[0]: (rho_fit_params[0] / 1.05, rho_fit_params[0] * 1.05)
+			# opt_bounds = ((rho_fit_params[0] - rho_fit_params[1]/5, rho_fit_params[0] + rho_fit_params[1]/5), \
+						# (rho_fit_params[1] / 2, rho_fit_params[1] * 2), \
+						# (rho_fit_params[2] - (R_centers[1] - R_centers[0]) * 1.1, rho_fit_params[2] + (R_centers[1] - R_centers[0]) * 1.1), \
+						# (min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3])))
 		# else:
-			# R_left_peak_ind = R_left_peak_ind[-1] + 1
-		# R_peak_left = R_centers[ok_inds][R_left_to_peak_inds][R_left_peak_ind]
-		# fit_inds = ok_inds & (R_centers >= R_peak_left)
-		# R_right_peak_ind = max(0, np.argmax(Rdens[fit_inds] < rho_bulk) - 1)   # first index with (R > Rpeak) and (rho < rho_bulk)
-		# R_peak_right = R_centers[fit_inds][R_right_peak_ind]
-		# peak_inds = fit_inds & (R_centers >= R_peak_left) & (R_centers <= R_peak_right)
-		# R_peak_avg = np.average(R_centers[peak_inds], weights=Rdens[peak_inds] - rho_bulk)  # w *= R_centers[fit_inds][peak_inds] because  dV = r dphi dr
-		# #rho_fit_params[1] = np.sqrt(np.average((Rdens[peak_inds] - R_peak_avg)**2, weights=Rdens[peak_inds]) / (1 - 1/np.sum(peak_inds)))
-		# peak_width = np.sqrt(np.average((Rdens[peak_inds] - R_peak_avg)**2, weights=Rdens[peak_inds])) * 0.581368  # * 0.610968
-		R_peak_left, R_peak_right, R_peak_rhomax, R_peak_avg, \
-			rho_max, peak_width, rho_inf, fit_inds, peak_inds = \
-					get_peak_features(R_centers, Rdens, rho_bulk, L2, ok_inds=ok_inds, iter=2)
+			# R0_estimate = np.sqrt(Ncl / np.pi)
+			# opt_bounds = ((0, 1), (0.1, R0_estimate), (R0_estimate / 3, R0_estimate * 3), (-1,1))
+			# # [0]: desnity [0;1]
+			# # [1]: width. It is (0;None) but really it is < 2 so here it is
+			# # [2]: R0 ~ np.sqrt(Ncl / np.pi)
+			# # [3]: unclear, but usually |a| << 1
 		
-		rho_fit_params[2] = R_peak_rhomax
-		rho_fit_params[1] = peak_width
-		rho_fit_params[0] = R_peak_right
+		# if(debug % 2 == 0):
+			# fig, ax, _ = my.get_fig('R', r'$\phi_2$', yscl='log')
+			# ax.errorbar(R_centers[fit_inds], Rdens[fit_inds], d_Rdens[fit_inds])
+			# ax.errorbar(R_centers[peak_inds], Rdens[peak_inds], d_Rdens[peak_inds])
+			# ax.plot([min(R_centers[fit_inds]), max(R_centers[fit_inds])], [rho_bulk]*2, '--')
+			# #ax.plot([min(R_centers[fit_inds]), max(R_centers[fit_inds])], [rho_bulk]*2, '--')
+			# ax.plot(R_centers[ok_inds], rho_fit_sgmfnc_template(R_centers[ok_inds], rho_fit_params, rho_bulk, Ncl, L2, capilar_correction_min=R_peak_right, mode=mode))
+			# plt.show()
 		
-		opt_fnc_full = lambda prm: np.sum(((rho_fit_sgmfnc_template(R_centers[fit_inds], prm, rho_bulk, Ncl, L2, capilar_correction_min=R_peak_right + peak_width/5, mode=mode, A=rho_max - rho_bulk) - Rdens[fit_inds]) / d_Rdens[fit_inds])**2)
-		#rho_fit_params[3] = 0
-		prm3_opt_options = {}
-		if(strict_bounds):
-			rho_fit_params[3] = (min(Rdens[fit_inds]) - rho_bulk) * R_peak_right
-			prm3_opt_options['bounds'] = (min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3]))
+		# rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params)
+		# if(np.any([((rho_fit_optim_res.x[i] < opt_bounds[i][0]) or (opt_bounds[i][1] < rho_fit_optim_res.x[i])) for i in range(len(rho_fit_params))])):
+			# rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params, bounds=opt_bounds)
 		
-		rho_fit_params[3] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho_fit_params, x, 3)), **prm3_opt_options).x
+		# rho_fit_params = rho_fit_optim_res.x
 		
-		if(strict_bounds):
-			#[0]: (rho_fit_params[0] / 1.05, rho_fit_params[0] * 1.05)
-			opt_bounds = ((rho_fit_params[0] - rho_fit_params[1]/5, rho_fit_params[0] + rho_fit_params[1]/5), \
-						(rho_fit_params[1] / 2, rho_fit_params[1] * 2), \
-						(rho_fit_params[2] - (R_centers[1] - R_centers[0]) * 1.1, rho_fit_params[2] + (R_centers[1] - R_centers[0]) * 1.1), \
-						(min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3])))
-		else:
-			R0_estimate = np.sqrt(Ncl / np.pi)
-			opt_bounds = ((0, 1), (0.1, R0_estimate), (R0_estimate / 3, R0_estimate * 3), (-1,1))
-			# [0]: desnity [0;1]
-			# [1]: width. It is (0;None) but really it is < 2 so here it is
-			# [2]: R0 ~ np.sqrt(Ncl / np.pi)
-			# [3]: unclear, but usually |a| << 1
+		# if(isinstance(rho_fit_optim_res.hess_inv, scipy.optimize._lbfgsb_py.LbfgsInvHessProduct)):
+			# d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.todense().diagonal())
+		# else:
+			# d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.diagonal())
 		
-		if(debug % 2 == 0):
-			fig, ax, _ = my.get_fig('R', r'$\phi_2$', yscl='log')
-			ax.errorbar(R_centers[fit_inds], Rdens[fit_inds], d_Rdens[fit_inds])
-			ax.errorbar(R_centers[peak_inds], Rdens[peak_inds], d_Rdens[peak_inds])
-			ax.plot([min(R_centers[fit_inds]), max(R_centers[fit_inds])], [rho_bulk]*2, '--')
-			#ax.plot([min(R_centers[fit_inds]), max(R_centers[fit_inds])], [rho_bulk]*2, '--')
-			ax.plot(R_centers[ok_inds], rho_fit_sgmfnc_template(R_centers[ok_inds], rho_fit_params, rho_bulk, Ncl, L2, capilar_correction_min=R_peak_right, mode=mode))
-			plt.show()
-		
-		rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params)
-		if(np.any([((rho_fit_optim_res.x[i] < opt_bounds[i][0]) or (opt_bounds[i][1] < rho_fit_optim_res.x[i])) for i in range(len(rho_fit_params))])):
-			rho_fit_optim_res = scipy.optimize.minimize(opt_fnc_full, rho_fit_params, bounds=opt_bounds)
-		
-		rho_fit_params = rho_fit_optim_res.x
-		
-		if(isinstance(rho_fit_optim_res.hess_inv, scipy.optimize._lbfgsb_py.LbfgsInvHessProduct)):
-			d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.todense().diagonal())
-		else:
-			d_rho_fit_params = np.sqrt(rho_fit_optim_res.hess_inv.diagonal())
-		
-		if(debug % 3 == 0):
-			fig, ax, _ = my.get_fig('R', r'$\phi_2$', yscl='log')
-			ax.errorbar(R_centers[fit_inds], Rdens[fit_inds], d_Rdens[fit_inds])
-			ax.errorbar(R_centers[peak_inds], Rdens[peak_inds], d_Rdens[peak_inds])
-			ax.plot([min(R_centers[fit_inds]), max(R_centers[fit_inds])], [rho_bulk]*2, '--')
-			ax.plot([R_peak_right] * 2, [min(Rdens[fit_inds]), max(Rdens[fit_inds])], '--')
+		# if(debug % 3 == 0):
+			# fig, ax, _ = my.get_fig('R', r'$\phi_2$', yscl='log')
+			# ax.errorbar(R_centers[fit_inds], Rdens[fit_inds], d_Rdens[fit_inds])
+			# ax.errorbar(R_centers[peak_inds], Rdens[peak_inds], d_Rdens[peak_inds])
+			# ax.plot([min(R_centers[fit_inds]), max(R_centers[fit_inds])], [rho_bulk]*2, '--')
+			# ax.plot([R_peak_right] * 2, [min(Rdens[fit_inds]), max(Rdens[fit_inds])], '--')
 			
-			ax.plot(R_centers[ok_inds], rho_fit_sgmfnc_template(R_centers[ok_inds], rho_fit_params, rho_bulk, Ncl, L2, capilar_correction_min=R_peak_right, mode=mode))
-			plt.show()
+			# ax.plot(R_centers[ok_inds], rho_fit_sgmfnc_template(R_centers[ok_inds], rho_fit_params, rho_bulk, Ncl, L2, capilar_correction_min=R_peak_right, mode=mode))
+			# plt.show()
 		
 		
 	#print(rho_fit_params, d_rho_fit_params)
@@ -2930,7 +2934,7 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 			N_OP_interfaces[i_mu] = len(OP_interfaces[i_mu])
 			_, _, _, _, ln_k_AB[i_mu], d_ln_k_AB[i_mu], flux0_A[i_mu], \
 				d_flux0_A[i_mu], prob_AB_new, d_prob_AB_new, PB_AB_new, d_PB_AB_new, \
-				OP0_AB[i_mu], d_OP0_AB[i_mu] = \
+				OP0_AB[i_mu], d_OP0_AB[i_mu], _, _, _ = \
 					run_many(MC_move_mode, L, e, mu_arr[i_mu, :], N_runs, interface_mode, \
 						stab_step=stab_step, \
 						N_init_states_AB=N_init_states, \
@@ -2940,6 +2944,8 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 						to_get_timeevol=False, to_plot_committer=False, \
 						to_recomp=max([0, to_recomp - 1]), \
 						to_save_npz=to_save_npy, seeds=seeds)
+			# ZeldovichG_AB, d_ZeldovichG_AB, rho_chi2 are ommitted
+			
 			prob_AB.append(prob_AB_new)
 			d_prob_AB.append(d_prob_AB_new)
 			PB_AB.append(PB_AB_new)
@@ -3082,6 +3088,10 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 	d_ZeldovichG = np.zeros((N_Temps, N_phi1s))
 	Temps_grid = np.zeros((N_Temps, N_phi1s))
 	phi1s_grid = np.zeros((N_Temps, N_phi1s))
+	rho_chi2 = np.zeros((N_Temps, N_phi1s, N_species, N_OP_interfaces))
+	chi2_rho0 = np.zeros((N_Temps, N_phi1s))
+	chi2_rho1 = np.zeros((N_Temps, N_phi1s))
+	chi2_rho2 = np.zeros((N_Temps, N_phi1s))
 	for i_Temp, Temp in enumerate(Temp_s):
 		for i_phi1, phi1 in enumerate(phi1_s):
 			n_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][my.f2s(Temp, n=2)][my.f2s(phi1, n=5)]
@@ -3115,15 +3125,16 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 				
 				N_found_npzs = len(found_IDs)
 				if(N_found_npzs > 0):
-					Temps_grid[i_Temp][i_phi1] = Temp
-					phi1s_grid[i_Temp][i_phi1] = phi1
+					Temps_grid[i_Temp, i_phi1] = Temp
+					phi1s_grid[i_Temp, i_phi1] = phi1
 					
 					F, d_F, M_hist_centers, OP_hist_lens, \
-						ln_k[i_Temp][i_phi1], d_ln_k[i_Temp][i_phi1], \
-						flux0[i_Temp][i_phi1], d_flux0[i_Temp][i_phi1], \
+						ln_k[i_Temp, i_phi1], d_ln_k[i_Temp, i_phi1], \
+						flux0[i_Temp, i_phi1], d_flux0[i_Temp, i_phi1], \
 						prob, d_prob, PB, d_PB, \
-						OP0[i_Temp][i_phi1], d_OP0[i_Temp][i_phi1], \
-						ZeldovichG[i_Temp][i_phi1], d_ZeldovichG[i_Temp][i_phi1] = \
+						OP0[i_Temp, i_phi1], d_OP0[i_Temp, i_phi1], \
+						ZeldovichG[i_Temp, i_phi1], d_ZeldovichG[i_Temp, i_phi1], \
+						rho_chi2[i_Temp, i_phi1, :, :] = \
 							run_many(MC_move_mode, L, e_use, mu, N_found_npzs, \
 								interface_mode, stab_step=stab_step, \
 								N_init_states_AB=N_init_states, \
@@ -3138,28 +3149,59 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 								to_recomp=max([to_recomp - 1, 0]), \
 								N_fourier=N_fourier, seeds=found_IDs, \
 								to_plot=False)
+					
+					OP0_closest_ind = np.argmin(np.abs(OP_interfaces - OP0[i_Temp, i_phi1]))
+					chi2_rho0[i_Temp, i_phi1] = rho_chi2[i_Temp, i_phi1, 0, OP0_closest_ind]
+					chi2_rho1[i_Temp, i_phi1] = rho_chi2[i_Temp, i_phi1, 1, OP0_closest_ind]
+					chi2_rho2[i_Temp, i_phi1] = rho_chi2[i_Temp, i_phi1, 2, OP0_closest_ind]
+	
+	d_chi2_rho0, d_chi2_rho1, d_chi2_rho2 = \
+		tuple([(chi2 / 100) for chi2 in [chi2_rho0, chi2_rho1, chi2_rho2]])
+	# I do not have an estimate for d_chi2 so this is necessary to make 
 	
 	ok_inds = (flux0.flatten() > 0)
 	N_ok_points = np.sum(ok_inds)
 	
-	ln_k_arr, d_ln_k_arr, OP0_arr, d_OP0_arr, ZeldovichG_arr, d_ZeldovichG_arr, flux0_arr, d_flux0_arr, Temps_arr, phi1s_arr = \
-		tuple([arr.flatten()[ok_inds] for arr in [ln_k, d_ln_k, OP0, d_OP0, ZeldovichG, d_ZeldovichG, flux0, d_flux0, Temps_grid, phi1s_grid]])
+	# ==== flatten all the data and extract only good poits ====
+	ln_k_arr, d_ln_k_arr, OP0_arr, d_OP0_arr, ZeldovichG_arr, d_ZeldovichG_arr, \
+	flux0_arr, d_flux0_arr, chi2_rho0_arr, d_chi2_rho0_arr, chi2_rho1_arr, d_chi2_rho1_arr, \
+	chi2_rho2_arr, d_chi2_rho2_arr, Temps_arr, phi1s_arr = \
+		tuple([arr.flatten()[ok_inds] for arr in \
+			[ln_k, d_ln_k, OP0, d_OP0, ZeldovichG, d_ZeldovichG, \
+			flux0, d_flux0, chi2_rho0, d_chi2_rho0, chi2_rho1, d_chi2_rho1, \
+			chi2_rho2, d_chi2_rho2, Temps_grid, phi1s_grid]])
 	
-	ln_flux0_arr = np.log(flux0_arr)
-	d_ln_flux0_arr = d_flux0_arr / flux0_arr
-	ln_OP0_arr = np.log(OP0_arr)
-	d_ln_OP0_arr = d_OP0_arr / OP0_arr
-	ln_ZeldovichG_arr = np.log(ZeldovichG_arr)
-	d_ln_ZeldovichG_arr = d_ZeldovichG_arr / ZeldovichG_arr
+	# ==== turn selected data_pairs into their logs ====
+	ln_flux0_arr, d_ln_flux0_arr, ln_OP0_arr, d_ln_OP0_arr, \
+	ln_ZeldovichG_arr, d_ln_ZeldovichG_arr, ln_chi2_rho0_arr, d_ln_chi2_rho0_arr, \
+	ln_chi2_rho1_arr, d_ln_chi2_rho1_arr, ln_chi2_rho2_arr, d_ln_chi2_rho2_arr = \
+		tuple([item for data_pair in \
+					[[np.log(data_pair[0]), data_pair[1] / data_pair[0]] for data_pair in \
+					[[flux0_arr, d_flux0_arr], [OP0_arr, d_OP0_arr], \
+					 [ZeldovichG_arr, d_ZeldovichG_arr], \
+					 [chi2_rho0_arr, d_chi2_rho0_arr], \
+					 [chi2_rho1_arr, d_chi2_rho1_arr], \
+					 [chi2_rho2_arr, d_chi2_rho2_arr]]] \
+				for item in data_pair])
 	
 	if(N_ok_points >= fit_ord**2):
-		ln_OP0_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_OP0_arr, dz=d_ln_OP0_arr, xord=fit_ord, yord=fit_ord)
-		ln_k_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_k_arr, dz=d_ln_k_arr, xord=fit_ord, yord=fit_ord)
-		ln_flux0_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_flux0_arr, dz=d_ln_flux0_arr, xord=fit_ord, yord=fit_ord)
-		ln_ZeldovichG_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_ZeldovichG_arr, dz=d_ln_ZeldovichG_arr, xord=fit_ord, yord=fit_ord)
+		#chi2_rho0_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_ZeldovichG_arr, dz=d_ln_ZeldovichG_arr, xord=fit_ord, yord=fit_ord)
+		
+		data_arr_pairs = [[ln_OP0_arr, d_ln_OP0_arr], \
+						  [ln_k_arr, d_ln_k_arr], \
+						  [ln_flux0_arr, d_ln_flux0_arr], \
+						  [ln_ZeldovichG_arr, d_ln_ZeldovichG_arr], \
+						  [ln_chi2_rho0_arr, d_ln_chi2_rho0_arr], \
+						  [ln_chi2_rho1_arr, d_ln_chi2_rho1_arr], \
+						  [ln_chi2_rho2_arr, d_ln_chi2_rho2_arr]]
+		N_data_pairs = len(data_arr_pairs)
+		for i in range(N_data_pairs):
+			data_arr_pairs[i].append(fit_Tphi1_grid(Temps_arr, phi1s_arr, data_arr_pairs[i][0], dz=data_arr_pairs[i][1], xord=fit_ord, yord=fit_ord)[0])
+			# this makes the pair [z, dz, fitfnc]
 		
 		N_OP0_constr = len(OP0_constraint_s)
 		OP0consr_Tphi1_sets = []
+		ln_OP0_fitfnc = data_arr_pairs[0][2]
 		if(N_OP0_constr > 0):
 			for i in range(N_OP0_constr):
 				OP0consr_Tphi1_sets.append(my.find_optim_manifold(lambda x: np.abs(ln_OP0_fitfnc(x[0], x[1]) - np.log(OP0_constraint_s[i])), \
@@ -3168,22 +3210,15 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 	
 	if(to_plot):
 		if(N_ok_points >= fit_ord**2):
-			fig_OP0, ax_OP0 = plot_Tphi1_data(Temps_arr, phi1s_arr, \
-					ln_OP0_arr, d_ln_OP0_arr, '$\ln(N^*)$', ln_OP0_fitfnc, \
-					OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
-			fig_ln_k, ax_ln_k = plot_Tphi1_data(Temps_arr, phi1s_arr, \
-					ln_k_arr, d_ln_k_arr, '$\ln(k)$', ln_k_fitfnc, \
-					OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
-			fig_ln_flux0, ax_ln_flux0 = plot_Tphi1_data(Temps_arr, phi1s_arr, \
-					ln_flux0_arr, d_ln_flux0_arr, '$\ln(\Phi_A)$', ln_flux0_fitfnc, \
-					OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
-			fig_ln_ZeldovichG, ax_ln_ZeldovichG = plot_Tphi1_data(Temps_arr, phi1s_arr, \
-					ln_ZeldovichG_arr, d_ln_ZeldovichG_arr, '$\ln(\Gamma)$', ln_ZeldovichG_fitfnc, \
-					OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
-			
-			# my.add_legend(fig_OP0, ax_OP0)
-			# my.add_legend(fig_ln_k, ax_ln_k)
-			# my.add_legend(fig_ln_flux0, ax_ln_flux0)
+			figs = [[]] * N_data_pairs
+			axs = [[]] * N_data_pairs
+			data_names = ['$\ln(N^*)$', '$\ln(k)$', '$\ln(\Phi_A)$', '$\ln(\Gamma)$', r'$\ln(\chi^2_{dip,0})$', r'$\ln(\chi^2_{dip,1})$', r'$\ln(\chi^2_{dip,2})$']
+			assert(len(data_names) == N_data_pairs), 'ERROR: data_names = %s\nhas %d elements, but N_data_pairs = %d' % (str(data_names), len(data_names), N_data_pairs)
+			for i in range(N_data_pairs):
+				figs[i], axs[i] = plot_Tphi1_data(Temps_arr, phi1s_arr, \
+						data_arr_pairs[i][0], data_arr_pairs[i][1], data_names[i], data_arr_pairs[i][2], \
+						OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
+				
 
 def plot_Tphi1_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$', \
 				N_draw_points=1000, draw_only_inside_convexhull=True, \
@@ -3356,7 +3391,7 @@ def main():
 	
 	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present -OP0_constr_s 15 20 30 50 100
 	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present -OP0_constr_s 30 20
-	# python run.py -mode FFS_AB_many -init_composition 0.9745 0.0155 0.01 -Temp 1.0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -font_mode present -MC_move_mode swap -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -OP_interfaces_set_IDs nvt -my_seeds FFS_auto -to_recomp 1
+	# python run.py -mode FFS_AB_many -init_composition 0.975 0.015 0.01 -Temp 1.0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -font_mode present -MC_move_mode swap -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -OP_interfaces_set_IDs nvt -my_seeds FFS_auto -to_recomp 1
 	
 	# TODO: run failed IDs with longer times
 	
@@ -3766,7 +3801,7 @@ def main():
 	elif(mode == 'FFS_AB_many'):
 		F_FFS, d_F_FFS, M_hist_centers_FFS, OP_hist_lens_FFS, ln_k_AB_FFS, d_ln_k_AB_FFS, \
 			flux0_AB_FFS, d_flux0_AB_FFS, prob_AB_FFS, d_prob_AB_FFS, PB_AB_FFS, d_PB_AB_FFS, \
-			OP0_AB, d_OP0_AB, ZeldovichG_AB, d_ZeldovichG_AB = \
+			OP0_AB, d_OP0_AB, ZeldovichG_AB, d_ZeldovichG_AB, chi2_rho = \
 				run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, \
 					stab_step=stab_step, \
 					N_init_states_AB=N_init_states_AB, \
@@ -3860,7 +3895,7 @@ def main():
 					flux0_AB_FFS[i_l], d_flux0_AB_FFS[i_l], \
 					prob_AB_FFS[:, i_l], d_prob_AB_FFS[:, i_l], \
 					PB_AB_FFS[:, i_l], d_PB_AB_FFS[:, i_l], \
-					OP0_AB[i_l], d_OP0_AB[i_l] = \
+					OP0_AB[i_l], d_OP0_AB[i_l], _, _, _ = \
 						run_many(MC_move_mode, Ls[i_l], e, mu[0, :], N_runs, interface_mode, \
 							stab_step=stab_step, \
 							N_init_states_AB=N_init_states_AB, \
@@ -3873,6 +3908,8 @@ def main():
 							to_save_npz=to_save_npz, to_recomp=to_recomp, \
 							to_plot_committer=False, seeds=my_seeds, \
 							N_fourier=N_fourier)
+				# ZeldG, d_ZeldG, chi2_rho are ignored
+				
 				F_FFS.append(F_FFS_new)
 				d_F_FFS.append(d_F_FFS_new)
 				OP_hist_centers_FFS.append(OP_hist_centers_FFS_new)
@@ -3945,7 +3982,7 @@ def main():
 			flux0_AB_FFS, d_flux0_AB_FFS, \
 			prob_AB_FFS, d_prob_AB_FFS, \
 			PB_AB_FFS, d_PB_AB_FFS, \
-			OP0_AB, d_OP0_AB = \
+			OP0_AB, d_OP0_AB, _, _, _ = \
 				run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, \
 					stab_step=stab_step, \
 					N_init_states_AB=N_init_states_AB, \
@@ -3958,6 +3995,7 @@ def main():
 					to_get_timeevol=to_get_timeevol, \
 					to_save_npz=to_save_npz, to_recomp=to_recomp, \
 					N_fourier=N_fourier, seeds=my_seeds)
+		# ZeldG, d_ZeldG, chi2_rho are ignored
 		
 		F_BF, d_F_BF, M_hist_centers_BF, M_hist_lens_BF, ln_k_AB_BF, d_ln_k_AB_BF, ln_k_BA_BF, d_ln_k_BA_BF, \
 			ln_k_bc_AB_BF, d_ln_k_bc_AB_BF, ln_k_bc_BA_BF, d_ln_k_bc_BA_BF = \
