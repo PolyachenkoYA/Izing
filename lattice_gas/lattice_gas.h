@@ -81,7 +81,7 @@ namespace lattice_gas
 	int state_is_valid(const int *s, int L, int k=0, char prefix=0);
 
 	int run_FFS_C(int move_mode, double *flux0, double *d_flux0, int L, const double *e, const double *mu, int *states,
-				  int *N_init_states, long *Nt, long *Nt_OP_saved, long stab_step,
+				  int *states_parent_inds, int *N_init_states, long *Nt, long *Nt_OP_saved, long stab_step,
 				  long *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
 				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode,
 				  const int *init_state, int to_use_smart_swap);
@@ -92,7 +92,8 @@ namespace lattice_gas
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
 						 int N_spins_up_init, int verbose, long Nt_max, int *N_tries, int to_save_final_state,
 						 int to_regenerate_init_state, long save_states_stride, int to_use_smart_swap);
-	double process_step(int move_mode, int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int **time,
+	double process_step(int move_mode, int *init_states, int *states_parent_inds, int *next_states,
+						double **E, int **M, int **biggest_cluster_sizes, int **time,
 						long *Nt, long *Nt_OP_saved, long *OP_arr_len, int N_init_states, int N_next_states,
 						int L, const double *e, const double *mu, int OP_0, int OP_next,
 						int interfaces_mode, int to_use_smart_swap, int verbose);

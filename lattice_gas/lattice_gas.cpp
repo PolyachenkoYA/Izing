@@ -436,6 +436,11 @@ py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<doubl
 	py::buffer_info states_info = states.request();
 	int *states_ptr = static_cast<int *>(states_info.ptr);
 
+	py::array_t<int> states_parent_inds = py::array_t<int>(N_states_total - N_init_states_ptr[0]);
+	// 0th interface has no parents and we don't store anything
+	py::buffer_info states_parent_inds_info = states_parent_inds.request();
+	int *states_parent_inds_ptr = static_cast<int *>(states_parent_inds_info.ptr);
+
     double *_E;
     int *_M;
 	int *_biggest_cluster_sizes;
@@ -464,8 +469,9 @@ py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<doubl
 		printf("\n");
 	}
 
-	lattice_gas::run_FFS_C(move_mode, &flux0, &d_flux0, L, e_ptr, mu_ptr, states_ptr, N_init_states_ptr,
-						   Nt_ptr, Nt_OP_saved_ptr, stab_step, to_remember_timeevol ? &OP_arr_len : nullptr,
+	lattice_gas::run_FFS_C(move_mode, &flux0, &d_flux0, L, e_ptr, mu_ptr, states_ptr, states_parent_inds_ptr,
+						   N_init_states_ptr, Nt_ptr, Nt_OP_saved_ptr, stab_step,
+						   to_remember_timeevol ? &OP_arr_len : nullptr,
 						   OP_interfaces_ptr, N_OP_interfaces,
 						   probs_ptr, d_probs_ptr,  to_remember_timeevol? &_E : nullptr,
 						   to_remember_timeevol ? &_M : nullptr,
@@ -533,7 +539,7 @@ py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<doubl
 	if(verbose >= 2){
 		printf("exiting py::run_FFS\n");
 	}
-    return py::make_tuple(states, probs, d_probs, Nt, Nt_OP_saved, flux0, d_flux0, E, M, biggest_cluster_sizes, time);
+    return py::make_tuple(states, states_parent_inds, probs, d_probs, Nt, Nt_OP_saved, flux0, d_flux0, E, M, biggest_cluster_sizes, time);
 }
 
 namespace lattice_gas
@@ -558,7 +564,7 @@ namespace lattice_gas
 	}
 
 	int run_FFS_C(int move_mode, double *flux0, double *d_flux0, int L, const double *e, const double *mu, int *states,
-				  int *N_init_states, long *Nt, long *Nt_OP_saved, long stab_step,
+				  int *states_parent_inds, int *N_init_states, long *Nt, long *Nt_OP_saved, long stab_step,
 				  long *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
 				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode,
 				  const int *init_state, int to_use_smart_swap)
@@ -599,8 +605,8 @@ namespace lattice_gas
 		long Nt_total = 0;
 		long Nt_OP_saved_total = 0;
 		long time_0;
-		get_init_states_C(move_mode, L, e, mu, &time_0, N_init_states[0], states, init_gen_mode,
-						  OP_interfaces[0], stab_step, interface_mode,
+		get_init_states_C(move_mode, L, e, mu, &time_0, N_init_states[0], states,
+						  init_gen_mode, OP_interfaces[0], stab_step, interface_mode,
 						  OP_interfaces[0], OP_interfaces[N_OP_interfaces - 1],
 						  E, M, biggest_cluster_sizes, nullptr, time,
 						  &Nt_total, &Nt_OP_saved_total, OP_arr_len, init_state, to_use_smart_swap,
@@ -626,6 +632,7 @@ namespace lattice_gas
 			// Keep track of E, M, CS, the timestep. You have `N_init_states[i - 1]` to choose from to start a trial run
 			// and you need to generate 'N_init_states[i]' at the next interface. Use OP_A = OP_interfaces[0], OP_next = OP_interfaces[i].
 			probs[i - 1] = process_step(move_mode, &(states[L2 * N_states_analyzed]),
+									&(states_parent_inds[N_states_analyzed + N_init_states[i - 1] - N_init_states[0]]),
 									&(states[L2 * (N_states_analyzed + N_init_states[i - 1])]),
 									E, M, biggest_cluster_sizes, time, &Nt_total, &Nt_OP_saved_total,
 									OP_arr_len, N_init_states[i - 1], N_init_states[i],
@@ -680,7 +687,8 @@ namespace lattice_gas
 		return 0;
 	}
 
-	double process_step(int move_mode, int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int **time,
+	double process_step(int move_mode, int *init_states, int *states_parent_inds, int *next_states,
+						double **E, int **M, int **biggest_cluster_sizes, int **time,
 						long *Nt, long *Nt_OP_saved, long *OP_arr_len, int N_init_states, int N_next_states,
 						int L, const double *e, const double *mu, int OP_0, int OP_next,
 						int interfaces_mode, int to_use_smart_swap, int verbose)
@@ -755,6 +763,7 @@ namespace lattice_gas
 					++N_succ;
 					if(next_states) {   // save the resulting system state for the next step
 						memcpy(&(next_states[(N_succ - 1) * L2]), state_under_process, state_size_in_bytes);
+						states_parent_inds[N_succ - 1] = init_state_to_process_ID;
 					}
 					if(verbose) {
 						double progr = (double)N_succ/N_next_states;

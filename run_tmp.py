@@ -485,7 +485,7 @@ def keep_new_npz_file(filepath_olds, filepath_new):
 
 def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							d_probs, OP_interfaces, N_init_states, \
-							interface_mode, \
+							interface_mode, states_parent_inds=None, \
 							OP_data=None, time_data=None, Nt=None, Nt_OP=None, \
 							OP_hist_edges=None, memory_time=1, \
 							to_plot_time_evol=False, to_plot_hists=False, stride=1, \
@@ -522,7 +522,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	#P_B_opt, P_B_opt_fnc, P_B_opt_fnc_inv = PB_fit_optimize(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], OP_interfaces_scaled[0], OP_interfaces_scaled[-1], P_B[0], P_B[-1], tht0=[0, 0.15])
 	#P_B_x0_opt = P_B_opt.x[0]
 	#P_B_s_opt = P_B_opt.x[1]
-	Nc_0 = table_data.Nc_reference_data[str(Temp)] if(str(Temp) in table_data.Nc_reference_data) else None
+	#Nc_0 = table_data.Nc_reference_data[str(Temp)] if(str(Temp) in table_data.Nc_reference_data) else None
 	P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid = \
 		get_sigmoid_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
 						sgminv_fnc=lambda x: -np.log(1/x - 1), \
@@ -533,6 +533,11 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 						sgminv_fnc=lambda x: scipy.special.erfinv(2 * x - 1), \
 						d_sgminv_fnc=lambda x, y: np.sqrt(np.pi) * np.exp(y**2))
 	ZeldovichG = linfit_erfinv[0] / np.sqrt(np.pi)
+	
+	OP_closest_to_OP0_ind = np.argmin(np.abs(P_B - 0.5))
+	
+	if(states_parent_inds is not None):
+		
 	
 	OP_optimize_f_interp_vals = 1 - np.log(P_B) / np.log(P_B[0])
 	d_OP_optimize_f_interp_vals = d_P_B / P_B / np.log(P_B[0])
@@ -1097,7 +1102,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 		#			  int to_remember_timeevol, int init_gen_mode, int interface_mode,
 		#			  std::optional<int> _verbose)
 		# return py::make_tuple(states, probs, d_probs, Nt, flux0, d_flux0, E, M, biggest_cluster_sizes, time);
-		(_states, probs, d_probs, Nt, Nt_OP, flux0, d_flux0, _E, _M, _CS, times) = \
+		(_states, _states_parent_inds, probs, d_probs, Nt, Nt_OP, flux0, d_flux0, _E, _M, _CS, times) = \
 			lattice_gas.run_FFS(MC_move_mode, L, e.flatten(), mu, N_init_states, \
 								OP_interfaces, stab_step=stab_step, \
 								verbose=verbose, \
@@ -1108,6 +1113,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 		
 		if(to_save_npz):
 			np.savez(traj_filepath, states=_states, probs=probs, \
+					states_parent_inds=_states_parent_inds, 
 					d_probs=d_probs, Nt=Nt, Nt_OP=Nt_OP, \
 					flux0=flux0, d_flux0=d_flux0, \
 					E=_E, M=_M, CS=_CS, times=times)
@@ -1116,8 +1122,9 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 	else:
 		print('loading', traj_filepath)
 		npz_data = np.load(traj_filepath, allow_pickle=True)
-
+		
 		_states = npz_data['states']
+		_states_parent_inds = (npz_data['states_parent_inds'] if('states_parent_inds' in npz_data.files) else None)
 		probs = npz_data['probs']
 		d_probs = npz_data['d_probs']
 		Nt = npz_data['Nt']
@@ -1138,8 +1145,17 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 	
 	states = [_states[ : N_init_states[0] * L2].reshape((N_init_states[0], L, L))]
 	for i in range(1, N_OP_interfaces):
-		states.append(_states[np.sum(N_init_states[:i]) * L2 : np.sum(N_init_states[:(i+1)] * L2)].reshape((N_init_states[i], L, L)))
+		states.append(_states[np.sum(N_init_states[:i]) * L2 : np.sum(N_init_states[:(i+1)]) * L2].reshape((N_init_states[i], L, L)))
 	del _states
+	
+	if(_states_parent_inds is None):
+		print('WARNING: _states_parent_inds is not present in', traj_filepath)
+		states_parent_inds = None
+	else:
+		states_parent_inds = [_states_parent_inds[ : N_init_states[1]]]
+		for i in range(2, N_OP_interfaces):
+			states_parent_inds.append(_states_parent_inds[np.sum(N_init_states[1:i]) : np.sum(N_init_states[1:(i+1)])])
+		del _states_parent_inds
 	
 	data = {}
 	data['M'] = _M
@@ -1153,7 +1169,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 		cluster_centered_map_total, cluster_map_centers, rho_fourier2D, \
 		ax_OP, ax_OPhists, ax_F, ax_PB_log, ax_PB, ax_PB_sgm, ax_fl, ax_fl_i = \
 			proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, d_probs, OP_interfaces, N_init_states, \
-						interface_mode, OP_match_BF_to=OP_match_BF_to, \
+						interface_mode, states_parent_inds=states_parent_inds, OP_match_BF_to=OP_match_BF_to, \
 						OP_data=(data[interface_mode] / OP_scale[interface_mode] if(to_get_timeevol) else None), \
 						time_data = times, Nt_OP=Nt_OP, Nt=Nt, N_fourier=N_fourier, \
 						OP_hist_edges=get_OP_hist_edges(interface_mode, OP_max=OP_interfaces[-1]), \
