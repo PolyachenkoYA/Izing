@@ -32,6 +32,7 @@ using namespace py::literals;
 
 #define save_state_mode_Inside 1
 #define save_state_mode_Influx 2
+#define save_state_mode_Outside 3
 
 #define N_species 3
 #define main_specie_id 1
@@ -159,7 +160,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min_save_state, std::optional<int> _OP_max_save_state,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
-						 std::optional<int> _interface_mode,
+						 std::optional<int> _interface_mode, int save_state_mode,
 						 std::optional< pybind11::array_t<int> > _init_state,
 						 int to_use_smart_swap, int to_equilibrate,
 						 std::optional<int> _verbose);

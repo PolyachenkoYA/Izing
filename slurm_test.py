@@ -20,15 +20,17 @@ def main():
 	# python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1010 1033 --n_s -1 --L_s 128 --phi1_s 0.0145 --Temp_s 1.0 --to_run 0
 	# python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1010 1020 --n_s -1 --L_s 128 --phi1_s 0.015 --Temp_s 1.0 --to_run 0
 	
-	## python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 --Temp_s 0.95 --slurm_time 144:00:00 --to_run 0
-	## python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.0145 --Temp_s 1.0 --slurm_time 144:00:00 --to_run 0
-	## python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.014 --Temp_s 1.0 --slurm_time 144:00:00 --to_run 0
-	## python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.015 0.0155 0.016 --Temp_s 0.95 --slurm_time 72:00:00 --to_run 0
-	## python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.85 --slurm_time 72:00:00 --to_run 0
+	# == running
+	## == probably running, review that times are close to full times
+	### == testing
 	
-	## python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.014 --Temp_s 0.95 1.0 --slurm_time 144:00:00 --to_run 0
-	## python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.0145 0.015 0.0155 0.016 --Temp_s 0.95 --to_run 0
-	## python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.85 --to_run 0
+	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1030 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 --Temp_s 0.95 --slurm_time 72:00:00 --to_run 0
+	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1020 1030 --n_s -1 --L_s 128 --phi1_s 0.015 0.0155 0.016 --Temp_s 0.95 --slurm_time 72:00:00 --to_run 0
+	# python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.85 --slurm_time 72:00:00 --to_run 0
+	### python slurm_test.py --mode launch_run --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 --Temp_s 1.0 --slurm_time 144:00:00 --to_run 0
+	
+	## python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1000 1010 --n_s -1 --L_s 128 --phi1_s 0.014 --Temp_s 1.0 --slurm_time 72:00:00 --RAM_per_CPU 6G --to_run 0
+	# python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1015 1030 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.95 0.85 --to_run 0
 	
 	# python slurm_test.py --mode search_logs --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1200 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0
 	# python slurm_test.py --mode search_npzs --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1200 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0
@@ -77,6 +79,8 @@ def main():
 	OP_set_name = clargs.OP_set_name
 	
 	if(mode == 'launch_run'):
+		low_RAW_choice = None
+		low_Nuse_choice = None
 		for seed in seed_s:
 			for n in clargs.n_s:
 				for L in clargs.L_s:
@@ -88,8 +92,12 @@ def main():
 								n_use = int(table_data.n144h_FFS_dict[MC_mode][my.f2s(Temp, n=2)][my.f2s(phi, n=5)] * my_server.slurm_time_to_seconds(clargs.slurm_time)/(144*3600) + 0.5)
 							
 							if(n_use > 0):
-								if(n_use < 5):
-									input('n = %d < 15 - too small, poor statistics possible. Proceed? [press Enter or Ctrl+C]' % n_use)
+								if((n_use < 15) and (low_Nuse_choice != 'ALL')):
+									low_Nuse_choice = input('n = %d < 15 - too small, poor statistics possible.\nProceed? [ALL/ok/CtrlC]\n' % n_use)
+								RAM_in_GB = my_server.slurm_RAW_to_bytes(clargs.RAM_per_CPU)/2**30
+								to_post_proc = (RAM_in_GB / n_use >= 4 / 300)
+								if((not to_post_proc) and (low_RAW_choice != 'ALL')):
+									low_RAW_choice = input('RAM = %s G < 4G * (%d/300) - too small, post-proc will not be done.\nProceed? [ALL/ok/CtrlC]\n' % (my.f2s(RAM_in_GB), n_use))
 								
 								n_init = n_use * 2
 								n_FFS = n_use
@@ -99,8 +107,9 @@ def main():
 								#print(name)
 								#input(name)
 								
-								cmd = 'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s -to_show_on_screen 0 -my_seeds %d' \
-										% (script_name, L, n_FFS, n_init, e_T1[0]/Temp, e_T1[1]/Temp, e_T1[2]/Temp, MC_mode, my.f2s(1.0 - phi - phi_2, n=phi_dgt), my.f2s(phi, n=phi_dgt), my.f2s(phi_2, n=phi_dgt), OP_set_name, seed)
+								cmd = 'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s -to_show_on_screen 0 -my_seeds %d -to_post_proc %s' \
+										% (script_name, L, n_FFS, n_init, e_T1[0]/Temp, e_T1[1]/Temp, e_T1[2]/Temp, MC_mode, my.f2s(1.0 - phi - phi_2, n=phi_dgt), my.f2s(phi, n=phi_dgt), my.f2s(phi_2, n=phi_dgt), OP_set_name, seed, '1' if(to_post_proc) else '0')
+								
 								
 								if(to_run):
 									my_server.run_slurm(os.path.join('/scratch/gpfs/yp1065/Izing/slurm', name + '.slurm'), \

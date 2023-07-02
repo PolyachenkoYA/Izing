@@ -10,7 +10,7 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(lattice_gas, m)
+PYBIND11_MODULE(lattice_gas_tmp, m)
 {
 // py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
 //				  int to_remember_timeevol, int init_gen_mode, int interface_mode,
@@ -60,6 +60,7 @@ PYBIND11_MODULE(lattice_gas, m)
 		  py::arg("OP_min")=py::none(),
 		  py::arg("OP_max")=py::none(),
 		  py::arg("interface_mode")=py::none(),
+		  py::arg("save_state_mode")=save_state_mode_Inside,
 		  py::arg("init_state")=py::none(),
 		  py::arg("to_use_smart_swap")=0,
 		  py::arg("to_equilibrate")=1,

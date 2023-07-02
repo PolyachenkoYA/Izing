@@ -94,6 +94,8 @@ def get_FFS_AB_npzTrajBasename(MC_move_mode, L, e, mu_str, OP_interfaces, N_init
 						#'_stride' + str(timeevol_stride) + \
 	
 	# TODO: remove OPbf to timeevol-only
+	# TODO: remove Nfourier (does not affect simulations)
+	# TODO: remove timeData (because presence of _stride already tells it)
 	basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
 						'_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + mu_str + \
 						'_NinitStates' + '_'.join([str(n) for n in N_init_states[:2]]) + \
@@ -108,4 +110,36 @@ def get_FFS_AB_npzTrajBasename(MC_move_mode, L, e, mu_str, OP_interfaces, N_init
 	
 	return basename, old_basenames
 
+def get_BF_npzTrajBasename(MC_move_mode, L, e, mu_str, Nt, N_saved_states_max, \
+						R_clust_init, stab_step, OP_A, OP_B, OP_min, OP_max, \
+						OP_min_save_state, OP_max_save_state, \
+						timeevol_stride, to_equilibrate, to_get_timeevol, \
+						seed):
+	
+	old_basenames = ['MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
+					'_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + mu_str + \
+					'_Nt' + str(Nt) + \
+					'_NstatesMax' + str(N_saved_states_max) + \
+					'_stride' + str(timeevol_stride) + \
+					'_OPab' + str(OP_A) + '_' + str(OP_B) + \
+					'_OPminx' + str(OP_min) + '_' + str(OP_max) + \
+					'_OPminxSave' + str(OP_min_save_state) + '_' + str(OP_max_save_state) + \
+					'_timeData' + str(to_get_timeevol) + \
+					'_Rinit' + str(R_clust_init) + \
+					'_ID' + str(seed)]
+					# '_ID' + str(lattice_gas.get_seed()
+	
+	basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
+					'_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + mu_str + \
+					'_Nt' + str(Nt) + '_NstatesMax' + str(N_saved_states_max) + \
+					'_stabStep' + str(stab_step) + \
+					(('_stride' + str(timeevol_stride)) if(to_get_timeevol) else '') + \
+					'_OPab' + str(OP_A) + '_' + str(OP_B) + \
+					'_OPminx' + str(OP_min) + '_' + str(OP_max) + \
+					'_OPminxSave' + str(OP_min_save_state) + '_' + str(OP_max_save_state) + \
+					('' if(R_clust_init is None) else ('_Rinit' + str(R_clust_init))) + \
+					'_toEquil' + str(to_equilibrate) + \
+					'_ID' + str(seed)
+	
+	return basename, old_basenames
 

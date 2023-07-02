@@ -137,26 +137,39 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min_save_state, std::optional<int> _OP_max_save_state,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
-						 std::optional<int> _interface_mode,
+						 std::optional<int> _interface_mode, int save_state_mode,
 						 std::optional< pybind11::array_t<int> > _init_state,
 						 int to_use_smart_swap, int to_equilibrate,
 						 std::optional<int> _verbose)
 /**
  *
+ * @param move_mode - type of MC moves
+ * 		1 ('flip') - \mu-V-T ensemble, site flips
+ * 		2 ('swap') - localN-V-T ensemble, local swaps
+ * 		3 ('long_swap') - N-V-T ensemble, any range swaps
  * @param L - the side-size of the lattice
  * @param e - matrix NxN, particles interaction energies
  * @param mu - vector Nx1, particles chemical potentials
- * 		H = \sum_{<ij>} s_i s_j e[s_i][s_j] + \sum_i s_i mu[s_i]
+ * 		H = \sum_{<ij>} e[s_i][s_j] + \sum_i s_i mu[s_i]
  * 		mu_i = +inf   ==>   n_i = 0
  * 		T = 1
- * @param h - magnetic-field-induced multiplier; unit=J, so it's h/J
- * @param Nt_max - for many succesful MC steps I want
- * @param N_spins_up_init - the number of up-spins in the initial frame. I always used 0 for my simulations
- * @param to_remember_timeevol - whether to record the time dependence of OPs
- * @param OP_A, OP_B - the boundaries of A and B to compute h_A
- * @param OP_min, OP_max - the boundaries at which the simulation is restarted. Here I always use [most_left_possible - 1; most_gight + 1] so the system never restarts.
- * @param interface_mode - Magnetization or CS
+ * @param Nt_max - for many successful MC steps before halt
+ * @param N_saved_states_max - after what number of saved states to halt
+ * @param save_states_stride - time stride to save states time-evol
+ * @param stab_step - the initial attempted time to equilibrate the system is "time_to_get_to_A_boundary" + "stab_step".
+ * 		equilibration time will be reduced if the system goes to B in the initial equib_time.
+ *
+ * @param _N_spins_up_init - the number of up-spins in the initial frame. I always used 0 for my simulations
+ * @param _to_remember_timeevol - whether to record the time dependence of OPs
+ * @param _OP_A, _OP_B - the boundaries of A and B to compute h_A
+ * @param _OP_min_save_state, _OP_max_save_state - save states within this region of OP
+ * @param _OP_min, _OP_max - the boundaries at which the simulation is restarted. Here I always use [most_left_possible - 1; most_gight + 1] so the system never restarts.
+ * @param _interface_mode - Magnetization or CS
+ * @param _init_state - the state to start the run from
+ * @param to_use_smart_swap - see run_state
+ * @param to_equilibrate - whether to equilibrate the (given) initial state
  * @param _verbose - int number >= 0 or py::none(), shows how load is the process; If it's None (py::none()), then the default state 'verbose' is used
+ *
  * @return :
  * 	(E, M, CS, h_A, time, k_AB)
  * 	E, M, CS, h_A, time - arrays [Nt]
@@ -232,7 +245,8 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 		_time = (int*) malloc(sizeof(int) * OP_arr_len);
 	}
 
-	py::array_t<int> states = py::array_t<int>(std::max((long)3, N_saved_states_max) * L2);
+//	py::array_t<int> states = py::array_t<int>(std::max((long)3, N_saved_states_max) * L2); // TODO: check why max(3,...)
+	py::array_t<int> states = py::array_t<int>(N_saved_states_max * L2);
 	py::buffer_info states_info = states.request();
 	int *states_ptr = static_cast<int *>(states_info.ptr);
 
@@ -250,7 +264,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 								  &Nt, &Nt_OP_saved, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
 								  interface_mode, OP_A, OP_B, OP_A > 1,
 								  OP_min, OP_max, &N_states_saved,
-								  OP_min_save_state, OP_max_save_state,save_state_mode_Inside,
+								  OP_min_save_state, OP_max_save_state,save_state_mode,
 								  N_spins_up_init, verbose, Nt_max, &N_launches, 0,
 								  (OP_A <= 1) && (!bool(_init_state_ptr)), save_states_stride,
 								  to_use_smart_swap);
@@ -339,22 +353,29 @@ py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<doubl
  * @param interface_mode - which order parameter is used for interfaces (i.e. causes exits and other influences); 0 - E, 1 - M, 2 - MaxClusterSize
  * @param _verbose - int number >= 0 or py::none(), shows how load is the process; If it's None (py::none()), then the default state 'verbose' is used
  * @return :
- * 	flux0, d_flux0 - the flux from A to M_0
- * 	Nt - array in ints [N_OP_interfaces + 1], the number of MC-steps between each pair of interfaces
- * 		Nt[interface_ID]
- * 	OP_arr_len - memory allocated for storing E and M data
- * 	probs, d_probs - array of ints [N_OP_interfaces - 1], probs[i] - probability to go from i to i+1
- * 		probs[interface_ID]
  * 	states - all the states in a 1D array. Mapping is the following:
  * 		states[0               ][0...L2-1] U states[1               ][0...L2-1] U ... U states[N_init_states[0]                 -1][0...L2-1]   U  ...\
  * 		states[N_init_states[0]][0...L2-1] U states[N_init_states[0]][0...L2-1] U ... U states[N_init_states[1]+N_init_states[0]-1][0...L2-1]   U  ...\
  * 		states[N_init_states[1]+N_init_states[0]][0...L2-1] U   ...\
  * 		... \
  * 		... states[sum_{k=0..N_OP_interfaces}(N_init_states[k])][0...L2-1]
- * 	E, M - Energy and Magnetization data from all the simulations. Mapping - indices changes from last to first:
- * 		M[interface_ID][state_ID][time_ID]
- * 		Nt[interface_ID][state_ID] is used here
- * 		M[0][0][0...Nt[0][0]] U M[0][1][0...Nt[0][1]] U ...
+ * 	states_parent_inds - indices of parents of states. Allows to back-trace any state to any-level parent state
+ * 		structure:
+ * 		states_parent_inds[N_init_states[1] ... (N_init_states[1]+N_init_states[2])] - parents of states at the 2nd interface
+ * 		...
+ * 	probs, d_probs - array of ints [N_OP_interfaces - 1], probs[i] - probability to go from i to i+1
+ * 		probs[interface_ID]
+ * 	Nt - array of ints [N_OP_interfaces], the number of MC-steps between each pair of interfaces
+ * 		Nt[interface_ID]
+ * 	Nt_OP_saved - array of ints [N_OP_interfaces], time-index used for time-evol records
+ * 	flux0, d_flux0 - the flux from A to B
+ * 	E, M, biggest_cluster_size, time - arrays of time-evol
+ * 		E, M, CS, time: data from all of the simulations.
+ * 		time - number of MC change-attempts the system spent in the corresponding state
+ * 		Mapping - indices changes from last to first:
+ * 			M[interface_ID][state_ID][time_ID]
+ * 			Nt[interface_ID][state_ID] is used here
+ * 			M[0][0][0...Nt[0][0]] U M[0][1][0...Nt[0][1]] U ...
  */
 {
 	int i, j;
@@ -857,28 +878,34 @@ namespace lattice_gas
 				  int OP_0, int OP_next, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 				  int *cluster_element_inds, int *cluster_sizes, int *cluster_types, int *is_checked, long *Nt, long *Nt_OP_saved,
 				  long *OP_arr_len, int interfaces_mode, int to_use_smart_swap, int verbose, int to_cluster, long Nt_max,
-				  int* states_to_save, int *N_states_saved, int N_states_to_save, int OP_min_save_state, int OP_max_save_state,
+				  int *states_to_save, int *N_states_saved, int N_states_to_save, int OP_min_save_state, int OP_max_save_state,
 				  int save_state_mode, int OP_A, int OP_B, long save_states_stride)
 	/**
 	 *	Run state saving states in (OP_min_save_state, OP_max_save_state) and saving OPs for the whole (OP_0; OP_next)
 	 *
 	 * @param move_mode - the mode of MC moves
 	 * @param s - the current state the system under simulation is in
+	 * @param OP_current - to be able to return the last value of the OP
 	 * @param L - see run_FFS
-	 * @param Temp - see run_FFS
-	 * @param h - see run_FFS
+	 * @param e - see run_FFS
+	 * @param mu - see run_FFS
+	 * @param time_total - the total time (including failed move attempts) passed
 	 * @param OP_0 - see process_step
 	 * @param OP_next - see process_step
 	 * @param E, M, biggest_cluster_sizes - see run_FFS
 	 * @param h_A - the history-dependent function, =1 for the states that came from A, =0 otherwise (i.e. for the states that came from B)
+	 * @param time - number of MC attempts the system stayed at a given state (array Nt x 1)
 	 * @param cluster_element_inds - array of ints, the indices of spins participating in clusters
 	 * @param cluster_sizes - array of ints, sizes of clusters
+	 * @param cluster_types - array of ints, types of found clusters
 	 * @param is_checked - array of ints L^2 in size. Labels of spins necessary for clustering. Says which spins are already checked by the clustering procedure during the current clustering run
 	 * `cluster_element_inds` are aligned with `cluster_sizes` - there are `cluster_sizes[0]` of indices making the 1st cluster, `cluster_sizes[1]` indices of the 2nd slucter, so on.
 	 * @param Nt - see run_FFS
+	 * @param Nt_OP_saved - number of saved time-evol states ('state' + 'E', 'M', etc.)
 	 * @param OP_arr_len - see process_step
-	 * @param verbose - see run_FFS
 	 * @param interfaces_mode - see run_FFS
+	 * @param to_use_smart_swap - whether to use the simplified energy difference for local and non-local swaps. !!!NOT IMPLEMENTED PROPERLY!!!
+	 * @param verbose - see run_FFS
 	 * @param Nt_max - int, default -1; It's it's > 0, then the simulation is stopped on '*Nt >= Nt_max'
 	 * @param states_to_save - int*, default nullptr; The pointer to the set of states to save during the run
 	 * @param N_states_saved - int*, default nullptr; The number of states already saved in 'states_to_save'
@@ -888,6 +915,8 @@ namespace lattice_gas
 	 * 1 ("inside region") = save states that have OP in (OP_min_save_state; OP_max_save_state];
 	 * 2 ("outflux") = save states that have `OP_current >= OP_min_save_state` and `OP_prev < OP_min_save_state`
 	 * @param OP_A, OP_B - A dna B doundaries to compute h_A
+	 * @param save_states_stride - this many successful flips between saving the full system state
+	 *
 	 * @return - the Error status (none implemented yet)
 	 */
 	{
@@ -1078,6 +1107,9 @@ namespace lattice_gas
 			}
 
 			// ------------------ save timeevol ----------------
+//			printf("OP_arr_len = %ld\n", OP_arr_len ? (*OP_arr_len) : 0);
+//			printf("verbose: %d; save_states_stride = %ld, save_state_mode = %d\n", verbose, save_states_stride, save_state_mode);
+//			printf("Nt_OP_saved = %ld; (*Nt - 1) mod save_states_stride = %ld\n", *Nt_OP_saved, (*Nt - 1) % save_states_stride);
 			if(OP_arr_len){
 				if((*Nt - 1) % save_states_stride == 0){
 					if(*Nt_OP_saved >= *OP_arr_len){ // double the size of the time-index
@@ -1114,6 +1146,7 @@ namespace lattice_gas
 					if(biggest_cluster_sizes) (*biggest_cluster_sizes)[*Nt_OP_saved] = biggest_cluster_sizes_current;
 					if(h_A) (*h_A)[*Nt_OP_saved] = h_A_current;
 					++ (*Nt_OP_saved);
+					if(verbose >= 4){ printf("Nt_OP_saved = %d\n", *Nt_OP_saved); }
 				}
 
 //				if((E_current < Emin * (1 + 1e-6)) || (E_current > Emax * (1 + 1e-6))){   // assuming Emin < 0, Emax > 0
@@ -1129,18 +1162,24 @@ namespace lattice_gas
 //			printf("N_states_to_save = %d, max=%d\n", N_states_to_save, N_saved_states_max);
 			if(N_states_to_save > 0){
 				bool to_save_state = ((*Nt - 1) % save_states_stride == 0);
-				switch (save_state_mode) {
-					case save_state_mode_Inside:
-						to_save_state = to_save_state && (*OP_current >= OP_min_save_state) && (*OP_current < OP_max_save_state);
-						break;
-					case save_state_mode_Influx:
-						to_save_state = to_save_state && (*OP_current >= OP_max_save_state) && (OP_prev < OP_min_save_state);
-						break;
-					default:
-						to_save_state = false;
-						if(verbose){
-							printf("WARNING:\nN_states_to_save > 0 provided, but wrong save_state_mode. Not saving states\n");
-						}
+				if(to_save_state){
+					switch (save_state_mode) {
+						case save_state_mode_Inside:
+							to_save_state = (*OP_current >= OP_min_save_state) && (*OP_current < OP_max_save_state);
+							break;
+						case save_state_mode_Influx:
+							to_save_state = (*OP_current >= OP_max_save_state) && (OP_prev < OP_min_save_state);
+							break;
+						case save_state_mode_Outside:
+							to_save_state = (*OP_current >= OP_max_save_state) || (*OP_current < OP_min_save_state);
+							break;
+						default:
+							to_save_state = false;
+							if(verbose){
+								printf("WARNING:\nN_states_to_save = %d > 0 provided, but wrong save_state_mode = %d. Not saving states\n", N_states_to_save, save_state_mode);
+								STP
+							}
+					}
 				}
 				if(to_save_state){
 					memcpy(&(states_to_save[*N_states_saved * L2]), s, state_size_in_bytes);
@@ -1153,7 +1192,7 @@ namespace lattice_gas
 			// values of M_next are recorded, and states starting from M_next of the next stage are not recorded, so I have ...](... M accounting
 			if(N_states_to_save > 0){
 				if(*N_states_saved >= N_states_to_save){
-					if(verbose >= 2) printf("Reached desired N_states_saved >= N_states_to_save (= %d)\n", N_states_to_save);
+					if(verbose >= 2) printf("Reached desired N_states_saved = %d >= N_states_to_save (= %d)\n", *N_states_saved, N_states_to_save);
 					return 1;
 				}
 			}
