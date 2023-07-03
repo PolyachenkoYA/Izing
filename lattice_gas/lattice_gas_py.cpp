@@ -64,6 +64,7 @@ PYBIND11_MODULE(lattice_gas_tmp, m)
 		  py::arg("init_state")=py::none(),
 		  py::arg("to_use_smart_swap")=0,
 		  py::arg("to_equilibrate")=1,
+		  py::arg("to_start_only_state0")=0,
 		  py::arg("verbose")=py::none()
 	);
 

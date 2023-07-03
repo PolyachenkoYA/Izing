@@ -88,7 +88,7 @@ namespace lattice_gas
 				  const int *init_state, int to_use_smart_swap);
 	int run_bruteforce_C(int move_mode, int L, const double *e, const double *mu, long *time_total, int N_states, int *states,
 						 long *OP_arr_len, long *Nt, long *Nt_OP_saved, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
-						 int interface_mode, int OP_A, int OP_B, int to_cluster,
+						 int interface_mode, int OP_A, int OP_B, int to_cluster, int to_start_only_state0,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
 						 int N_spins_up_init, int verbose, long Nt_max, int *N_tries, int to_save_final_state,
@@ -102,7 +102,7 @@ namespace lattice_gas
 				  int OP_0, int OP_next, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 				  int *cluster_element_inds, int *cluster_sizes, int *cluster_types, int *is_checked, long *Nt, long *Nt_OP_saved,
 				  long *OP_arr_len, int interfaces_mode, int to_use_smart_swap, int verbose, int to_cluster=1, long Nt_max=-1,
-				  int* states_to_save=nullptr, int *N_states_saved=nullptr, int N_states_to_save=-1,
+				  int *states_to_save=nullptr, int *N_states_saved=nullptr, int N_states_to_save=-1,
 				  int OP_min_save_state=0, int OP_max_save_state=0,
 				  int save_state_mode=save_state_mode_Inside, int OP_A=0, int OP_B=0, long save_states_stride=1);
 	int get_init_states_C(int move_mode, int L, const double *e, const double *mu, long *time_total, int N_init_states,
@@ -162,7 +162,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
 						 std::optional<int> _interface_mode, int save_state_mode,
 						 std::optional< pybind11::array_t<int> > _init_state,
-						 int to_use_smart_swap, int to_equilibrate,
+						 int to_use_smart_swap, int to_equilibrate, int to_start_only_state0,
 						 std::optional<int> _verbose);
 int compute_hA(py::array_t<int> *h_A, int *OP, long Nt, int OP_A, int OP_B);
 py::tuple cluster_state(py::array_t<int> state, std::optional<int> _verbose);

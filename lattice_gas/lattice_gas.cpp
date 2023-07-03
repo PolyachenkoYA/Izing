@@ -139,7 +139,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
 						 std::optional<int> _interface_mode, int save_state_mode,
 						 std::optional< pybind11::array_t<int> > _init_state,
-						 int to_use_smart_swap, int to_equilibrate,
+						 int to_use_smart_swap, int to_equilibrate, int to_start_only_state0,
 						 std::optional<int> _verbose)
 /**
  *
@@ -245,8 +245,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 		_time = (int*) malloc(sizeof(int) * OP_arr_len);
 	}
 
-//	py::array_t<int> states = py::array_t<int>(std::max((long)3, N_saved_states_max) * L2); // TODO: check why max(3,...)
-	py::array_t<int> states = py::array_t<int>(N_saved_states_max * L2);
+	py::array_t<int> states = py::array_t<int>((N_saved_states_max > 0 ? N_saved_states_max : 3) * L2);
 	py::buffer_info states_info = states.request();
 	int *states_ptr = static_cast<int *>(states_info.ptr);
 
@@ -262,7 +261,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 	lattice_gas::run_bruteforce_C(move_mode, L, e_ptr, mu_ptr, &time_total, N_saved_states_max, states_ptr,
 							to_remember_timeevol ? &OP_arr_len : nullptr,
 								  &Nt, &Nt_OP_saved, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
-								  interface_mode, OP_A, OP_B, OP_A > 1,
+								  interface_mode, OP_A, OP_B, OP_A > 1, to_start_only_state0,
 								  OP_min, OP_max, &N_states_saved,
 								  OP_min_save_state, OP_max_save_state,save_state_mode,
 								  N_spins_up_init, verbose, Nt_max, &N_launches, 0,
@@ -754,7 +753,7 @@ namespace lattice_gas
 //			}
 		}
 		int init_state_to_process_ID;
-		int run_status;
+//		int run_status;
 		long OP_arr_len_old;
 //		long Nt_old;
 		long time_of_step_total;
@@ -767,46 +766,73 @@ namespace lattice_gas
 //			Nt_old = *Nt;
 //			OP_arr_len_old = *OP_arr_len;
 
-			run_status = run_state(move_mode, state_under_process, &OP_current, L, e, mu, &time_of_step_total, OP_0, OP_next,
-								   E, M, biggest_cluster_sizes, nullptr, time,
-								   cluster_element_inds, cluster_sizes, cluster_types, is_checked,
-								   Nt, Nt_OP_saved, OP_arr_len, interfaces_mode, to_use_smart_swap, verbose);
+			run_state(move_mode, state_under_process, &OP_current, L, e, mu, &time_of_step_total, OP_0, OP_next,
+					   E, M, biggest_cluster_sizes, nullptr, time,
+					   cluster_element_inds, cluster_sizes, cluster_types, is_checked,
+					   Nt, Nt_OP_saved, OP_arr_len, interfaces_mode, to_use_smart_swap, verbose);
 
-			switch (run_status) {
-				case 0:  // reached <=OP_A  => unsuccessful run
-					++N_runs;
-					break;
-				case 1:  // reached ==OP_next  => successful run
-					// Interpolation is needed if 's' and 'OP' are continuous
+			if(OP_current < OP_0){
+				++N_runs;
+				if(OP_arr_len){ --Nt_OP_saved; } // erase the last OP_arr element since it is from the state that was not saved
+			} else if(OP_current >= OP_next) {
+				// Interpolation is needed if 's' and 'OP' are continuous
 
-					// Nt is not reinitialized to 0 and that's correct because it shows the total number of OPs datapoints
-					++N_runs;
-					++N_succ;
-					if(next_states) {   // save the resulting system state for the next step
-						memcpy(&(next_states[(N_succ - 1) * L2]), state_under_process, state_size_in_bytes);
-						states_parent_inds[N_succ - 1] = init_state_to_process_ID;
-					}
-					if(verbose) {
-						double progr = (double)N_succ/N_next_states;
-						if(verbose < 2){
-							if(N_succ % (N_next_states / 1000 + 1) == 0){
-								printf("%lf %%          \r", progr * 100);
-								fflush(stdout);
-							}
-						} else { // verbose == 1
-							printf("state %d saved for future, N_runs=%d\n", N_succ - 1, N_runs + 1);
-							printf("%lf %%\n", progr * 100);
+				// Nt is not reinitialized to 0 and that's correct because it shows the total number of OPs datapoints
+				++N_runs;
+				++N_succ;
+				if(next_states) {   // save the resulting system state for the next step
+					memcpy(&(next_states[(N_succ - 1) * L2]), state_under_process, state_size_in_bytes);
+					states_parent_inds[N_succ - 1] = init_state_to_process_ID;
+				}
+				if(verbose) {
+					double progr = (double)N_succ/N_next_states;
+					if(verbose < 2){
+						if(N_succ % (N_next_states / 1000 + 1) == 0){
+							printf("%lf %%          \r", progr * 100);
+							fflush(stdout);
 						}
+					} else { // verbose == 1
+						printf("state %d saved for future, N_runs=%d\n", N_succ - 1, N_runs + 1);
+						printf("%lf %%\n", progr * 100);
 					}
-					break;
-//				case -1:  // reached >OP_next => overshoot => discard the trajectory => revert all the "pointers to the current stage" to their previous values
-//					*Nt = Nt_old;
-//					*OP_arr_len = OP_arr_len_old;
-//					break;
-				default:
-					printf("Wrong run_status = %d returned by process_state\n", run_status);
-					assert(false);
+				}
 			}
+
+//			switch (run_status) {
+//				case 0:  // reached < OP_A  => unsuccessful run
+//					++N_runs;
+//					break;
+//				case 1:  // reached >=OP_next  => successful run
+//					// Interpolation is needed if 's' and 'OP' are continuous
+//
+//					// Nt is not reinitialized to 0 and that's correct because it shows the total number of OPs datapoints
+//					++N_runs;
+//					++N_succ;
+//					if(next_states) {   // save the resulting system state for the next step
+//						memcpy(&(next_states[(N_succ - 1) * L2]), state_under_process, state_size_in_bytes);
+//						states_parent_inds[N_succ - 1] = init_state_to_process_ID;
+//					}
+//					if(verbose) {
+//						double progr = (double)N_succ/N_next_states;
+//						if(verbose < 2){
+//							if(N_succ % (N_next_states / 1000 + 1) == 0){
+//								printf("%lf %%          \r", progr * 100);
+//								fflush(stdout);
+//							}
+//						} else { // verbose == 1
+//							printf("state %d saved for future, N_runs=%d\n", N_succ - 1, N_runs + 1);
+//							printf("%lf %%\n", progr * 100);
+//						}
+//					}
+//					break;
+////				case -1:  // reached >OP_next => overshoot => discard the trajectory => revert all the "pointers to the current stage" to their previous values
+////					*Nt = Nt_old;
+////					*OP_arr_len = OP_arr_len_old;
+////					break;
+//				default:
+//					printf("Wrong run_status = %d returned by process_state\n", run_status);
+//					assert(false);
+//			}
 		}
 		if(verbose >= 2) {
 			printf("\n");
@@ -967,17 +993,13 @@ namespace lattice_gas
 			find_potential_swaps(s, L, &potential_swap_positions);
 		}
 
-//		double Emin = -(2 + abs(h)) * L2;
-//		double Emax = 2 * L2;
 		double E_tolerance = 1e-5;   // J=1
 		unsigned long long Nt_for_numerical_error = sqr(lround(1e13 * E_tolerance / L2));
 		// the error accumulates, so we need to recompute form scratch time to time
 //      |E| ~ L2 => |dE_numerical| ~ L2 * 1e-13 => |dE_num_total| ~ sqrt(Nt) * L2 * 1e-13 << E_tolerance => Nt << (1e13 * E_tolerance / L2)^2
 
-//		print_S(s, L, 't');
-
 		while(1){
-			// ----------- decide on state change -----------
+			// ----------- decide on state change and do the change -----------
 			switch (move_mode) {
 				case move_mode_flip:
 					time_the_flip_took = flip_move(s, L, e, mu, &ix, &iy, &s_new, &dE);
@@ -988,17 +1010,6 @@ namespace lattice_gas
 					time_the_flip_took = swap_move(s, L, e, mu, &ix, &iy, &ix_new, &iy_new, &dE,
 												   to_use_smart_swap ? &potential_swap_positions : nullptr);
 					
-//					if(dE > 0){
-//					if(false){
-//						printf("DEBUG\n");
-//						double de1, de2;
-//						de1 = swap_mode_dE(s, L, e, mu, ix, iy, ix_new, iy_new);
-//						de2 = swap_mode_dE(s, L, e, mu, ix_new, iy_new, ix, iy);
-//						print_env2(s, L, ix, iy, ix_new, iy_new);
-//						printf("dE = %lf, de1=%lf, de2=%lf, s = %d, s_new = %d\n", dE, de1, de2, s[ix * L + iy], s[ix_new * L + iy_new]);
-//						STP
-//					}
-
 					std::swap(s[ix * L + iy], s[ix_new * L + iy_new]);
 					if(to_use_smart_swap){
 						update_neib_potpos(s, L, ix, iy, &potential_swap_positions);
@@ -1011,6 +1022,7 @@ namespace lattice_gas
 					break;
 			}
 
+			// ----------- modify stats -----------
 			*time_total += time_the_flip_took;
 			E_current += dE;
 
@@ -1028,21 +1040,10 @@ namespace lattice_gas
 				h_A_current = (*Nt == 0 ? (*OP_current - OP_A > OP_B - *OP_current ? 0 : 1) : (h_A_current == 1 ? (*OP_current < OP_B ? 1 : 0) : (*OP_current >= OP_A ? 0 : 1)));
 			}
 
-//			if(!(*Nt % (8192000 / L2))) {
-//				printf("moved Nt = %ld\n", *Nt);
-//				printf("CS = %ld\n", biggest_cluster_sizes_current);
-//				print_S(s, L, 't');
-//				getchar();
-//			}
-
 			++(*Nt);
 
 			if(verbose_BF){
-//				if(*Nt % (Nt_max / 1000 + 1) == 0){
-//					fflush(stdout);
-//				}
 				if(!(*Nt % (81920000 / L2))){
-//					print_S(s, L, 't');
 					if(Nt_max > 0){
 						printf("BF run: %lf %%, Nt_OP = %ld, CS = %d", (double)(*Nt) / (Nt_max) * 100, Nt_OP_saved ? *Nt_OP_saved : -1, biggest_cluster_sizes_current);
 					} else {
@@ -1056,17 +1057,9 @@ namespace lattice_gas
 					}
 					printf("               \r");
 
-//					print_S(s, L, 't');
-//					getchar();
 					fflush(stdout);
 				}
 			}
-
-//			if(*Nt % 10000 == 0){
-//				printf("BF run: Nt = %ld, CS = %d, CS_next = %d              \n", *Nt, biggest_cluster_sizes_current, OP_next);
-////				print_S(s, L, 't');
-////				getchar();
-//			}
 
 			// ------------ update the OP --------------
 			OP_prev = *OP_current;
@@ -1079,15 +1072,6 @@ namespace lattice_gas
 					break;
 				default:
 					printf("ERROR\n");
-			}
-
-//			print_S(s, L, 't');
-
-			// ------------------ check for Fail ----------------
-			// we need to exit before the state is modified, so it's not recorded
-			if(*OP_current < OP_0){
-				if(verbose >= 3) printf("\nFail run, OP_mode = %d, OP_current = %d, OP_0 = %d\n", interfaces_mode, *OP_current, OP_0);
-				return 0;   // failed = gone to the initial state A
 			}
 
 			// -------------- check that error in E is negligible -----------
@@ -1149,17 +1133,9 @@ namespace lattice_gas
 					if(verbose >= 4){ printf("Nt_OP_saved = %d\n", *Nt_OP_saved); }
 				}
 
-//				if((E_current < Emin * (1 + 1e-6)) || (E_current > Emax * (1 + 1e-6))){   // assuming Emin < 0, Emax > 0
-//					printf("E_current = %lf, dE = %lf, Nt = %d, E = %lf\n", E_current, dE, *Nt, comp_E(s, L, h));
-//					print_E(&((*E)[*Nt - 10]), 10);
-//					print_S(s, L, 'r');
-//					getchar();
-//				}
 			}
-//			if(verbose >= 4) printf("done Nt=%d\n", *Nt-1);
 
 			// ------------------- save the state if it's good (we don't want failed states) -----------------
-//			printf("N_states_to_save = %d, max=%d\n", N_states_to_save, N_saved_states_max);
 			if(N_states_to_save > 0){
 				bool to_save_state = ((*Nt - 1) % save_states_stride == 0);
 				if(to_save_state){
@@ -1187,8 +1163,7 @@ namespace lattice_gas
 //					printf("saved state %d\n", *N_states_saved);
 				}
 			}
-
-			// ---------------- check exit ------------------
+			// ---------------- check BF ------------------
 			// values of M_next are recorded, and states starting from M_next of the next stage are not recorded, so I have ...](... M accounting
 			if(N_states_to_save > 0){
 				if(*N_states_saved >= N_states_to_save){
@@ -1209,8 +1184,13 @@ namespace lattice_gas
 					return 1;
 				}
 			}
-			if(*OP_current >= OP_next){
-				if(verbose >= 3) printf("Reached OP_next, *OP_current = %d, OP_next = %d\n", *OP_current, OP_next);
+
+			// ------------------ check FFS exit ----------------
+			if(*OP_current < OP_0){   // gone to the initial state A
+				if(verbose >= 3) printf("\nReached OP_0 = %d, OP_current = %d, OP_mode = %d\n", OP_0, *OP_current, interfaces_mode);
+				return 0;
+			} else if(*OP_current >= OP_next){
+				if(verbose >= 3) printf("Reached OP_next = %d, *OP_current = %d, OP_mode = %d\n", OP_next, *OP_current, interfaces_mode);
 				return 1;
 //				return *OP_current == OP_next ? 1 : -1;
 				// 1 == succeeded = reached the interface 'M == M_next'
@@ -1231,7 +1211,7 @@ namespace lattice_gas
 
 	int run_bruteforce_C(int move_mode, int L, const double *e, const double *mu, long *time_total, int N_states, int *states,
 						 long *OP_arr_len, long *Nt, long *Nt_OP_saved, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
-						 int interface_mode, int OP_A, int OP_B, int to_cluster,
+						 int interface_mode, int OP_A, int OP_B, int to_cluster, int to_start_only_state0,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
 						 int N_spins_up_init, int verbose, long Nt_max, int *N_tries, int to_save_final_state,
@@ -1320,7 +1300,7 @@ namespace lattice_gas
 		long time_the_try_took;
 		while(1){
 			// initially start from the 0th state (the only one we have at the time). Next times start from a random state from the ones we have at the time
-			if(*N_states_done > 0){
+			if((*N_states_done > 0) && (!to_start_only_state0)){
 				restart_state_ID = gsl_rng_uniform_int(rng, *N_states_done);
 				if(verbose >= 2){
 					printf("generated %d states, restarting from state[%d]\n", *N_states_done, restart_state_ID);
@@ -1410,7 +1390,7 @@ namespace lattice_gas
 		if(to_equilibrate){
 			run_bruteforce_C(move_mode, L, e, mu, &time_total, 1, state,
 							 nullptr, &Nt_to_reach_OP_A, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-							 interface_mode, -1, -1, 1,
+							 interface_mode, -1, -1, 1, 0,
 							 OP_min_default[interface_mode], OP_A,
 							 &N_states_done_local, OP_A,
 							 OP_A, save_state_mode_Influx, -1,
@@ -1444,7 +1424,7 @@ namespace lattice_gas
 				// run it for the same amount of time it took to get to OP_A_thr the first time + 10 sweeps
 				run_bruteforce_C(move_mode, L, e, mu, &time_total, -1, state,
 								 nullptr, &Nt, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-								 interface_mode, -1, -1, 1,
+								 interface_mode, -1, -1, 1, 0,
 								 OP_min_default[interface_mode], OP_B,
 								 N_states_done, -1,
 								 -1, -1, -1,
@@ -1531,7 +1511,7 @@ namespace lattice_gas
 
 			run_bruteforce_C(move_mode, L, e, mu, time_total, N_init_states, init_states,
 							 nullptr, Nt, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-							 interface_mode, 0, 0, 1,
+							 interface_mode, 0, 0, 1, 0,
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, OP_min_default[interface_mode],
 							 OP_thr_save_state, save_state_mode_Inside, -1,
@@ -1557,7 +1537,7 @@ namespace lattice_gas
 
 			run_bruteforce_C(move_mode, L, e, mu, time_total, N_init_states, init_states,
 							 OP_arr_len, Nt, Nt_OP_saved, E, M, biggest_cluster_size, h_A, time,
-							 interface_mode, OP_A, OP_B, 1,
+							 interface_mode, OP_A, OP_B, 1, 0,
 							 OP_min_default[interface_mode], OP_B,
 							 &N_states_done, OP_thr_save_state,
 							 OP_thr_save_state, save_state_mode_Influx, -1,

@@ -521,7 +521,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							to_plot=False, N_fourier=5, to_recomp=0, \
 							cluster_map_dr=0.5, npz_basename=None, to_save_npz=True, \
 							init_composition=None, to_do_hists=True, \
-							Dtop_est_timestride=1, Dtop_PBthr=[0.1,  0.9], \
+							Dtop_est_timestride=1, Dtop_PBthr=[0.2,  0.8], \
 							Dtop_Nruns=0):
 	L2 = L**2
 	ln_k_AB = np.log(flux0 * 1) + np.sum(np.log(probs))   # [flux0 * 1] = 1, because [flux] = 1/time = 1/step
@@ -566,6 +566,30 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	
 	OP_closest_to_OP0_ind = np.argmin(np.abs(P_B - 0.5))
 	
+	# =========== cluster init_states ==============
+	OP_init_states = []
+	maxclust_ind = []
+	max_cluster_1st_ind_id = []
+	max_cluster_inds = []
+	OP_init_states_OP0exactly_inds = []
+	for i in range(N_OP_interfaces):
+		OP_init_states.append(np.empty(N_init_states[i], dtype=int))
+		maxclust_ind.append(np.empty(N_init_states[i], dtype=int))
+		max_cluster_1st_ind_id.append(np.empty(N_init_states[i], dtype=int))
+		max_cluster_inds.append([])
+		for j in range(N_init_states[i]):
+			if(interface_mode == 'M'):
+				OP_init_states[i][j] = np.sum(states[i][j, :, :])
+			elif(interface_mode == 'CS'):
+				(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j, :, :].flatten())
+				
+				maxclust_ind[i][j] = np.argmax(cluster_sizes)
+				OP_init_states[i][j] = cluster_sizes[maxclust_ind[i][j]]
+				max_cluster_1st_ind_id[i][j] = np.sum(cluster_sizes[:maxclust_ind[i][j]])
+				max_cluster_inds[i].append(cluster_element_inds[max_cluster_1st_ind_id[i][j] : max_cluster_1st_ind_id[i][j] + cluster_sizes[maxclust_ind[i][j]]])
+		
+		OP_init_states_OP0exactly_inds.append(np.array([j for j in range(N_init_states[i]) if(OP_init_states[i][j] == OP_interfaces[i])], dtype=int))
+	
 	if(states_parent_inds is not None):
 		# ======= back-track end-states to OP0-states ======
 		OP0_children_inds = {}
@@ -583,6 +607,14 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		OP0_parent_inds = np.array(list(OP0_children_inds.keys()), dtype=int)
 		OP0_parent_Nchildren = np.array([len(OP0_children_inds[parent_ind]) for parent_ind in OP0_parent_inds], dtype=int)
 		
+		OP0_parent_inds_OP0exactly, OP0_parent_inds_OP0exactly_inds, _ = \
+			np.intersect1d(OP0_parent_inds, OP_init_states_OP0exactly_inds[OP_closest_to_OP0_ind], return_indices=True)
+		if(len(OP0_parent_inds_OP0exactly) == 0):
+			print(r'WARNING: no states that {have OP=OPinterface_closest_to_OP0} and {have clihdren at state-B} found at the interface-set-states at OPinterf = %d with OP_interfaces = %s and OP0 = %s' % \
+					(OP_interfaces[OP_closest_to_OP0_ind], str(OP_interfaces), my.f2s(OP0_erfinv)))
+		else:
+			OP0_parent_inds_OP0exactly_Nchildren = OP0_parent_Nchildren[OP0_parent_inds_OP0exactly_inds]
+	# =========== estimate Dtop ==============
 	if(Dtop_Nruns > 0):
 		# ======= estimate D* at the top (P_B = 1/2) ======
 		if(states_parent_inds is None):
@@ -596,12 +628,20 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		Dtop_OPmax = int(np.ceil(scipy.optimize.root_scalar(\
 						lambda x: P_B_erfinv_interp(x) - scipy.special.erfinv(2 * Dtop_PBthr[1] - 1), \
 						x0=OP_interfaces_scaled[-2], x1=OP_interfaces_scaled[-3]).root) + 0.1)
+		# The interval is [), so the exit will happen is the system goes to (...)U[...)
 		
-		parent_state_ID = np.empty(Dtop_Nruns, dtype=int)
-		for i in range(Dtop_Nruns):
-			parent_state_ID[i] = np.random.randint(0, N_init_states[OP_closest_to_OP0_ind]) \
-								if(states_parent_inds is None) else \
-								OPend_parent_inds[np.random.randint(0, N_init_states[-1])]
+		to_use_random_OPexactly_init_states = (states_parent_inds is None)
+		if(not to_use_random_OPexactly_init_states):
+			to_use_random_OPexactly_init_states = (len(OP0_parent_inds_OP0exactly) == 0)
+		parent_state_IDs = np.random.choice(OP_init_states_OP0exactly_inds[OP_closest_to_OP0_ind], Dtop_Nruns) \
+							if(to_use_random_OPexactly_init_states)  else \
+							np.random.choice(OP0_parent_inds_OP0exactly, Dtop_Nruns, \
+											p = OP0_parent_inds_OP0exactly_Nchildren / np.sum(OP0_parent_inds_OP0exactly_Nchildren))
+		parent_state_IDs_unique, parent_state_IDs_lens = np.unique(parent_state_IDs, return_counts=True)
+		for i in range(len(parent_state_IDs_unique)):
+			# parent_state_ID[i] = np.random.randint(0, N_init_states[OP_closest_to_OP0_ind]) \
+								# if(states_parent_inds is None) else \
+								# OPend_parent_inds[np.random.randint(0, N_init_states[-1])]
 			# choose a state based on the probability to end up in the end state
 			
 			states_Dtop, _, _, CS_Dtop, _, times_Dtop, _, _ = \
@@ -613,26 +653,42 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 					to_save_npz=True, to_recomp=to_recomp, \
 					to_equilibrate=False, to_post_process=False, \
 					to_gen_init_state=False, to_get_timeevol=True, \
-					init_state=states[OP_closest_to_OP0_ind][parent_state_ID[i], :, :].flatten(), \
-					N_saved_states_max=2, \
+					init_state=states[OP_closest_to_OP0_ind][parent_state_IDs_unique[i], :, :].flatten(), \
+					N_saved_states_max=parent_state_IDs_lens[i] + 1, \
+					to_start_only_state0=1, \
 					save_state_mode=3)
-	#				OP_A=None, OP_B=None, \
-					# N_saved_states_max=2 because the initial state is also saved as state[0, :, :]
+			# N_saved_states_max = ... + 1 because the initial state is also saved as state[0, :, :]
 			# TODO: make seed work for reproducibility
 			# TODO: verbose=verbose-1
 			
-			print(states_Dtop.shape)
+			states_Dtop = states_Dtop[1:, :, :]
+			CS_Dtop = CS_Dtop[1:]
+			N_steps = len(CS_Dtop)
 			
-			draw_state(states[OP_closest_to_OP0_ind][parent_state_ID[i], :, :])
-			for j in range(states_Dtop.shape[0]):
-				(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states_Dtop[j, :, :].flatten())
-				max_cluster_id = np.argmax(cluster_sizes)
-				print(cluster_sizes[max_cluster_id])
-				
-				draw_state(states_Dtop[j, :, :])
+			restart_timesteps = np.where((CS_Dtop >= Dtop_OPmax) | (CS_Dtop < Dtop_OPmin))[0]
+			assert(len(restart_timesteps) == parent_state_IDs_lens[i]), 'ERROR: len(restart_timesteps) = %d that must be == N_saved_states_max = parent_state_IDs_lens[i], but it is not' % (len(restart_timesteps), parent_state_IDs_lens[i])
+			#CS_Dtop_shifted = [CS_Dtop[0 : restart_timesteps[0]+1]]
+			CS_Dtop_shifted = [np.append(OP_interfaces[OP_closest_to_OP0_ind], CS_Dtop[0 : restart_timesteps[0]+1])]
+			for j in range(1, parent_state_IDs_lens[i]):
+				#print(restart_timesteps[j-1], restart_timesteps[j])
+				#CS_Dtop_shifted.append(CS_Dtop[restart_timesteps[j-1]+1 : restart_timesteps[j]+1])
+				CS_Dtop_shifted.append(np.append(OP_interfaces[OP_closest_to_OP0_ind], CS_Dtop[restart_timesteps[j-1]+1 : restart_timesteps[j]+1]))
+			
+			#print(states_Dtop.shape)
 			
 			fig, ax, _ = my.get_fig('t', 'CS')
-			ax.plot(np.arange(len(CS_Dtop)), CS_Dtop)
+			ax.plot(np.arange(N_steps), CS_Dtop)
+			ax.plot([0, N_steps], [Dtop_OPmax]*2, '--')
+			ax.plot([0, N_steps], [Dtop_OPmin - 1]*2, '--')
+			
+			fig2, ax2, _ = my.get_fig('t', 'CS')
+			#draw_state(states[OP_closest_to_OP0_ind][parent_state_IDs_unique[i], :, :])
+			#print(parent_state_IDs_lens[i])
+			for j in range(parent_state_IDs_lens[i]):
+				ax2.plot(np.arange(len(CS_Dtop_shifted[j]))+1, CS_Dtop_shifted[j])
+				
+				#draw_state(states_Dtop[j, :, :])
+			
 			plt.show()
 	
 	OP_optimize_f_interp_vals = 1 - np.log(P_B) / np.log(P_B[0])
@@ -719,14 +775,13 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 						if(interface_mode == 'M'):
 							OP_init_states[i][j] = np.sum(states[i][j, :, :])
 						elif(interface_mode == 'CS'):
-							#(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j, :, :].reshape((L2)))
-							(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j, :, :].flatten())
+							#(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j, :, :].flatten())
 							#OP_init_states[i][j] = max(cluster_sizes)
+							#max_cluster_id = np.argmax(cluster_sizes)
+							#OP_init_states[i][j] = cluster_sizes[OP_init_states_maxclust_inds[i][j]]
 							
-							max_cluster_id = np.argmax(cluster_sizes)
-							OP_init_states[i][j] = cluster_sizes[max_cluster_id]
-							max_cluster_1st_ind_id = np.sum(cluster_sizes[:max_cluster_id])
-							max_cluster_inds = cluster_element_inds[max_cluster_1st_ind_id : max_cluster_1st_ind_id + cluster_sizes[max_cluster_id]]
+							#max_cluster_1st_ind_id = np.sum(cluster_sizes[:OP_init_states_maxclust_inds[i][j]])
+							#max_cluster_inds = cluster_element_inds[max_cluster_1st_ind_id : max_cluster_1st_ind_id + cluster_sizes[OP_init_states_maxclust_inds[i][j]]]
 							
 							#cluster_centered_crds[i][j], _, _, _, _ = \
 							#	center_cluster(max_cluster_inds, L)
@@ -735,9 +790,11 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 								# draw_state(states[i][j, :, :], to_show=True, ax=None, title='CS = ' + str(OP_interfaces[i]))
 							
 							state_centered_crds[i][j], cluster_centered_crds[i][j] = \
-								center_state_by_cluster(states[i][j, :, :], max_cluster_inds)
+								center_state_by_cluster(states[i][j, :, :], max_cluster_inds[i][j])
 					
-					cluster_centered_crds_per_interface_local = tuple([cluster_centered_crds[i][j] for j in range(N_init_states[i]) if(OP_init_states[i][j] == OP_interfaces[i])])
+					#cluster_centered_crds_per_interface_local = tuple([cluster_centered_crds[i][j] for j in range(N_init_states[i]) if(OP_init_states[i][j] == OP_interfaces[i])])
+					cluster_centered_crds_per_interface_local = tuple([cluster_centered_crds[i][j] for j in OP_init_states_OP0exactly_inds[i]])
+					OP_init_states_OP0exactly_inds
 					#if(len(cluster_centered_crds_per_interface_local) < len(cluster_centered_crds[i]) * 0.5):
 					if(len(cluster_centered_crds_per_interface_local) < 2):
 						print('WARNING: Interface OP[%d] = %d has too few (%d) states with OP = %d.\nOP-s are: %s\nInterfaces are:\n%s' % \
@@ -1652,7 +1709,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 			to_save_npz=True, to_recomp=0, R_clust_init=None, \
 			to_animate=False, to_equilibrate=None, to_post_process=True, \
 			init_state=None, to_gen_init_state=None, stab_step_BF_run=-1, \
-			save_state_mode=1):
+			save_state_mode=1, to_start_only_state0=0):
 	'''
 		save_state_mode
 			1 == lattice_gas.save_state_mode_Inside
@@ -1769,6 +1826,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 				init_state=None if(init_state is None) else init_state.flatten(), \
 				to_equilibrate=to_equilibrate, \
 				save_state_mode=save_state_mode, \
+				to_start_only_state0=to_start_only_state0, \
 				verbose=verbose)
 		
 		if(to_save_npz):
