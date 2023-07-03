@@ -638,7 +638,8 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							np.random.choice(OP0_parent_inds_OP0exactly, Dtop_Nruns, \
 											p = OP0_parent_inds_OP0exactly_Nchildren / np.sum(OP0_parent_inds_OP0exactly_Nchildren))
 		parent_state_IDs_unique, parent_state_IDs_lens = np.unique(parent_state_IDs, return_counts=True)
-		for i in range(len(parent_state_IDs_unique)):
+		N_parent_state_IDs_unique = len(parent_state_IDs_unique)
+		for i in range(N_parent_state_IDs_unique):
 			# parent_state_ID[i] = np.random.randint(0, N_init_states[OP_closest_to_OP0_ind]) \
 								# if(states_parent_inds is None) else \
 								# OPend_parent_inds[np.random.randint(0, N_init_states[-1])]
@@ -666,30 +667,41 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			N_steps = len(CS_Dtop)
 			
 			restart_timesteps = np.where((CS_Dtop >= Dtop_OPmax) | (CS_Dtop < Dtop_OPmin))[0]
+			events_times = np.empty(parent_state_IDs_lens[i], dtype=int)
+			events_times[0] = restart_timesteps[0]
+			events_times[1:] = restart_timesteps[1:] - restart_timesteps[:-1]
+			min_event_time = min(events_times)
 			assert(len(restart_timesteps) == parent_state_IDs_lens[i]), 'ERROR: len(restart_timesteps) = %d that must be == N_saved_states_max = parent_state_IDs_lens[i], but it is not' % (len(restart_timesteps), parent_state_IDs_lens[i])
-			#CS_Dtop_shifted = [CS_Dtop[0 : restart_timesteps[0]+1]]
+			CS_Dtop_shifted_cut = np.empty((parent_state_IDs_lens[i], min_event_time))
+			CS_Dtop_shifted_cut[:, 0] = OP_interfaces[OP_closest_to_OP0_ind]
+			CS_Dtop_shifted_cut[0, 1:] = CS_Dtop[: min_event_time-1]
 			CS_Dtop_shifted = [np.append(OP_interfaces[OP_closest_to_OP0_ind], CS_Dtop[0 : restart_timesteps[0]+1])]
 			for j in range(1, parent_state_IDs_lens[i]):
-				#print(restart_timesteps[j-1], restart_timesteps[j])
-				#CS_Dtop_shifted.append(CS_Dtop[restart_timesteps[j-1]+1 : restart_timesteps[j]+1])
+				CS_Dtop_shifted_cut[j, 1:] = CS_Dtop[restart_timesteps[j-1]+1 : restart_timesteps[j-1]+min_event_time]
 				CS_Dtop_shifted.append(np.append(OP_interfaces[OP_closest_to_OP0_ind], CS_Dtop[restart_timesteps[j-1]+1 : restart_timesteps[j]+1]))
+			CS_Dtop_MSD, d_CS_Dtop_MSD = my.get_average((CS_Dtop_shifted_cut - OP_interfaces[OP_closest_to_OP0_ind])**2, axis=0)
+			CS_Dtop_cut_time = np.arange(min_event_time)
+			Dtop = 0.5 * np.average(CS_Dtop_MSD[1:], weights=1/d_CS_Dtop_MSD[1:]) / np.average(CS_Dtop_cut_time[1:], weights=1/d_CS_Dtop_MSD[1:])
+			Dtop_chi2 = np.mean(((CS_Dtop_MSD[1:] - (2 * Dtop) * CS_Dtop_cut_time[1:]) / d_CS_Dtop_MSD[1:])**2)
 			
-			#print(states_Dtop.shape)
-			
-			fig, ax, _ = my.get_fig('t', 'CS')
-			ax.plot(np.arange(N_steps), CS_Dtop)
-			ax.plot([0, N_steps], [Dtop_OPmax]*2, '--')
-			ax.plot([0, N_steps], [Dtop_OPmin - 1]*2, '--')
-			
-			fig2, ax2, _ = my.get_fig('t', 'CS')
-			#draw_state(states[OP_closest_to_OP0_ind][parent_state_IDs_unique[i], :, :])
-			#print(parent_state_IDs_lens[i])
-			for j in range(parent_state_IDs_lens[i]):
-				ax2.plot(np.arange(len(CS_Dtop_shifted[j]))+1, CS_Dtop_shifted[j])
+			if(True):
+				fig, ax, _ = my.get_fig('t', 'CS')
+				ax.plot(np.arange(N_steps), CS_Dtop)
+				ax.plot([0, N_steps], [Dtop_OPmax]*2, '--')
+				ax.plot([0, N_steps], [Dtop_OPmin - 1]*2, '--')
 				
-				#draw_state(states_Dtop[j, :, :])
-			
-			plt.show()
+				fig_cut, ax_cut, _ = my.get_fig('t', 'CS')
+				fig_all, ax_all, _ = my.get_fig('t', 'CS')
+				for j in range(parent_state_IDs_lens[i]):
+					ax_all.plot(np.arange(len(CS_Dtop_shifted[j]))+1, CS_Dtop_shifted[j])
+					ax_cut.plot(CS_Dtop_cut_time+1, CS_Dtop_shifted_cut[j, :])
+					
+				fig_MSD, ax_MSD, _ = my.get_fig('t', r'$\langle (\Delta CS)^2 \rangle$')
+				ax_MSD.errorbar(CS_Dtop_cut_time, CS_Dtop_MSD, yerr=d_CS_Dtop_MSD)
+				ax_MSD.plot(CS_Dtop_cut_time, (2*Dtop) * (CS_Dtop_cut_time), label=r'$\chi^2=%s$' %(my.f2s(Dtop_chi2)))
+				ax_MSD.legend()
+				
+				plt.show()
 	
 	OP_optimize_f_interp_vals = 1 - np.log(P_B) / np.log(P_B[0])
 	d_OP_optimize_f_interp_vals = d_P_B / P_B / np.log(P_B[0])
