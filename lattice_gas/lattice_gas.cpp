@@ -968,6 +968,15 @@ namespace lattice_gas
 			assert(states_to_save);
 		}
 
+		if(to_cluster){
+			clear_clusters(cluster_element_inds, cluster_sizes, &N_clusters_current);
+			uncheck_state(is_checked, L2);
+			cluster_state_C(s, L, cluster_element_inds, cluster_sizes, cluster_types, &N_clusters_current, is_checked);
+			biggest_cluster_sizes_current = max(cluster_sizes, N_clusters_current);
+		} else {
+			biggest_cluster_sizes_current = 1;
+		}
+
 		switch (interfaces_mode) {
 			case mode_ID_M:
 				*OP_current = M_current;
@@ -978,6 +987,8 @@ namespace lattice_gas
 			default:
 				assert(false);
 		}
+
+		OP_prev = *OP_current;
 
 		if(verbose >= 2){
 			printf("E=%lf, M=%d, OP_0=%d, OP_next=%d\n", E_current, M_current, OP_0, OP_next);
@@ -999,17 +1010,131 @@ namespace lattice_gas
 //      |E| ~ L2 => |dE_numerical| ~ L2 * 1e-13 => |dE_num_total| ~ sqrt(Nt) * L2 * 1e-13 << E_tolerance => Nt << (1e13 * E_tolerance / L2)^2
 
 		while(1){
-			// ----------- decide on state change and do the change -----------
+			// ----------- decide on state change -----------
 			switch (move_mode) {
 				case move_mode_flip:
 					time_the_flip_took = flip_move(s, L, e, mu, &ix, &iy, &s_new, &dE);
-					M_current += (s_new == main_specie_id ? 1 : (s[ix*L + iy] == main_specie_id ? -1 : 0));
-					s[ix * L + iy] = s_new;
 					break;
 				case move_mode_swap:
 					time_the_flip_took = swap_move(s, L, e, mu, &ix, &iy, &ix_new, &iy_new, &dE,
 												   to_use_smart_swap ? &potential_swap_positions : nullptr);
-					
+					break;
+				case move_mode_long_swap:
+					time_the_flip_took = long_swap_move(s, L, e, mu, &ix, &iy, &ix_new, &iy_new, &dE);
+					break;
+			}
+
+			// ------------------ save timeevol ----------------
+			if(OP_arr_len){
+				if((*Nt) % save_states_stride == 0){
+					if(*Nt_OP_saved >= *OP_arr_len){ // double the size of the time-index
+						*OP_arr_len *= 2;
+						if(time){
+							*time = (int*) realloc (*time, sizeof(int) * *OP_arr_len);
+							assert(*time);
+						}
+						if(E){
+							*E = (double*) realloc (*E, sizeof(double) * *OP_arr_len);
+							assert(*E);
+						}
+						if(M){
+							*M = (int*) realloc (*M, sizeof(int) * *OP_arr_len);
+							assert(*M);
+						}
+						if(biggest_cluster_sizes){
+							*biggest_cluster_sizes = (int*) realloc (*biggest_cluster_sizes, sizeof(int) * *OP_arr_len);
+							assert(*biggest_cluster_sizes);
+						}
+						if(h_A){
+							*h_A = (int*) realloc (*h_A, sizeof(int) * *OP_arr_len);
+							assert(*h_A);
+						}
+
+						if(verbose >= 2){
+							printf("\nrealloced to %ld\n", *OP_arr_len);
+						}
+					}
+
+					if(time) (*time)[*Nt_OP_saved] = time_the_flip_took;
+					if(E) (*E)[*Nt_OP_saved] = E_current;
+					if(M) (*M)[*Nt_OP_saved] = M_current;
+					if(biggest_cluster_sizes) (*biggest_cluster_sizes)[*Nt_OP_saved] = biggest_cluster_sizes_current;
+					if(h_A) (*h_A)[*Nt_OP_saved] = h_A_current;
+					++ (*Nt_OP_saved);
+					if(verbose >= 4){ printf("Nt_OP_saved = %d\n", *Nt_OP_saved); }
+				}
+
+			}
+
+			// ------------------- save the state if it's good (we don't want failed states) -----------------
+			if(N_states_to_save > 0){
+				bool to_save_state = ((*Nt) % save_states_stride == 0);
+				if(to_save_state){
+					switch (save_state_mode) {
+						case save_state_mode_Inside:
+							to_save_state = (*OP_current >= OP_min_save_state) && (*OP_current < OP_max_save_state);
+							break;
+						case save_state_mode_Influx:
+							to_save_state = (*OP_current >= OP_max_save_state) && (OP_prev < OP_min_save_state);
+							break;
+						case save_state_mode_Outside:
+							to_save_state = (*OP_current >= OP_max_save_state) || (*OP_current < OP_min_save_state);
+							break;
+						default:
+							to_save_state = false;
+							if(verbose){
+								printf("WARNING:\nN_states_to_save = %d > 0 provided, but wrong save_state_mode = %d. Not saving states\n", N_states_to_save, save_state_mode);
+								STP
+							}
+					}
+				}
+				if(to_save_state){
+					memcpy(&(states_to_save[*N_states_saved * L2]), s, state_size_in_bytes);
+					++(*N_states_saved);
+				}
+			}
+
+			// ---------------- check BF exit ------------------
+			// values of M_next are recorded, and states starting from M_next of the next stage are not recorded, so I have ...](... M accounting
+			if(N_states_to_save > 0){
+				if(*N_states_saved >= N_states_to_save){
+					if(verbose >= 2) printf("Reached desired N_states_saved = %d >= N_states_to_save (= %d)\n", *N_states_saved, N_states_to_save);
+					return 1;
+				}
+			}
+			if(Nt_max > 0){
+				if(*Nt >= Nt_max){
+					if(verbose){
+						if(verbose >= 2) {
+							printf("Reached desired Nt >= Nt_max (= %ld)\n", Nt_max);
+						} else {
+							printf("\n");
+						}
+					}
+
+					return 1;
+				}
+			}
+
+			// ------------------ check FFS exit ----------------
+			if(*OP_current < OP_0){   // gone to the initial state A
+				if(verbose >= 3) printf("\nReached OP_0 = %d, OP_current = %d, OP_mode = %d\n", OP_0, *OP_current, interfaces_mode);
+				return 0;
+			} else if(*OP_current >= OP_next){
+				if(verbose >= 3) printf("Reached OP_next = %d, *OP_current = %d, OP_mode = %d\n", OP_next, *OP_current, interfaces_mode);
+				return 1;
+//				return *OP_current == OP_next ? 1 : -1;
+				// 1 == succeeded = reached the interface 'M == M_next'
+				// -1 == overshoot = discard the trajectory
+			}
+
+			// ----------- modify stats -----------
+			switch (move_mode) {
+				case move_mode_flip:
+					M_current += (s_new == main_specie_id ? 1 : (s[ix*L + iy] == main_specie_id ? -1 : 0));
+					s[ix * L + iy] = s_new;
+					break;
+				case move_mode_swap:
 					std::swap(s[ix * L + iy], s[ix_new * L + iy_new]);
 					if(to_use_smart_swap){
 						update_neib_potpos(s, L, ix, iy, &potential_swap_positions);
@@ -1017,12 +1142,10 @@ namespace lattice_gas
 					}
 					break;
 				case move_mode_long_swap:
-					time_the_flip_took = long_swap_move(s, L, e, mu, &ix, &iy, &ix_new, &iy_new, &dE);
 					std::swap(s[ix * L + iy], s[ix_new * L + iy_new]);
 					break;
 			}
 
-			// ----------- modify stats -----------
 			*time_total += time_the_flip_took;
 			E_current += dE;
 
@@ -1088,113 +1211,6 @@ namespace lattice_gas
 					}
 					E_current = E_curent_real;
 				}
-			}
-
-			// ------------------ save timeevol ----------------
-//			printf("OP_arr_len = %ld\n", OP_arr_len ? (*OP_arr_len) : 0);
-//			printf("verbose: %d; save_states_stride = %ld, save_state_mode = %d\n", verbose, save_states_stride, save_state_mode);
-//			printf("Nt_OP_saved = %ld; (*Nt - 1) mod save_states_stride = %ld\n", *Nt_OP_saved, (*Nt - 1) % save_states_stride);
-			if(OP_arr_len){
-				if((*Nt - 1) % save_states_stride == 0){
-					if(*Nt_OP_saved >= *OP_arr_len){ // double the size of the time-index
-						*OP_arr_len *= 2;
-						if(time){
-							*time = (int*) realloc (*time, sizeof(int) * *OP_arr_len);
-							assert(*time);
-						}
-						if(E){
-							*E = (double*) realloc (*E, sizeof(double) * *OP_arr_len);
-							assert(*E);
-						}
-						if(M){
-							*M = (int*) realloc (*M, sizeof(int) * *OP_arr_len);
-							assert(*M);
-						}
-						if(biggest_cluster_sizes){
-							*biggest_cluster_sizes = (int*) realloc (*biggest_cluster_sizes, sizeof(int) * *OP_arr_len);
-							assert(*biggest_cluster_sizes);
-						}
-						if(h_A){
-							*h_A = (int*) realloc (*h_A, sizeof(int) * *OP_arr_len);
-							assert(*h_A);
-						}
-
-						if(verbose >= 2){
-							printf("\nrealloced to %ld\n", *OP_arr_len);
-						}
-					}
-
-					if(time) (*time)[*Nt_OP_saved] = time_the_flip_took;
-					if(E) (*E)[*Nt_OP_saved] = E_current;
-					if(M) (*M)[*Nt_OP_saved] = M_current;
-					if(biggest_cluster_sizes) (*biggest_cluster_sizes)[*Nt_OP_saved] = biggest_cluster_sizes_current;
-					if(h_A) (*h_A)[*Nt_OP_saved] = h_A_current;
-					++ (*Nt_OP_saved);
-					if(verbose >= 4){ printf("Nt_OP_saved = %d\n", *Nt_OP_saved); }
-				}
-
-			}
-
-			// ------------------- save the state if it's good (we don't want failed states) -----------------
-			if(N_states_to_save > 0){
-				bool to_save_state = ((*Nt - 1) % save_states_stride == 0);
-				if(to_save_state){
-					switch (save_state_mode) {
-						case save_state_mode_Inside:
-							to_save_state = (*OP_current >= OP_min_save_state) && (*OP_current < OP_max_save_state);
-							break;
-						case save_state_mode_Influx:
-							to_save_state = (*OP_current >= OP_max_save_state) && (OP_prev < OP_min_save_state);
-							break;
-						case save_state_mode_Outside:
-							to_save_state = (*OP_current >= OP_max_save_state) || (*OP_current < OP_min_save_state);
-							break;
-						default:
-							to_save_state = false;
-							if(verbose){
-								printf("WARNING:\nN_states_to_save = %d > 0 provided, but wrong save_state_mode = %d. Not saving states\n", N_states_to_save, save_state_mode);
-								STP
-							}
-					}
-				}
-				if(to_save_state){
-					memcpy(&(states_to_save[*N_states_saved * L2]), s, state_size_in_bytes);
-					++(*N_states_saved);
-//					printf("saved state %d\n", *N_states_saved);
-				}
-			}
-			// ---------------- check BF ------------------
-			// values of M_next are recorded, and states starting from M_next of the next stage are not recorded, so I have ...](... M accounting
-			if(N_states_to_save > 0){
-				if(*N_states_saved >= N_states_to_save){
-					if(verbose >= 2) printf("Reached desired N_states_saved = %d >= N_states_to_save (= %d)\n", *N_states_saved, N_states_to_save);
-					return 1;
-				}
-			}
-			if(Nt_max > 0){
-				if(*Nt >= Nt_max){
-					if(verbose){
-						if(verbose >= 2) {
-							printf("Reached desired Nt >= Nt_max (= %ld)\n", Nt_max);
-						} else {
-							printf("\n");
-						}
-					}
-
-					return 1;
-				}
-			}
-
-			// ------------------ check FFS exit ----------------
-			if(*OP_current < OP_0){   // gone to the initial state A
-				if(verbose >= 3) printf("\nReached OP_0 = %d, OP_current = %d, OP_mode = %d\n", OP_0, *OP_current, interfaces_mode);
-				return 0;
-			} else if(*OP_current >= OP_next){
-				if(verbose >= 3) printf("Reached OP_next = %d, *OP_current = %d, OP_mode = %d\n", OP_next, *OP_current, interfaces_mode);
-				return 1;
-//				return *OP_current == OP_next ? 1 : -1;
-				// 1 == succeeded = reached the interface 'M == M_next'
-				// -1 == overshoot = discard the trajectory
 			}
 		}
 	}
@@ -1326,7 +1342,9 @@ namespace lattice_gas
 			*time_total += time_the_try_took;
 
 			if(N_states > 0){
-				if(verbose)	{
+//				printf("v: %d\n", verbose);
+//				STP
+				if(verbose > 0)	{
 					printf("brute-force done %lf %%, N_tries = %d, N_states_done = %d              \n", 100 * (double)(*N_states_done) / N_states, *N_tries, *N_states_done);
 					fflush(stdout);
 				}
@@ -1337,7 +1355,7 @@ namespace lattice_gas
 				}
 			}
 			if(Nt_max > 0){
-				if(verbose)	{
+				if(verbose > 0)	{
 					printf("brute-force done %lf %%, N_tries = %d,  Nt = %ld             \r", 100 * (double)(*Nt) / Nt_max, *N_tries, *Nt);
 					fflush(stdout);
 				}
