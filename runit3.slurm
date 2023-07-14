@@ -4,7 +4,7 @@
 #SBATCH --nodes=1                # node count
 #SBATCH --ntasks=1               # total number of tasks across all nodes
 #SBATCH --cpus-per-task=1        # cpu-cores per task (>1 if multi-threaded tasks)
-#SBATCH --mem-per-cpu=4G         # memory per cpu-core (4G is default)
+#SBATCH --mem-per-cpu=150G         # memory per cpu-core (4G is default)
 ###SBATCH --mail-type=begin        # send email when job begins
 ###SBATCH --mail-type=end          # send email when job ends
 #SBATCH --mail-type=ALL
@@ -13,4 +13,5 @@
 #SBATCH --constraint=cascade,skylake
 #========================================
 
-python run.py -mode FFS_AB -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -N_runs 2 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt16
+#python run.py -mode FFS_AB -L 128 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -N_runs 2 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt16
+python run_tmp.py -mode FFS_AB_Tphi1 -Temp_s 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 2 -font_mode present -OP0_constr_s 50 -to_show_on_screen 0
