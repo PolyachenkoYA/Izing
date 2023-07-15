@@ -578,74 +578,114 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			OP0_parent_inds_OP0exactly_Nchildren = OP0_parent_Nchildren[OP0_parent_inds_OP0exactly_inds]
 	# =========== estimate Dtop ==============
 	if(Dtop_Nruns > 0):
-		# ======= estimate D* at the top (P_B = 1/2) ======
-		if(states_parent_inds is None):
-			print('WARNING: Give Dtop_Nruns = %d > 0 to estimate Dtop, but no states_parent_inds is provided. Will pick OP0 states at random')
+		npz_Dtop_filepath = os.path.join(npz_basename + ('_Pthr%s_%s_Nruns%d_Dtop.npz' % (my.f2s(Dtop_PBthr[0]), my.f2s(Dtop_PBthr[1]), Dtop_Nruns)))
 		
-		P_B_erfinv_interp = scipy.interpolate.interp1d(OP_interfaces_scaled[:-1], P_B_erfinv, fill_value='extrapolate', bounds_error=False)
-		Dtop_OPmin = min(int(OP0_erfinv - 3 + 0.5), int(np.floor(scipy.optimize.root_scalar(\
-						lambda x: P_B_erfinv_interp(x) - scipy.special.erfinv(2 * Dtop_PBthr[0] - 1), \
-						x0=OP_interfaces_scaled[0], x1=OP_interfaces_scaled[1]).root) + 0.1))
-		Dtop_OPmax = max(int(OP0_erfinv + 5 + 0.5), int(np.ceil(scipy.optimize.root_scalar(\
-						lambda x: P_B_erfinv_interp(x) - scipy.special.erfinv(2 * Dtop_PBthr[1] - 1), \
-						x0=OP_interfaces_scaled[-2], x1=OP_interfaces_scaled[-3]).root) + 0.1))
-		# The interval is [), so the exit will happen is the system goes to (...)U[...)
-		
-		to_use_random_OPexactly_init_states = (states_parent_inds is None)
-		if(not to_use_random_OPexactly_init_states):
-			to_use_random_OPexactly_init_states = (len(OP0_parent_inds_OP0exactly) == 0)
-		parent_state_IDs = np.random.choice(OP_init_states_OP0exactly_inds[OP_closest_to_OP0_ind] \
+		if((not os.path.isfile(npz_Dtop_filepath)) or (to_recomp > 0)):
+			# ======= estimate D* at the top (P_B = 1/2) ======
+			if(states_parent_inds is None):
+				print('WARNING: Give Dtop_Nruns = %d > 0 to estimate Dtop, but no states_parent_inds is provided. Will pick OP0 states at random')
+			
+			P_B_erfinv_interp = scipy.interpolate.interp1d(OP_interfaces_scaled[:-1], P_B_erfinv, fill_value='extrapolate', bounds_error=False)
+			Dtop_OPmin = min(int(OP0_erfinv - 3 + 0.5), int(np.floor(scipy.optimize.root_scalar(\
+							lambda x: P_B_erfinv_interp(x) - scipy.special.erfinv(2 * Dtop_PBthr[0] - 1), \
+							x0=OP_interfaces_scaled[0], x1=OP_interfaces_scaled[1]).root) + 0.1))
+			Dtop_OPmax = max(int(OP0_erfinv + 5 + 0.5), int(np.ceil(scipy.optimize.root_scalar(\
+							lambda x: P_B_erfinv_interp(x) - scipy.special.erfinv(2 * Dtop_PBthr[1] - 1), \
+							x0=OP_interfaces_scaled[-2], x1=OP_interfaces_scaled[-3]).root) + 0.1))
+			# The interval is [), so the exit will happen is the system goes to (...)U[...)
+			
+			to_use_random_OPexactly_init_states = (states_parent_inds is None)
+			if(not to_use_random_OPexactly_init_states):
+				to_use_random_OPexactly_init_states = (len(OP0_parent_inds_OP0exactly) == 0)
+			
+			if(to_use_random_OPexactly_init_states):
+				parent_state_source_IDs =  OP_init_states_OP0exactly_inds[OP_closest_to_OP0_ind] \
 											if(len(OP_init_states_OP0exactly_inds[OP_closest_to_OP0_ind]) > 0) else \
-											np.where(OP_init_states[OP_closest_to_OP0_ind] == min(OP_init_states[OP_closest_to_OP0_ind]))[0] , \
-											Dtop_Nruns) \
-							if(to_use_random_OPexactly_init_states)  else \
-							np.random.choice(OP0_parent_inds_OP0exactly, Dtop_Nruns, \
-											p = OP0_parent_inds_OP0exactly_Nchildren / np.sum(OP0_parent_inds_OP0exactly_Nchildren))
-		parent_state_IDs_unique, parent_state_IDs_lens = np.unique(parent_state_IDs, return_counts=True)
+											np.where(OP_init_states[OP_closest_to_OP0_ind] == min(OP_init_states[OP_closest_to_OP0_ind]))[0]
+				parent_state_source_IDs_p = None
+			else:
+				parent_state_source_IDs = OP0_parent_inds_OP0exactly
+				parent_state_source_IDs_p = OP0_parent_inds_OP0exactly_Nchildren / np.sum(OP0_parent_inds_OP0exactly_Nchildren)
+				
+			
+			if(Dtop_Nruns <= 2 * len(parent_state_source_IDs)):
+				print('WARNING: Dtop_Nruns = %s is too small (<= 2 * len(parent_state_source_IDs) = %d), not all states will be represented. Setting Dtop_Nruns to %d' \
+						% (Dtop_Nruns, 2 * len(parent_state_source_IDs), 2 * len(parent_state_source_IDs) + 1))
+				Dtop_Nruns = 2 * len(parent_state_source_IDs) + 1
+			
+			parent_state_IDs = np.append(list(parent_state_source_IDs)*2, np.random.choice(parent_state_source_IDs, Dtop_Nruns - 2 * len(parent_state_source_IDs), p=parent_state_source_IDs_p))
+			
+			parent_state_IDs_unique, parent_state_IDs_lens = np.unique(parent_state_IDs, return_counts=True)
+			N_parent_state_IDs_unique = len(parent_state_IDs_unique)
+			CS_Dtop = []
+			times_Dtop = []
+			for i in range(N_parent_state_IDs_unique):
+				_, _, _, CS_Dtop_new, _, times_Dtop_new, _, _ = \
+					proc_T(MC_move_mode, L, e, mu, -1, interface_mode, \
+						timeevol_stride=Dtop_est_timestride, \
+						OP_min=Dtop_OPmin, OP_max=Dtop_OPmax, \
+						OP_min_save_state=Dtop_OPmin, OP_max_save_state=Dtop_OPmax, \
+						stab_step=None, init_composition=init_composition, \
+						to_recomp=True, \
+						to_save_npz=False, \
+						to_equilibrate=False, to_post_process=False, \
+						to_gen_init_state=False, to_get_timeevol=True, \
+						init_state=states[OP_closest_to_OP0_ind][parent_state_IDs_unique[i], :, :].flatten(), \
+						N_saved_states_max=parent_state_IDs_lens[i] + 1, \
+						to_start_only_state0=1, \
+						save_state_mode=3, \
+						verbose=None if(verbose is None) else (verbose-1))
+				# N_saved_states_max = ... + 1 because the initial state is also saved as state[0, :, :]
+				# TODO: make seed work for reproducibility
+				
+				CS_Dtop.append(CS_Dtop_new[1:])
+				times_Dtop.append(times_Dtop_new[1:])
+				if(verbose > 0):
+					print('Dtop done: %s %%                         \r' % (my.f2s(np.sum(parent_state_IDs_lens[:i+1]) / np.sum(parent_state_IDs_lens) * 100)), end='')
+			print('Dtop done                           ')
+			
+			print('writing', npz_Dtop_filepath)
+			np.savez(npz_Dtop_filepath, \
+					Dtop_OPmin=Dtop_OPmin, Dtop_OPmax=Dtop_OPmax,\
+					parent_state_IDs_unique=parent_state_IDs_unique, \
+					parent_state_IDs_lens=parent_state_IDs_lens, \
+					CS_Dtop=CS_Dtop, times_Dtop=times_Dtop)
+			
+		else:
+			print(npz_Dtop_filepath, 'loading')
+			npz_data = np.load(npz_Dtop_filepath, allow_pickle=True)
+			
+			Dtop_OPmin = npz_data['Dtop_OPmin']
+			Dtop_OPmax = npz_data['Dtop_OPmax']
+			parent_state_IDs_unique = npz_data['parent_state_IDs_unique']
+			parent_state_IDs_lens = npz_data['parent_state_IDs_lens']
+			CS_Dtop = npz_data['CS_Dtop']
+			times_Dtop = npz_data['times_Dtop']
+			
 		N_parent_state_IDs_unique = len(parent_state_IDs_unique)
 		Dtop_arr = np.empty(N_parent_state_IDs_unique)
 		d_Dtop_arr = np.empty(N_parent_state_IDs_unique)
 		Dtop_chi2_arr = np.empty(N_parent_state_IDs_unique)
 		for i in range(N_parent_state_IDs_unique):
-			states_Dtop, _, _, CS_Dtop, _, times_Dtop, _, _ = \
-				proc_T(MC_move_mode, L, e, mu, -1, interface_mode, \
-					timeevol_stride=Dtop_est_timestride, \
-					OP_min=Dtop_OPmin, OP_max=Dtop_OPmax, \
-					OP_min_save_state=Dtop_OPmin, OP_max_save_state=Dtop_OPmax, \
-					stab_step=None, init_composition=init_composition, \
-					to_recomp=True, \
-					to_save_npz=False, \
-					to_equilibrate=False, to_post_process=False, \
-					to_gen_init_state=False, to_get_timeevol=True, \
-					init_state=states[OP_closest_to_OP0_ind][parent_state_IDs_unique[i], :, :].flatten(), \
-					N_saved_states_max=parent_state_IDs_lens[i] + 1, \
-					to_start_only_state0=1, \
-					save_state_mode=3, \
-					verbose=None if(verbose is None) else (verbose-1))
-			# N_saved_states_max = ... + 1 because the initial state is also saved as state[0, :, :]
-			# TODO: make seed work for reproducibility
+			#states_Dtop = states_Dtop[1:, :, :]
+			N_steps = len(CS_Dtop[i])
 			
-			states_Dtop = states_Dtop[1:, :, :]
-			CS_Dtop = CS_Dtop[1:]
-			times_Dtop = times_Dtop[1:]
-			N_steps = len(CS_Dtop)
-			
-			restart_timesteps = np.where((CS_Dtop >= Dtop_OPmax) | (CS_Dtop < Dtop_OPmin))[0]
+			restart_timesteps = np.where((CS_Dtop[i] >= Dtop_OPmax) | (CS_Dtop[i] < Dtop_OPmin))[0]
 			events_timesteps = np.empty(parent_state_IDs_lens[i], dtype=int)
 			events_timesteps[0] = restart_timesteps[0] + 1
 			events_timesteps[1:] = restart_timesteps[1:] - restart_timesteps[:-1]
 			assert(len(restart_timesteps) == parent_state_IDs_lens[i]), 'ERROR: len(restart_timesteps) = %d that must be == N_saved_states_max = parent_state_IDs_lens[i], but it is not' % (len(restart_timesteps), parent_state_IDs_lens[i])
 			
 			totaltime_Dtop = np.empty(parent_state_IDs_lens[i])
-			CS_Dtop_shifted = [np.append(OP_interfaces[OP_closest_to_OP0_ind], CS_Dtop[ : restart_timesteps[0]+1])]
-			times_Dtop_shifted = [np.append(0, np.cumsum(times_Dtop[ : restart_timesteps[0]+1]))]
+			CS_Dtop_shifted = [np.append(OP_interfaces[OP_closest_to_OP0_ind], CS_Dtop[i][ : restart_timesteps[0]+1])]
+			times_Dtop_shifted = [np.append(0, np.cumsum(times_Dtop[i][ : restart_timesteps[0]+1]))]
 			CS_Dtop_interp = [scipy.interpolate.interp1d(times_Dtop_shifted[0], CS_Dtop_shifted[0], \
 									bounds_error=False,
 									fill_value = (CS_Dtop_shifted[0][0], CS_Dtop_shifted[0][-1]))]
 			totaltime_Dtop[0] = times_Dtop_shifted[0][-1]
 			for j in range(1, parent_state_IDs_lens[i]):
-				CS_Dtop_shifted.append(np.append(OP_interfaces[OP_closest_to_OP0_ind], CS_Dtop[restart_timesteps[j-1]+1 : restart_timesteps[j]+1]))
-				times_Dtop_shifted.append(np.append(0, np.cumsum(times_Dtop[restart_timesteps[j-1]+1 : restart_timesteps[j]+1])))
+				CS_Dtop_shifted.append(np.append(OP_interfaces[OP_closest_to_OP0_ind], CS_Dtop[i][restart_timesteps[j-1]+1 : restart_timesteps[j]+1]))
+				times_Dtop_shifted.append(np.append(0, np.cumsum(times_Dtop[i][restart_timesteps[j-1]+1 : restart_timesteps[j]+1])))
 				totaltime_Dtop[j] = times_Dtop_shifted[j][-1]
 				CS_Dtop_interp.append(scipy.interpolate.interp1d(times_Dtop_shifted[j], CS_Dtop_shifted[j], \
 											bounds_error=False,
@@ -654,27 +694,34 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			Dtop_min_event_time = min(totaltime_Dtop)
 			Dtop_event_commonsteps_lens = np.array([np.sum(xx <= Dtop_min_event_time) for xx in times_Dtop_shifted], dtype=int)
 			#Dtop_event_commontime = np.linspace(0, Dtop_min_event_time, int(Dtop_min_event_time)+2)
-			Dtop_event_commontime = np.linspace(0, Dtop_min_event_time, 2 * Dtop_event_commonsteps_lens + 1)
+			Dtop_event_commontime = np.linspace(0, Dtop_min_event_time, 2 * np.amax(Dtop_event_commonsteps_lens) + 1)
 			CS_Dtop_shifted_cut = np.empty((parent_state_IDs_lens[i], len(Dtop_event_commontime)))
 			for j in range(parent_state_IDs_lens[i]):
 				CS_Dtop_shifted_cut[j, :] = CS_Dtop_interp[j](Dtop_event_commontime)
 			CS_Dtop_MSD, d_CS_Dtop_MSD = my.get_average((CS_Dtop_shifted_cut - OP_interfaces[OP_closest_to_OP0_ind])**2, axis=0)
 			Dtop_CSok_inds = (d_CS_Dtop_MSD > 0)
-			Dtop_arr[i] = 0.5 * np.average(CS_Dtop_MSD[Dtop_CSok_inds]*Dtop_event_commontime[Dtop_CSok_inds], weights=1/d_CS_Dtop_MSD[Dtop_CSok_inds]) / \
-								np.average(Dtop_event_commontime[Dtop_CSok_inds]**2, weights=1/d_CS_Dtop_MSD[Dtop_CSok_inds])
-			d_Dtop_arr[i] = 0.5 * 1/np.sqrt(np.sum((Dtop_event_commontime[Dtop_CSok_inds] / d_CS_Dtop_MSD[Dtop_CSok_inds])**2))
-			Dtop_chi2_arr[i] = np.mean(((CS_Dtop_MSD[Dtop_CSok_inds] - (2 * Dtop_arr[i]) * Dtop_event_commontime[Dtop_CSok_inds]) / d_CS_Dtop_MSD[Dtop_CSok_inds])**2)
+			to_plot_Dtop_debug = False
+			if(np.any(Dtop_CSok_inds)):
+				Dtop_arr[i] = 0.5 * np.average(CS_Dtop_MSD[Dtop_CSok_inds]*Dtop_event_commontime[Dtop_CSok_inds], weights=1/d_CS_Dtop_MSD[Dtop_CSok_inds]) / \
+									np.average(Dtop_event_commontime[Dtop_CSok_inds]**2, weights=1/d_CS_Dtop_MSD[Dtop_CSok_inds])
+				d_Dtop_arr[i] = 0.5 * 1/np.sqrt(np.sum((Dtop_event_commontime[Dtop_CSok_inds] / d_CS_Dtop_MSD[Dtop_CSok_inds])**2))
+				Dtop_chi2_arr[i] = np.mean(((CS_Dtop_MSD[Dtop_CSok_inds] - (2 * Dtop_arr[i]) * Dtop_event_commontime[Dtop_CSok_inds]) / d_CS_Dtop_MSD[Dtop_CSok_inds])**2)
+				
+				if(Dtop_chi2_arr[i] > 10):
+					print('WARNING: <(d_CS)^2> is most likely not linear (<chi^2> = %s)' % (my.f2s(Dtop_chi2_arr[i])))
+				
+			else:
+				print('ERROR: no common "d_CS_Dtop_MSD > 0" timepoints found.\nDtop_event_commontime = [0; %s], Dtop_event_commonsteps_lens = %s' % \
+						(my.f2s(Dtop_event_commontime[-1]), str(Dtop_event_commonsteps_lens)))
+				to_plot_Dtop_debug = True
 			
-			if(Dtop_chi2_arr[i] > 10):
-				print('WARNING: ')
-			
-			if(False):
+			if(to_plot_Dtop_debug):
 				tit = '$P_B \in %s$' % (str(Dtop_PBthr))
 				fig, ax, _ = my.get_fig('t', 'CS', title=tit)
-				ax.plot(np.cumsum(times_Dtop), CS_Dtop)
-				ax.plot([times_Dtop[0], np.sum(times_Dtop)], [Dtop_OPmax]*2, '--')
-				ax.plot([times_Dtop[0], np.sum(times_Dtop)], [Dtop_OPmin - 1]*2, '--')
-				ax.plot([times_Dtop[0], np.sum(times_Dtop)], [OP_interfaces[OP_closest_to_OP0_ind]]*2, '--')
+				ax.plot(np.cumsum(times_Dtop[i]), CS_Dtop[i])
+				ax.plot([times_Dtop[i][0], np.sum(times_Dtop[i])], [Dtop_OPmax]*2, '--')
+				ax.plot([times_Dtop[i][0], np.sum(times_Dtop[i])], [Dtop_OPmin - 1]*2, '--')
+				ax.plot([times_Dtop[i][0], np.sum(times_Dtop[i])], [OP_interfaces[OP_closest_to_OP0_ind]]*2, '--')
 				
 				fig_cut, ax_cut, _ = my.get_fig('t', 'CS', title=tit)
 				fig_all, ax_all, _ = my.get_fig('t', 'CS', title=tit)
@@ -685,7 +732,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				ax_cut.plot([0, max(Dtop_event_commontime)], [OP_interfaces[OP_closest_to_OP0_ind]]*2, label=r'$N^* = %d$' % (OP_interfaces[OP_closest_to_OP0_ind]))
 				my.add_legend(fig_all, ax_all)
 				my.add_legend(fig_cut, ax_cut)
-					
+				
 				fig_MSD, ax_MSD, _ = my.get_fig('t', r'$\langle (\Delta CS)^2 \rangle$')
 				ax_MSD.errorbar(Dtop_event_commontime, CS_Dtop_MSD, yerr=d_CS_Dtop_MSD)
 				ax_MSD.plot(Dtop_event_commontime, (2*Dtop_arr[i]) * (Dtop_event_commontime), label=r'$\chi^2=%s$' %(my.f2s(Dtop_chi2_arr[i])))
@@ -693,9 +740,6 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				
 				plt.show()
 			
-			if(verbose > 0):
-				print('Dtop done: %s %%                         \r' % (my.f2s(np.sum(parent_state_IDs_lens[:i+1]) / np.sum(parent_state_IDs_lens) * 100)), end='')
-		print('Dtop done                           ')
 		
 		#Dtop, d_Dtop = my.get_average(Dtop_arr, weights=parent_state_IDs_lens)
 		Dtop, d_Dtop = my.get_average(Dtop_arr, weights=1/d_Dtop_arr)
@@ -770,7 +814,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		if(states is not None):
 			npz_states_filepath = os.path.join(npz_basename + '_FFSab_states.npz')
 			
-			if((not os.path.isfile(npz_states_filepath)) or to_recomp):
+			if((not os.path.isfile(npz_states_filepath)) or (to_recomp > 0)):
 				# ============ process ===========
 				OP_init_hist = np.empty((N_OP_hist, N_OP_interfaces))
 				d_OP_init_hist = np.empty((N_OP_hist, N_OP_interfaces))
@@ -1000,10 +1044,10 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				rho_fourier2D = npz_data['rho_fourier2D']
 			
 			if(Dtop > 0):
-				rho_inf_crit = rho_inf[dF_species_id][OP_closest_to_OP0_ind]
-				d_rho_inf_crit = d_rho_inf[dF_species_id][OP_closest_to_OP0_ind]
+				rho_inf_crit = rho_inf[OP_closest_to_OP0_ind][dF_species_id]
+				d_rho_inf_crit = d_rho_inf[OP_closest_to_OP0_ind][dF_species_id]
 				dF = -ln_k_AB + np.log(rho_inf_crit * ZeldovichG * Dtop)
-				d_dF = np.sqrt((d_ln_k_AB)**2 + (d_Dtop_AB / Dtop_AB)**2 + (d_rho_inf_crit / rho_inf_crit)**2)
+				d_dF = np.sqrt((d_ln_k_AB)**2 + (d_Dtop / Dtop)**2 + (d_rho_inf_crit / rho_inf_crit)**2)
 			else:
 				dF, d_dF = tuple([None]*2)
 			
@@ -2758,7 +2802,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 						rho_fit_fncs[k].append(lambda r, \
 													pp1=rho_fit_params[k, :, j], \
 													pp2=init_composition[k], \
-													pp3=OP_interfaces_AB[j], \
+													pp3=OP_interfaces_AB[j], \Dtop_AB
 													pp4=L2, pp5=k: \
 												rho_fit_sgmfnc_template(r, pp1, pp2, pp3, pp4, mode=pp5))
 						
@@ -2810,7 +2854,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					rho_dip_optim = scipy.optimize.minimize_scalar(lambda r, fnc=rho_fit_fncs[k][j], \
 														d_rho_sign=np.sign(rho_fit_fncs[k][j](R_peak[k, j]) - rho_inf[k][j]): \
 													fnc(r) * d_rho_sign, \
-													bracket=(R_peak[k, j], (R_peak[k, j] + R_fit_minmax[1, k, j]) / 2, R_fit_minmax[1, k, j]))
+													bracket=(R_peak[k, j], R_fit_minmax[1, k, j]))
+													#bracket=(R_peak[k, j], (R_peak[k, j] + R_fit_minmax[1, k, j]) / 2, R_fit_minmax[1, k, j])
 					rho_dip[k][j] = rho_fit_fncs[k][j](rho_dip_optim.x) - rho_inf[k][j]
 					#d_rho_dip[k][j] = rho_dip_optim.hess_inv
 					d_rho_dip[k][j] = d_rho_inf[k][j]
@@ -2818,6 +2863,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					#print(rho_dip_optim.keys())
 					#input('ok')
 					# TODO: add ~hess
+					# TODO: make 3 brackets (not 2 like now)
 					# TODO: return optim.x
 			
 			rho_inf_crit = rho_inf[dF_species_id][OP_closest_to_OP0_ind]
@@ -3814,6 +3860,7 @@ def main():
 	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.8 0.9 1.0 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present -OP0_constr_s 15 20 30 50 100
 	# python run.py -mode FFS_AB_many -init_composition 0.975 0.015 0.01 -Temp 1.0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -font_mode present -MC_move_mode swap -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -OP_interfaces_set_IDs nvt -my_seeds FFS_auto -to_recomp 1
 	# python run.py -mode FFS_AB_many -init_composition 0.974 0.016 0.01 -Temp 0.8 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -font_mode present -MC_move_mode swap -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -OP_interfaces_set_IDs nvt -my_seeds FFS_auto -to_recomp 2
+	# python run.py -mode FFS_AB -L 32 -OP_interfaces_set_IDs mu5 -to_get_timeevol 0 -N_states_FFS 25 -N_init_states_FFS 50 -mu 5.15 4.92238326 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode flip -to_recomp 2 -Dtop_Nruns 100
 	
 	# TODO: run failed IDs with longer times
 	

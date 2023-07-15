@@ -142,4 +142,3 @@ def get_BF_npzTrajBasename(MC_move_mode, L, e, mu_str, Nt, N_saved_states_max, \
 					'_ID' + str(seed)
 	
 	return basename, old_basenames
-
