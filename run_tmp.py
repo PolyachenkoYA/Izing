@@ -2802,7 +2802,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 						rho_fit_fncs[k].append(lambda r, \
 													pp1=rho_fit_params[k, :, j], \
 													pp2=init_composition[k], \
-													pp3=OP_interfaces_AB[j], \Dtop_AB
+													pp3=OP_interfaces_AB[j], \
 													pp4=L2, pp5=k: \
 												rho_fit_sgmfnc_template(r, pp1, pp2, pp3, pp4, mode=pp5))
 						
