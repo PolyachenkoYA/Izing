@@ -54,7 +54,7 @@ feature_label['CS'] = 'Scl'
 
 # ========================== recompile ==================
 if(__name__ == "__main__"):
-	to_recompile = True
+	to_recompile = False
 	if(to_recompile):
 		# try:
 			# which_cmake_res = my.run_it('which cmake', check=True, verbose=False)
@@ -122,8 +122,8 @@ if(__name__ == "__main__"):
 					print('"%s" and "%s" seem to be the same, not copying anything' % (src, dst))
 				#input('ok')
 	
-	import lattice_gas
-	#import lattice_gas_tmp as lattice_gas
+	#import lattice_gas
+	import lattice_gas_tmp as lattice_gas
 	
 	move_modes = lattice_gas.get_move_modes()
 	
@@ -2851,12 +2851,40 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					# ax.plot(xx, rho_fit_fncs[k][j](xx))
 					# plt.show()
 					
-					rho_dip_optim = scipy.optimize.minimize_scalar(lambda r, fnc=rho_fit_fncs[k][j], \
-														d_rho_sign=np.sign(rho_fit_fncs[k][j](R_peak[k, j]) - rho_inf[k][j]): \
-													fnc(r) * d_rho_sign, \
-													bracket=(R_peak[k, j], R_fit_minmax[1, k, j]))
-													#bracket=(R_peak[k, j], (R_peak[k, j] + R_fit_minmax[1, k, j]) / 2, R_fit_minmax[1, k, j])
-					rho_dip[k][j] = rho_fit_fncs[k][j](rho_dip_optim.x) - rho_inf[k][j]
+					try:
+						if(k in species_to_fit_rho_inds):
+							rho_dip_optim = scipy.optimize.minimize_scalar(lambda r, fnc=rho_fit_fncs[k][j], \
+																d_rho_sign=np.sign(rho_fit_fncs[k][j](R_peak[k, j]) - rho_inf[k][j]): \
+															fnc(r) * d_rho_sign, \
+															bracket=(R_peak[k, j], (R_peak[k, j] + R_fit_minmax[1, k, j]) / 2, R_fit_minmax[1, k, j]))
+															#bracket=(R_peak[k, j], R_fit_minmax[1, k, j])
+															#bracket=(R_peak[k, j], (R_peak[k, j] + R_fit_minmax[1, k, j]) / 2, R_fit_minmax[1, k, j])
+							rho_dip_R = rho_dip_optim.x
+						else:
+							rho_dip_optim = scipy.optimize.root_scalar(lambda r, fnc=rho_fit_fncs[k][j], dr=rho_fit_params[0, 1, j]/1000: (fnc(r + dr) - fnc(r - dr)) / (2*dr), 
+														x0=R_fit_minmax[0, k, j]+rho_fit_params[0, 1, j]/10, \
+														x1=R_fit_minmax[0, k, j]+rho_fit_params[0, 1, j]/5)
+														#bracket=(R_fit_minmax[0, k, j], R_fit_minmax[1, k, j])
+							rho_dip_R = rho_dip_optim.root
+						
+					
+					except Exception as e:
+						print('WARNING:')
+						print(e)
+						print('Using right boundary as the dip position')
+						rho_dip_R = R_fit_minmax[1, k, j] - rho_fit_params[0, 1, j]/2
+						
+						# print(R_peak[k, j], (R_peak[k, j] + R_fit_minmax[1, k, j]) / 2, R_fit_minmax[1, k, j]*2, rho_fit_params[k, 1, j], rho_fit_params[k, 3, j])
+						# fig, ax, _ = my.get_fig('r', r'$\rho$')
+						# rr=np.linspace(R_peak[k, j], R_fit_minmax[1, k, j]*2, 1000)
+						# ax.plot(rr, rho_fit_fncs[k][j](rr))
+						# ax.plot([R_peak[k, j]]*2, [min(state_centered_Rdens_total[j][k]), max(state_centered_Rdens_total[j][k])])
+						# ax.plot([R_fit_minmax[1, k, j]]*2, [min(state_centered_Rdens_total[j][k]), max(state_centered_Rdens_total[j][k])])
+						# ax.errorbar(state_Rdens_centers_new, state_centered_Rdens_total[j][k], \
+											# yerr=d_state_centered_Rdens_total[j][k])
+						# plt.show()
+					
+					rho_dip[k][j] = rho_fit_fncs[k][j](rho_dip_R) - rho_inf[k][j]
 					#d_rho_dip[k][j] = rho_dip_optim.hess_inv
 					d_rho_dip[k][j] = d_rho_inf[k][j]
 					#print(rho_dip_optim.x)
@@ -2882,7 +2910,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 							np.log(rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds]), \
 							1, cov=True, w=1 / (d_rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds] / rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds]))
 			
-		if(rho_inf_crit is None):
+		if((rho_inf_crit is None) or (Dtop_AB == 0)):
 			dF_AB_accum, d_dF_AB_accum = tuple([None] * 2)
 		else:
 			# k = rho_inf * ZeldG * D* * exp(-dF/T)
@@ -3092,7 +3120,10 @@ def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl, L2, mode=0, \
 			rho_fit_params[3] = R_correction * \
 								((max(Rdens[ok_inds]) - rho_inf) if(rho_bulk > 0.5) \
 								else (min(Rdens[ok_inds]) - rho_inf))
-			prm3_opt_options['bounds'] = (min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3]))
+			#prm3_opt_options['bounds'] = (min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3]))
+			prm3_opt_options['bounds'] = (2 * min(rho_fit_params[3], rho_fit_params[3]/1000), \
+										2 * max(rho_fit_params[3], rho_fit_params[3]/1000))
+			prm3_opt_options['method'] = 'bounded'
 		
 		rho_fit_params[3] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho_fit_params, x, 3)), **prm3_opt_options).x
 		# TODO: do brackets for initial guess
@@ -3103,7 +3134,9 @@ def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl, L2, mode=0, \
 			opt_bounds = ((0, min(1, rho_fit_params[0] + d_rho_fit_params_0 * 10)) if(rho_bulk > 0.5) else (max(0, rho_fit_params[0] - d_rho_fit_params_0 * 10), 1), \
 						(rho_fit_params[1] / 2, rho_fit_params[1] * 2), \
 						(rho_fit_params[2] / 2, rho_fit_params[2] * 2), \
-						(min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3])))
+						(min(2 * rho_fit_params[3], rho_fit_params[3] / 10), \
+						 max(2 * rho_fit_params[3], rho_fit_params[3] / 10)))
+						#(min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3]))
 		else:
 			R0_estimate = np.sqrt(Ncl / np.pi)
 			opt_bounds = ((0, 1), (0.1, R0_estimate), (R0_estimate / 3, R0_estimate * 3), (-1,1))
@@ -3557,7 +3590,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 							flux0_local[i_group], _, \
 							_, _, PB_local[i_group, :], _, \
 							OP0_local[i_group], _, \
-							ZeldovichG_local[i_group], \
+							ZeldovichG_local[i_group], _, \
 							Dtop_local[i_group], _, \
 							dF_local[i_group], _, \
 							dF_accum_local[i_group], _, \
@@ -3586,7 +3619,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 					Dtop[i_Temp, i_phi1], d_Dtop[i_Temp, i_phi1] = my.get_average(Dtop_local)
 					dF[i_Temp, i_phi1], d_dF[i_Temp, i_phi1] = my.get_average(dF_local)
 					dF_accum[i_Temp, i_phi1], d_dF_accum[i_Temp, i_phi1] = my.get_average(dF_accum_local)
-					rho_dip_all[i_Temp, i_phi1, :, :], d_rho_dip_all[i_Temp, i_phi1, :, :] = my.get_average(rho_dip_local, axis=0)
+					rho_dip_all[i_Temp, i_phi1, :, :], d_rho_dip_all[i_Temp, i_phi1, :, :] = my.get_average(rho_dip_all_local, axis=0)
 					rho_chi2[i_Temp, i_phi1, :, :], d_rho_chi2[i_Temp, i_phi1, :, :] = my.get_average(rho_chi2_local, axis=0)
 					PB, d_PB = my.get_average(PB_local, mode='log', axis=0)
 					
@@ -3634,7 +3667,9 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 	ln_chi2_rho0_arr, d_ln_chi2_rho0_arr, \
 	ln_chi2_rho1_arr, d_ln_chi2_rho1_arr, ln_chi2_rho2_arr, d_ln_chi2_rho2_arr = \
 		tuple([item for data_pair in \
-					[[np.log(data_pair[0]), data_pair[1] / data_pair[0]] for data_pair in \
+					[([np.log(data_pair[0]), data_pair[1] / data_pair[0]] \
+						if(np.all(data_pair[0] > 0)) else \
+						[np.empty(data_pair[0].shape) * np.nan]*2) for data_pair in \
 					[[flux0_arr, d_flux0_arr], [OP0_arr, d_OP0_arr], \
 					 [ZeldovichG_arr, d_ZeldovichG_arr], \
 					 [Dtop_arr, d_Dtop_arr], \
@@ -3646,7 +3681,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 					 [chi2_rho2_arr, d_chi2_rho2_arr]]] \
 				for item in data_pair])
 	
-	if(N_ok_points >= fit_ord**2):
+	if(N_ok_points >= (fit_ord + 1)**2):
 		#chi2_rho0_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_ZeldovichG_arr, dz=d_ln_ZeldovichG_arr, xord=fit_ord, yord=fit_ord)
 		
 		data_arr_pairs = [[ln_OP0_arr, d_ln_OP0_arr], \
@@ -3673,9 +3708,11 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 				OP0consr_Tphi1_sets.append(my.find_optim_manifold(lambda x: np.abs(ln_OP0_fitfnc(x[0], x[1]) - np.log(OP0_constraint_s[i])), \
 									np.array([[min(Temp_s), max(Temp_s)], [min(phi1_s), max(phi1_s)], [min(ln_OP0_arr), max(ln_OP0_arr)]]).T, \
 									trial_points=N_points_OP0constr))
+	else:
+		print('N_ok_points = %d >= fit_ord**2 = %d, not doing interpolation' % (N_ok_points, fit_ord**2))
 	
 	if(to_plot):
-		if(N_ok_points >= fit_ord**2):
+		if(N_ok_points >= (fit_ord + 1)**2):
 			figs = [[]] * N_data_pairs
 			axs = [[]] * N_data_pairs
 			data_names = ['$\ln(N^*)$', '$\ln(k)$', '$\ln(\Phi_A)$', '$\ln(\Gamma)$', '$\ln(D^*)$', '$\ln(\Delta F/T)$', '$\ln(\Delta F_{accum}/T)$', '$\ln(\rho_{dip})$', r'$\ln(\chi^2_{dip,0})$', r'$\ln(\chi^2_{dip,1})$', r'$\ln(\chi^2_{dip,2})$']
