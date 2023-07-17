@@ -462,6 +462,7 @@ def keep_new_npz_file(filepath_olds, filepath_new):
 		
 		for i in range(N_present):
 			if(old_npzs_present[i] and (i != i_npz_new)):
+				input('removing file "%s"\nFile "%s" will remain\nProceed? [y/N] -> ' % (filepath_olds[i], filepath_olds[i_npz_new]))
 				os.remove(filepath_olds[i])
 		
 		my.run_it('mv %s %s' % (filepath_olds[i_npz_new], filepath_new))
@@ -619,6 +620,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			N_parent_state_IDs_unique = len(parent_state_IDs_unique)
 			CS_Dtop = []
 			times_Dtop = []
+			print('Estimating Dtop')
 			for i in range(N_parent_state_IDs_unique):
 				_, _, _, CS_Dtop_new, _, times_Dtop_new, _, _ = \
 					proc_T(MC_move_mode, L, e, mu, -1, interface_mode, \
@@ -1299,31 +1301,29 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			cluster_centered_map_total, cluster_map_centers, rho_fourier2D, \
 			ax_OP, ax_OPhists, ax_F, ax_fl, ax_fl_i
 
-def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_mode, \
-				stab_step=-5, verbose=None, to_get_timeevol=False, \
-				OP_sample_BF_to=None, OP_match_BF_to=None,
-				to_plot_time_evol=False, to_plot_hists=False, to_do_hists=True, \
-				to_plot=False, timeevol_stride=-3000, N_fourier=5, \
-				init_gen_mode=-2, Ms_alpha=0.5, OP_optim_minstep=8, \
-				init_composition=None, to_recomp=0, to_save_npz=True, \
-				to_post_proc=True, Dtop_Nruns=0, dF_species_id=1):
-	
+def proc_FFS_AB_rename(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, \
+						init_composition=None, stab_step=-5, \
+						to_get_timeevol=False, \
+						OP_sample_BF_to=None, OP_match_BF_to=None,\
+						n_emu_digits=6, timeevol_stride=-3000, \
+						init_gen_mode=-2, N_fourier=5, \
+						traj_basepath='/scratch/gpfs/yp1065/Izing/npzs'):
+						#traj_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
+						#traj_basepath = '/scratch/gpfs/yp1065/Izing/nvt'
 	swap_type_move = MC_move_mode in [move_modes["swap"], move_modes["long_swap"]]
-	
-	#traj_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
-	traj_basepath = '/scratch/gpfs/yp1065/Izing/npzs'
-	#traj_basepath = '/scratch/gpfs/yp1065/Izing/nvt'
 	
 	traj_basename, traj_basename_olds = \
 		izing.get_FFS_AB_npzTrajBasename(MC_move_mode, L, e, \
-							('_phi' + my.join_lbls(init_composition[1:], '_')) \
+							('_phi' + my.join_lbls(init_composition[1:], '_', n=n_emu_digits)) \
 								if(swap_type_move) \
-								else ('_muT' + my.join_lbls(mu[1:], '_')), \
+								else ('_muT' + my.join_lbls(mu[1:], '_', n=n_emu_digits)), \
 							OP_interfaces, N_init_states, \
 							stab_step, OP_sample_BF_to, OP_match_BF_to, \
 							timeevol_stride if(to_get_timeevol) else None, \
 							init_gen_mode, bool(to_get_timeevol), \
-							N_fourier, lattice_gas.get_seed())
+							N_fourier, lattice_gas.get_seed(), \
+							n_e_digits=n_emu_digits, \
+							mu=mu, phi=init_composition)
 	
 	FFStraj_suff = '_FFStraj.npz'
 	traj_filepath_olds = [os.path.join(traj_basepath, tb + FFStraj_suff) for tb in traj_basename_olds]
@@ -1335,7 +1335,61 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 	#print(to_recomp, N_init_states)
 	#input('ok')
 	
-	if((not os.path.isfile(traj_filepath)) or (to_recomp > 1)):
+	return traj_filepath, traj_basename, traj_basepath
+
+def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_mode, \
+				stab_step=-5, verbose=None, to_get_timeevol=False, \
+				OP_sample_BF_to=None, OP_match_BF_to=None,
+				to_plot_time_evol=False, to_plot_hists=False, to_do_hists=True, \
+				to_plot=False, timeevol_stride=-3000, N_fourier=5, \
+				init_gen_mode=-2, Ms_alpha=0.5, OP_optim_minstep=8, \
+				init_composition=None, to_recomp=0, to_save_npz=True, \
+				to_post_proc=True, Dtop_Nruns=0, dF_species_id=1, \
+				n_emu_digits=6):
+	
+	swap_type_move = MC_move_mode in [move_modes["swap"], move_modes["long_swap"]]
+	
+	traj_filepath, traj_basename, traj_basepath = \
+		proc_FFS_AB_rename(MC_move_mode, L, e, mu, \
+			N_init_states, OP_interfaces, \
+			init_composition=init_composition, \
+			stab_step=stab_step, \
+			to_get_timeevol=to_get_timeevol, \
+			OP_sample_BF_to=OP_sample_BF_to, \
+			OP_match_BF_to=OP_match_BF_to,\
+			n_emu_digits=n_emu_digits, \
+			timeevol_stride=timeevol_stride, \
+			init_gen_mode=init_gen_mode, \
+			N_fourier=N_fourier)
+	
+	# #traj_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
+	# traj_basepath = '/scratch/gpfs/yp1065/Izing/npzs'
+	# #traj_basepath = '/scratch/gpfs/yp1065/Izing/nvt'
+	
+	# traj_basename, traj_basename_olds = \
+		# izing.get_FFS_AB_npzTrajBasename(MC_move_mode, L, e, \
+							# ('_phi' + my.join_lbls(init_composition[1:], '_', n=n_emu_digits)) \
+								# if(swap_type_move) \
+								# else ('_muT' + my.join_lbls(mu[1:], '_', n=n_emu_digits)), \
+							# OP_interfaces, N_init_states, \
+							# stab_step, OP_sample_BF_to, OP_match_BF_to, \
+							# timeevol_stride if(to_get_timeevol) else None, \
+							# init_gen_mode, bool(to_get_timeevol), \
+							# N_fourier, lattice_gas.get_seed(), \
+							# n_e_digits=n_emu_digits, \
+							# mu=mu, phi=init_composition)
+	
+	# FFStraj_suff = '_FFStraj.npz'
+	# traj_filepath_olds = [os.path.join(traj_basepath, tb + FFStraj_suff) for tb in traj_basename_olds]
+	# traj_filepath_new = os.path.join(traj_basepath, traj_basename + FFStraj_suff)
+	
+	# traj_filepath = keep_new_npz_file(traj_filepath_olds, traj_filepath_new)
+	
+	# #print(traj_filepath, os.path.isfile(traj_filepath))
+	# #print(to_recomp, N_init_states)
+	# #input('ok')
+	
+	if((not os.path.isfile(traj_filepath)) or (to_recomp > 0)):
 		init_state = get_fixed_composition_random_state(L, init_composition, N_main_min_warning=50) \
 						if(swap_type_move) else None
 		
@@ -1850,7 +1904,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 						OP_A, OP_B, OP_min, OP_max, \
 						OP_min_save_state, OP_max_save_state, \
 						timeevol_stride, to_equilibrate, to_get_timeevol, \
-						lattice_gas.get_seed())
+						lattice_gas.get_seed(), )
 			
 	
 	BFtraj_suff = '_BFtraj.npz'
@@ -1858,21 +1912,6 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 	traj_filepath_new = os.path.join(traj_basepath, traj_basename + BFtraj_suff)
 	
 	traj_filepath = keep_new_npz_file(traj_filepath_olds, traj_filepath_new)
-	# ==========
-	# traj_basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
-					# '_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					# (('_phi' + my.join_lbls(init_composition[1:], '_')) if(to_gen_init_state) \
-						# else ('_muT' + my.join_lbls(mu[1:], '_'))) + \
-					# '_Nt' + str(Nt) + \
-					# '_NstatesMax' + str(N_saved_states_max) + \
-					# ('_stride' + str(timeevol_stride) if(to_get_timeevol) else '') + \
-					# '_OPab' + str(OP_A) + '_' + str(OP_B) + \
-					# '_OPminx' + str(OP_min) + '_' + str(OP_max) + \
-					# '_OPminxSave' + str(OP_min_save_state) + '_' + str(OP_max_save_state) + \
-					# '_timeData' + str(to_get_timeevol) + \
-					# '_Rinit' + str(R_clust_init) + \
-					# '_ID' + str(lattice_gas.get_seed())
-	# traj_filepath = os.path.join(traj_basepath, traj_basename + '_traj.npz')
 	
 	if((not os.path.isfile(traj_filepath)) or to_recomp):
 		
@@ -2290,7 +2329,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			target_states0=None, target_states1=None, stab_step=-5,
 			init_composition=None, to_save_npz=True, to_recomp=0, \
 			R_clust_init=None, seeds=None, interfacesIDs_to_plot_dens='main', \
-			N_fourier=5, dF_species_id=1, to_plot=True):
+			N_fourier=5, dF_species_id=1, to_plot=True, n_emu_digits=6):
 	if(verbose is None):
 		verbose = lattice_gas.get_verbose()
 	L2 = L**2
@@ -2369,13 +2408,13 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 	
 	npz_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
 	npz_basename = 'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
-					'_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
-					(('_phi' + my.join_lbls(init_composition[1:], '_')) if(swap_type_move) \
-						else ('_muT' + my.join_lbls(mu[1:], '_')))
+					'_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_', n=n_emu_digits) + \
+					(('_phi' + my.join_lbls(init_composition[1:], '_', n=n_emu_digits)) if(swap_type_move) \
+						else ('_muT' + my.join_lbls(mu[1:], '_', n=n_emu_digits)))
 	
 	for i in range(N_runs):
 		lattice_gas.init_rand(seeds[i])
-		if(mode == 'BF'):
+		if(mode == 'BF'):   # not supported - pathnames issues
 			npz_BF_filename = npz_basename + '_OPab' + str(OP_A) + '_' + str(OP_B) + \
 								'_stride' + str(timeevol_stride) + \
 								'_Nstates' + str(N_saved_states_max) + \
@@ -2427,7 +2466,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			ln_k_bc_BA_data[i] = np.log(k_bc_BA_BF * 1)
 			ln_k_AB_data[i] = np.log(k_AB_BF * 1)
 			ln_k_BA_data[i] = np.log(k_BA_BF * 1)
-		if(mode == 'BF_2sides'):
+		if(mode == 'BF_2sides'):   # not supported - pathnames issues
 			npz_BF2s_filename = npz_basename + '_stride' + str(timeevol_stride) + \
 								'_Nt' + str(Nt_per_BF_run) + \
 								'_ID' + str(lattice_gas.get_seed()) + \
@@ -2457,7 +2496,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				phi_0_evol_data[:, :, i] = npz_data['phi_0_evol_data']
 				phi_1_evol_data[:, :, i] = npz_data['phi_1_evol_data']
 		
-		elif(mode  == 'BF_AB'):
+		elif(mode  == 'BF_AB'):   # not supported - pathnames issues
 			npz_BFAB_filename = npz_basename + '_stride' + str(timeevol_stride) + \
 								'_Nt' + str(Nt_per_BF_run) + \
 								'_NtSavedStates' + str(N_saved_states_max) + \
@@ -2504,19 +2543,35 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			
 			ln_k_AB_data[i] = np.log(k_AB_BFcount * 1)
 		elif(mode == 'FFS_AB'):
-			npz_FFSAB_filename_olds = [npz_basename + '_OPab' + str(OP_A) + '_' + str(OP_B) + \
-								'_stride' + str(timeevol_stride) + \
-								'_Ninit' + '_'.join([str(n) for n in N_init_states_AB]) + \
-								'_OPs' + '_'.join([str(p) for p in OP_interfaces_AB]) + \
-								'_ID' + str(lattice_gas.get_seed()) + \
-								'_FFSAB', \
-								npz_basename + '_OPab' + str(OP_A) + '_' + str(OP_B) + \
-								'_stride' + str(timeevol_stride) + \
-								'_Ninit' + '_'.join([str(n) for n in N_init_states_AB[:2]]) + \
-								'_OPs' + '_'.join([str(p) for p in OP_interfaces_AB]) + \
-								'_Nfourier' + str(N_fourier) + \
-								'_ID' + str(lattice_gas.get_seed()) + \
-								'_FFSAB']
+			npz_FFSAB_filename_olds = \
+				[npz_basename + '_OPab' + str(OP_A) + '_' + str(OP_B) + \
+					'_stride' + str(timeevol_stride) + \
+					'_Ninit' + '_'.join([str(n) for n in N_init_states_AB[:2]]) + \
+					'_OPs' + '_'.join([str(ops) for ops in (np.append(OP_interfaces_AB[[0, len(OP_interfaces_AB)-1]], len(OP_interfaces_AB)))]) + \
+					'_Nfourier' + str(N_fourier) + \
+					'_ID' + str(lattice_gas.get_seed()) + \
+					'_FFSAB', \
+				'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
+					'_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					(('_phi' + my.join_lbls(init_composition[1:], '_')) if(swap_type_move) \
+						else ('_muT' + my.join_lbls(mu[1:], '_'))) + \
+					'_Ninit' + '_'.join([str(n) for n in N_init_states_AB[:2]]) + \
+					'_OPs' + '_'.join([str(ops) for ops in (np.append(OP_interfaces_AB[[0, len(OP_interfaces_AB)-1]], len(OP_interfaces_AB)))]) + \
+					'_Nfourier' + str(N_fourier) + \
+					'_ID' + str(lattice_gas.get_seed()) + \
+					'_FFSAB', \
+				'MCmoves' + str(MC_move_mode) + '_L' + str(L) + \
+					'_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
+					(('_phi' + my.join_lbls(init_composition[1:], '_')) if(swap_type_move) \
+						else ('_muT' + my.join_lbls(mu[1:], '_'))) + \
+					'_OPab' + str(OP_A) + '_' + str(OP_B) + \
+					'_stride' + str(timeevol_stride) + \
+					'_Ninit' + '_'.join([str(n) for n in N_init_states_AB[:2]]) + \
+					'_OPs' + '_'.join([str(ops) for ops in (np.append(OP_interfaces_AB[[0, len(OP_interfaces_AB)-1]], len(OP_interfaces_AB)))]) + \
+					'_Nfourier' + str(N_fourier) + \
+					'_ID' + str(lattice_gas.get_seed()) + \
+					'_FFSAB']
+				
 			
 			'''
 								, \
@@ -2542,6 +2597,9 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			
 			npz_FFSAB_filepath = keep_new_npz_file(npz_FFSAB_filepath_olds, npz_FFSAB_filepath_new)
 			
+			#print(os.path.isfile(npz_FFSAB_filepath), npz_FFSAB_filepath, to_recomp)
+			#input('ok')
+			
 			if((not os.path.isfile(npz_FFSAB_filepath)) or (to_recomp > 0)):
 				probs_AB_data[:, i], _, ln_k_AB_data[i], _, flux0_AB_data[i], _, rho_new, d_rho_new, OP_hist_centers_new, OP_hist_lens_new, \
 					PB_AB_data[:, i], d_PB_AB_data[:, i], \
@@ -2552,13 +2610,15 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					cluster_centered_map_total_new, cluster_map_centers_new, rho_fourier2D_data[:, :, :, i] = \
 						proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states_AB, \
 								OP_interfaces_AB, interface_mode, \
-								stab_step=stab_step, timeevol_stride=timeevol_stride, \
+								stab_step=stab_step, \
+								timeevol_stride=timeevol_stride, \
 								OP_sample_BF_to=OP_sample_BF_A_to, \
 								OP_match_BF_to=OP_match_BF_A_to, \
 								init_gen_mode=init_gen_mode, \
 								to_get_timeevol=to_get_timeevol, \
 								init_composition=init_composition, \
 								to_recomp=max([to_recomp - 1, 0]), \
+								n_emu_digits=n_emu_digits, \
 								to_save_npz=to_save_npz, \
 								to_do_hists=True, \
 								N_fourier=N_fourier, \
@@ -2595,6 +2655,21 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 							cluster_map_centers_new=cluster_map_centers_new, \
 							rho_fourier2D_data=rho_fourier2D_data[:, :, :, i])
 			else:
+				# to rename FFStraj.npz without recomputung everything
+				'''
+				proc_FFS_AB_rename(MC_move_mode, L, e, mu, \
+								N_init_states_AB, OP_interfaces_AB, \
+								init_composition=init_composition, \
+								stab_step=stab_step, \
+								to_get_timeevol=to_get_timeevol, \
+								OP_sample_BF_to=OP_sample_BF_A_to, \
+								OP_match_BF_to=OP_match_BF_A_to,\
+								n_emu_digits=n_emu_digits, \
+								timeevol_stride=timeevol_stride, \
+								init_gen_mode=init_gen_mode, \
+								N_fourier=N_fourier)
+				'''
+				
 				print('loading', npz_FFSAB_filepath)
 				npz_data = np.load(npz_FFSAB_filepath, allow_pickle=True)
 				
@@ -2804,7 +2879,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 													pp2=init_composition[k], \
 													pp3=OP_interfaces_AB[j], \
 													pp4=L2, pp5=k: \
-												rho_fit_sgmfnc_template(r, pp1, pp2, pp3, pp4, mode=pp5))
+												rho_fit_sgmfnc_template(r, pp1, pp2, pp3, pp4, mode=pp5, learning=False))
 						
 						R_peak[k, j] = rho_fit_params[k, 2, j]
 						R_fit_minmax[1, k, j] = R_peak[k, j] + rho_fit_params[k, 1, j] * 25
@@ -2816,10 +2891,19 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 											init_composition[k], L2)   # s=-0.8, k=5
 						rho_fit_fncs[k].append(rho_fit_fnc_new)
 					
+					if(k == 0):
+						interface_w = rho_fit_params[0, 1, j]
 					
-					rho_const_inds = state_Rdens_centers_new >= R_fit_minmax[1, k, j]
+					ok_inds = (d_state_centered_Rdens_total[j][k] > 0)
+					rho_const_inds = (state_Rdens_centers_new >= R_fit_minmax[1, k, j]) & ok_inds
 					R_fit_inds = (state_Rdens_centers_new >= R_peak[k, j]) & (state_Rdens_centers_new < R_fit_minmax[1, k, j])
 					peak_ind = np.argmin(np.abs(state_Rdens_centers_new - R_peak[k, j]))
+					
+					# if(np.any(d_state_centered_Rdens_total[j][k][state_Rdens_centers_new >= R_fit_minmax[0, k, j]] == 0)):
+						# print('ERROR: d_rho = 0')
+						# print(state_Rdens_centers_new[state_Rdens_centers_new >= R_fit_minmax[0, k, j]])
+						# print(state_centered_Rdens_total_data[j][k])
+						# input('ok')
 					
 					# rho_inf[k][j] = \
 						# np.average(state_centered_Rdens_total[j][k][rho_const_inds], \
@@ -2832,47 +2916,32 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								  (state_centered_Rdens_total[j][k][peak_ind] - rho_inf[k][j]) < 0)
 					R_fit_minmax[0, k, j] = state_Rdens_centers_new[R_fit_inds][R_fit_left_ind]
 					
-					rho_chi2_inds = (state_Rdens_centers_new >= R_fit_minmax[0, k, j]) & (state_Rdens_centers_new < R_fit_minmax[1, k, j])
+					rho_chi2_inds = (state_Rdens_centers_new >= R_fit_minmax[0, k, j]) & (state_Rdens_centers_new < R_fit_minmax[1, k, j]) & ok_inds
 					rho_chi2[k, j] = np.mean(((state_centered_Rdens_total[j][k][rho_chi2_inds] - rho_inf[k][j]) / d_state_centered_Rdens_total[j][k][rho_chi2_inds])**2)
-					
-					# rho_dip_optim = scipy.optimize.minimize_scalar(lambda r, fnc=rho_fit_fncs[k][j], \
-														# d_rho_sign=np.sign(rho_fit_fncs[k][j](R_peak[k, j]) - rho_inf[k][j]): \
-													# fnc(r) * d_rho_sign, \
-													# bounds=(R_fit_minmax[0, k, j], R_fit_minmax[1, k, j]), \
-													# method='bounded')
-					
-					# print(R_peak[k, j], np.mean(R_fit_minmax[:, k, j]), R_fit_minmax[1, k, j])
-					# lmd=lambda r, fnc=rho_fit_fncs[k][j], ds=np.sign(rho_fit_fncs[k][j](R_peak[k, j]) - rho_inf[k][j]): fnc(r) * ds
-					# print(lmd(R_peak[k, j]))
-					# print(lmd((R_peak[k, j] + R_fit_minmax[1, k, j]) / 2))
-					# print(lmd(R_fit_minmax[1, k, j]))
-					# fig, ax, _ = my.get_fig('r', 'f')
-					# xx = np.linspace(R_peak[k, j], R_fit_minmax[1, k, j], 100)
-					# ax.plot(xx, rho_fit_fncs[k][j](xx))
-					# plt.show()
 					
 					try:
 						if(k in species_to_fit_rho_inds):
-							rho_dip_optim = scipy.optimize.minimize_scalar(lambda r, fnc=rho_fit_fncs[k][j], \
-																d_rho_sign=np.sign(rho_fit_fncs[k][j](R_peak[k, j]) - rho_inf[k][j]): \
-															fnc(r) * d_rho_sign, \
-															bracket=(R_peak[k, j], (R_peak[k, j] + R_fit_minmax[1, k, j]) / 2, R_fit_minmax[1, k, j]))
-															#bracket=(R_peak[k, j], R_fit_minmax[1, k, j])
-															#bracket=(R_peak[k, j], (R_peak[k, j] + R_fit_minmax[1, k, j]) / 2, R_fit_minmax[1, k, j])
+							rho_dip_optim = scipy.optimize.minimize_scalar(\
+								lambda r, fnc=rho_fit_fncs[k][j], \
+									d_rho_sign=np.sign(rho_fit_fncs[k][j](R_peak[k, j]) - rho_inf[k][j]): \
+								fnc(r) * d_rho_sign, \
+								bracket=(R_peak[k, j], (R_peak[k, j] + R_fit_minmax[1, k, j]) / 2, R_fit_minmax[1, k, j]))
+								#bracket=(R_peak[k, j], R_fit_minmax[1, k, j])
 							rho_dip_R = rho_dip_optim.x
 						else:
-							rho_dip_optim = scipy.optimize.root_scalar(lambda r, fnc=rho_fit_fncs[k][j], dr=rho_fit_params[0, 1, j]/1000: (fnc(r + dr) - fnc(r - dr)) / (2*dr), 
-														x0=R_fit_minmax[0, k, j]+rho_fit_params[0, 1, j]/10, \
-														x1=R_fit_minmax[0, k, j]+rho_fit_params[0, 1, j]/5)
-														#bracket=(R_fit_minmax[0, k, j], R_fit_minmax[1, k, j])
+							rho_dip_optim = scipy.optimize.root_scalar(\
+								lambda r, fnc=rho_fit_fncs[k][j], dr=interface_w/1000: (fnc(r + dr) - fnc(r - dr)) / (2*dr), 
+								x0=R_fit_minmax[0, k, j] + interface_w/10, \
+								x1=R_fit_minmax[0, k, j] + interface_w/5)
 							rho_dip_R = rho_dip_optim.root
 						
 					
-					except Exception as e:
-						print('WARNING:')
-						print(e)
-						print('Using right boundary as the dip position')
-						rho_dip_R = R_fit_minmax[1, k, j] - rho_fit_params[0, 1, j]/2
+					except Exception as raised_error:
+						if(verbose):
+							print('WARNING:')
+							print(raised_error)
+							print('Using right boundary as the dip position')
+						rho_dip_R = R_fit_minmax[1, k, j] - interface_w / 2
 						
 						# print(R_peak[k, j], (R_peak[k, j] + R_fit_minmax[1, k, j]) / 2, R_fit_minmax[1, k, j]*2, rho_fit_params[k, 1, j], rho_fit_params[k, 3, j])
 						# fig, ax, _ = my.get_fig('r', r'$\rho$')
@@ -2887,12 +2956,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					rho_dip[k][j] = rho_fit_fncs[k][j](rho_dip_R) - rho_inf[k][j]
 					#d_rho_dip[k][j] = rho_dip_optim.hess_inv
 					d_rho_dip[k][j] = d_rho_inf[k][j]
-					#print(rho_dip_optim.x)
-					#print(rho_dip_optim.keys())
-					#input('ok')
 					# TODO: add ~hess
-					# TODO: make 3 brackets (not 2 like now)
-					# TODO: return optim.x
+					# TODO: return rho_dip_R
 			
 			rho_inf_crit = rho_inf[dF_species_id][OP_closest_to_OP0_ind]
 			d_rho_inf_crit = d_rho_inf[dF_species_id][OP_closest_to_OP0_ind]
@@ -3053,9 +3118,13 @@ def rho_fit_sgmfnc_template(r, prm, rho_bulk, Ncl, L2, \
  						capilar_correction_max=-25, \
 						capilar_correction_max_sgm=-5, \
 						mode=0, A=0, \
-						verbose=False):
+						verbose=False, learning=True):
 # 						capilar_correction_min=-4, \
 	rho_inf = get_rho_inf(rho_bulk, prm[0], Ncl, L2)
+	if((rho_inf >= 1) or (rho_inf <= 0)):
+		if(not learning):
+			print('WARNING (?!): bad rho_inf = %s; rho_bulk= %s, rho_0 = %s, Ncl=%d, L2=%d. Setting rho_inf to 1/L2' % (my.f2s(rho_inf), my.f2s(rho_bulk), my.f2s(prm[0]), Ncl, L2))
+		rho_inf = 1/L2
 	
 	if(verbose):
 		print('Ncl =', Ncl, '; rho_inf =', rho_inf)
@@ -3079,7 +3148,7 @@ def rho_fit_sgmfnc_template(r, prm, rho_bulk, Ncl, L2, \
 		capilar_correction_max_sgm *= -prm[1]
 		
 	if(mode in [0, 1]):
-		return prm[0] + (rho_inf - prm[0]) / (1 + np.exp(-((r - prm[2]) / prm[1]))) + \
+		return prm[0] + (rho_inf - prm[0]) / (1 + (np.exp(-((r - prm[2]) / prm[1])))) + \
 				prm[3] / r / (1 + np.exp(-(r - capilar_correction_min) / capilar_correction_min_sgm)) / (1 + np.exp((r - capilar_correction_max) / capilar_correction_max_sgm))
 	elif(mode in [2]):
 		return rho_bulk + A * np.exp(-(np.abs(r - prm[2]) / prm[1])**4) + \
@@ -3093,7 +3162,7 @@ def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl, L2, mode=0, \
 	
 	if(mode in [0, 1]):
 		rho_fit_params = np.empty(4)
-		rho_fit_params[0] = Rdens[ok_inds][0]   # argmin(r)
+		rho_fit_params[0] = min(Rdens[ok_inds][0], 1 - 1/L2)   # argmin(r)
 		rho_inf = get_rho_inf(rho_bulk, rho_fit_params[0], Ncl, L2)
 		rho_linsgm_inds = (Rdens > sgmfit_rho_min) & (Rdens < sgmfit_rho_max) & ok_inds
 		assert(np.any(rho_linsgm_inds)), 'ERROR: no points suited for sigmoidal fit of %s' % (fit_error_name)
@@ -3103,10 +3172,20 @@ def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl, L2, mode=0, \
 		if(Rdens_eps < 0):
 			Rdens_eps *= -min_Rdens
 		Rdens_scaled = (max_Rdens - Rdens[rho_linsgm_inds] + Rdens_eps) / (max_Rdens - min_Rdens + Rdens_eps)
-		rho_linsgmfit = np.polyfit(R_centers[rho_linsgm_inds], \
-									-np.log(1 / Rdens_scaled - 1), \
+		Rdens_scaled_sgm_inds = (Rdens_scaled < 1)
+		rho_linsgmfit = np.polyfit(R_centers[rho_linsgm_inds][Rdens_scaled_sgm_inds], \
+									-np.log(1 / Rdens_scaled[Rdens_scaled_sgm_inds] - 1), \
 									1, \
-									w = Rdens_scaled * (1 - Rdens_scaled) / d_Rdens[rho_linsgm_inds])
+									w = Rdens_scaled[Rdens_scaled_sgm_inds] * (1 - Rdens_scaled[Rdens_scaled_sgm_inds]) / d_Rdens[rho_linsgm_inds][Rdens_scaled_sgm_inds])
+		# try:
+		# except Exception as raised_error:
+			# print(R_centers[rho_linsgm_inds], -np.log(1 / Rdens_scaled - 1), Rdens_scaled * (1 - Rdens_scaled) / d_Rdens[rho_linsgm_inds])
+			# print(raised_error)
+			# fig, ax, _ = my.get_fig('r', r'$\rho$')
+			# #ax.plot(R_centers[rho_linsgm_inds], -np.log(1 / Rdens_scaled - 1))
+			# ax.plot(R_centers[ok_inds], Rdens[ok_inds])
+			# plt.show()
+			
 		rho_fit_params[1] = 1 / abs(rho_linsgmfit[0])
 		rho_fit_params[2] = -rho_linsgmfit[1] / rho_linsgmfit[0]
 		
@@ -3302,7 +3381,7 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 						N_init_states, OP_interfaces, init_gen_mode=-3, \
 						init_composition=None, stab_step=-5, \
 						to_plot=False, to_save_npy=True, to_recomp=0, \
-						seeds=None):
+						seeds=None, n_e_digits=6):
 	L2 = L**2
 	N_mu = mu_arr.shape[0]
 	
@@ -3322,7 +3401,7 @@ def get_mu_dependence(MC_move_mode, mu_arr, L, e, N_runs, interface_mode, \
 	d_k_AB = np.empty(N_mu)
 	N_OP_interfaces = np.empty(N_mu, dtype=int)
 	
-	npy_filename = interface_mode + '_eT11_12_22_' + str(e[1,1]) + '_' + str(e[1,2]) + '_' + str(e[2,2]) \
+	npy_filename = interface_mode + '_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_', n=n_e_digits) \
 				+ '_L' + str(L) \
 				+ '_mu1T_' + ((str(min(mu_arr[:, 1])) + '_' + str(max(mu_arr[:, 1]))) if(max(mu_arr[:, 1]) > min(mu_arr[:, 1])) else str(mu_arr[0, 1])) \
 				+ '_mu2T_' + ((str(min(mu_arr[:, 2])) + '_' + str(max(mu_arr[:, 2]))) if(max(mu_arr[:, 2]) > min(mu_arr[:, 2])) else str(mu_arr[0, 2])) \
@@ -3486,7 +3565,8 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 					N_points_OP0constr=1000, N_ID_groups=None, \
 					rho_dip_specie_ID=1, fit_ord=2, to_plot=False, 
 					npz_path='/scratch/gpfs/yp1065/Izing/npzs/', \
-					npz_suff='FFStraj'):
+					npz_suff='FFStraj', n_emu_digits=6, \
+					feature_inds_to_plot=[7]):
 	N_OP_interfaces = len(OP_interfaces)
 	N_Temps = len(Temp_s)
 	N_phi1s = len(phi1_s)
@@ -3529,6 +3609,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 				N_init_states = np.ones(N_OP_interfaces, dtype=int) * n_FFS
 				N_init_states[0] *= 2
 				MC_move_mode = lattice_gas.get_move_modes()[MC_move_mode_name]
+				swap_type_move = (MC_move_mode in [move_modes['swap'], move_modes['long_swap']])
 				
 				# It does not have to be L**2 (can be more), but it always is L**2 in practice for the cases of June2023 work
 				stab_step = L**2
@@ -3543,7 +3624,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 									bool(to_get_timeevol), \
 									N_fourier, '%d')
 				templ = npz_path + templ + '_' + npz_suff + '.npz'
-				#templ = npz_path + templ_old[-1] + '_' + npz_suff + '.npz'   # to 'mv' old files to new format
+				templ = npz_path + templ_old[-1] + '_' + npz_suff + '.npz'   # to 'mv' old files to new format
 				#print(templ)
 				
 				found_IDs, found_filepaths, _ = \
@@ -3607,6 +3688,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 									to_get_timeevol=to_get_timeevol, \
 									init_composition=init_composition, \
 									to_save_npz=to_save_npz, \
+									n_emu_digits=n_emu_digits, \
 									to_recomp=max([to_recomp - 1, 0]), \
 									N_fourier=N_fourier, \
 									seeds=ID_groups[i_group], \
@@ -3634,7 +3716,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 					d_chi2_rho1[i_Temp, i_phi1] = d_rho_chi2[i_Temp, i_phi1, 1, OP0_closest_ind]
 					d_chi2_rho2[i_Temp, i_phi1] = d_rho_chi2[i_Temp, i_phi1, 2, OP0_closest_ind]
 					
-					rho_dip[i_Temp, i_phi1] = rho_dip_all[i_Temp, i_phi1, rho_dip_specie_ID, OP0_closest_ind]
+					rho_dip[i_Temp, i_phi1] = abs(rho_dip_all[i_Temp, i_phi1, rho_dip_specie_ID, OP0_closest_ind])
 					d_rho_dip[i_Temp, i_phi1] = d_rho_dip_all[i_Temp, i_phi1, rho_dip_specie_ID, OP0_closest_ind]
 	
 	# d_chi2_rho0, d_chi2_rho1, d_chi2_rho2 = \
@@ -3683,6 +3765,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 	
 	if(N_ok_points >= (fit_ord + 1)**2):
 		#chi2_rho0_fitfnc, _ = fit_Tphi1_grid(Temps_arr, phi1s_arr, ln_ZeldovichG_arr, dz=d_ln_ZeldovichG_arr, xord=fit_ord, yord=fit_ord)
+		data_names = ['$\ln(N^*)$', '$\ln(k)$', '$\ln(\Phi_A)$', '$\ln(\Gamma)$', '$\ln(D^*)$', '$\ln(\Delta F/T)$', '$\ln(\Delta F_{accum}/T)$', r'$\ln(\rho_{dip})$', r'$\ln(\chi^2_{dip,0})$', r'$\ln(\chi^2_{dip,1})$', r'$\ln(\chi^2_{dip,2})$']
 		
 		data_arr_pairs = [[ln_OP0_arr, d_ln_OP0_arr], \
 						  [ln_k_arr, d_ln_k_arr], \
@@ -3697,8 +3780,30 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 						  [ln_chi2_rho2_arr, d_ln_chi2_rho2_arr]]
 		N_data_pairs = len(data_arr_pairs)
 		for i in range(N_data_pairs):
-			data_arr_pairs[i].append(fit_Tphi1_grid(Temps_arr, phi1s_arr, data_arr_pairs[i][0], dz=data_arr_pairs[i][1], xord=fit_ord, yord=fit_ord)[0])
-			# this makes the pair [z, dz, fitfnc]
+			nan_inds = np.isnan(data_arr_pairs[i][1])
+			if(np.all(nan_inds)):
+				print(data_names[i], 'has all nan values, skipping')
+				data_arr_pairs[i].append(None)
+			else:
+				bad_dz_inds = (data_arr_pairs[i][1] <= 0) | nan_inds
+				if(np.any(bad_dz_inds)):
+					print('ERROR: feature %s (i=%d) has bad dz:' % (data_names[i], i))
+					print(data_arr_pairs[i][1])
+					print('setting undefined dz to max_dz * 2 (or to 1 is all dz=0)')
+					input('ok')
+					if(np.all(bad_dz_inds)):
+						data_arr_pairs[i][1][:] = 1
+					else:
+						data_arr_pairs[i][1][bad_dz_inds] = np.amax(data_arr_pairs[i][1][~nan_inds]) * 2
+				
+				try:
+					data_arr_pairs[i].append(fit_Tphi1_grid(Temps_arr[~nan_inds], phi1s_arr[~nan_inds], data_arr_pairs[i][0][~nan_inds], dz=data_arr_pairs[i][1][~nan_inds], xord=fit_ord, yord=fit_ord)[0])
+				except Exception as raised_error:
+					print(raised_error)
+					print('data_name', data_names[i])
+					data_arr_pairs[i].append(None)
+					input('ok')
+				# this makes the pair [z, dz, fitfnc]
 		
 		N_OP0_constr = len(OP0_constraint_s)
 		OP0consr_Tphi1_sets = []
@@ -3715,18 +3820,22 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 		if(N_ok_points >= (fit_ord + 1)**2):
 			figs = [[]] * N_data_pairs
 			axs = [[]] * N_data_pairs
-			data_names = ['$\ln(N^*)$', '$\ln(k)$', '$\ln(\Phi_A)$', '$\ln(\Gamma)$', '$\ln(D^*)$', '$\ln(\Delta F/T)$', '$\ln(\Delta F_{accum}/T)$', '$\ln(\rho_{dip})$', r'$\ln(\chi^2_{dip,0})$', r'$\ln(\chi^2_{dip,1})$', r'$\ln(\chi^2_{dip,2})$']
 			assert(len(data_names) == N_data_pairs), 'ERROR: data_names = %s\nhas %d elements, but N_data_pairs = %d' % (str(data_names), len(data_names), N_data_pairs)
 			for i in range(N_data_pairs):
-				figs[i], axs[i] = plot_Tphi1_data(Temps_arr, phi1s_arr, \
-						data_arr_pairs[i][0], data_arr_pairs[i][1], data_names[i], data_arr_pairs[i][2], \
-						OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
-				
+				if(i in feature_inds_to_plot):
+					if(data_arr_pairs[i][2] is not None):
+						figs[i], axs[i] = plot_Tphi1_data(Temps_arr, phi1s_arr, \
+								data_arr_pairs[i][0], data_arr_pairs[i][1], data_names[i], data_arr_pairs[i][2], \
+								OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets, \
+								scale_fnc_X = ((lambda z, Ncl, x: np.log(np.exp(z) * np.sqrt(Ncl) * x)) if(i == 7) else None), \
+								z_lbl_scaledX = (r'$\ln(\rho_{dip} \cdot \sqrt{N^*} \cdot Temp)$' if(i == 7) else None))
 
 def plot_Tphi1_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$', \
 				N_draw_points=1000, draw_only_inside_convexhull=True, \
 				points_mode='grid', to_add_legend=False, \
-				OP0_constraint_s=[], OP0consr_Tphi1_sets=[]):
+				OP0_constraint_s=[], OP0consr_Tphi1_sets=[], \
+				scale_fnc_X=None, z_lbl_scaledX=None, \
+				scale_fnc_Y=None, z_lbl_scaledY=None):
 	fig, ax, _ = my.get_fig(x_lbl, y_lbl, zlbl=z_lbl, projection='3d')
 	
 	ax.errorbar(x, y, z, zerr=dz, fmt='.', label='data')
@@ -3782,6 +3891,29 @@ def plot_Tphi1_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$'
 		
 		my.add_legend(fig_vsX, ax_vsX)
 		my.add_legend(fig_vsY, ax_vsY)
+		
+		if(scale_fnc_X is not None):
+			fig_vsX_scaled, ax_vsX_scaled, _ = my.get_fig(x_lbl, z_lbl_scaledX, title='%s(%s | $N^*$)' % (z_lbl_scaledX, x_lbl))
+			for i in range(N_OP0_constr):
+				if(OP0consr_Tphi1_sets[i].shape[0] > 0):
+					ax_vsX_scaled.plot(OP0consr_Tphi1_sets[i][:, 0], \
+								scale_fnc_X(z_fitfnc(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1]), OP0_constraint_s[i], OP0consr_Tphi1_sets[i][:, 0]), \
+								'.', label='$N^* = %d$' % OP0_constraint_s[i], \
+								color=my.get_my_color(i+1))
+			ax_vsX_scaled.set_xlim([min(x), max(x)])
+			my.add_legend(fig_vsX_scaled, ax_vsX_scaled)
+		
+		if(scale_fnc_Y is not None):
+			fig_vsY_scaled, ax_vsY_scaled, _ = my.get_fig(y_lbl, z_lbl_scaledY, title='%s(%s | $N^*$)' % (z_lbl_scaledY, y_lbl))
+			for i in range(N_OP0_constr):
+				if(OP0consr_Tphi1_sets[i].shape[0] > 0):
+					ax_vsY_scaled.plot(OP0consr_Tphi1_sets[i][:, 1], \
+								scale_fnc_Y(z_fitfnc(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1]), OP0_constraint_s[i], OP0consr_Tphi1_sets[i][:, 1]), \
+								'.', label='$N^* = %d$' % OP0_constraint_s[i], \
+								color=my.get_my_color(i+1))
+			ax_vsY_scaled.set_xlim([min(y), max(y)])
+			my.add_legend(fig_vsY_scaled, ax_vsY_scaled)
+		
 	
 	if(to_add_legend):
 		my.add_legend(fig, ax)
@@ -3901,10 +4033,10 @@ def main():
 	
 	# TODO: run failed IDs with longer times
 	
-	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier,     Temp_s,     phi1_s,      phi2,     OP0_constr_s,     N_ID_groups,       to_post_proc,     Dtop_Nruns], _ = \
-		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier',  '-Temp_s',  '-phi1_s',   '-phi2',  '-OP0_constr_s',  '-N_ID_groups',    '-to_post_proc',  '-Dtop_Nruns'], \
-					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],           [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1],       None,       None,    [0, 1],             None,          [0, 1],             [0, 1],         [0, 1]], \
-					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],          ['FFS_auto'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],     ['-1'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5'],    ['1.0'],  ['0.015'],  ['0.01'],           [None],          [None],  [my.yes_flags[0]],          ['0']])
+	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier,     Temp_s,     phi1_s,      phi2,     OP0_constr_s,     N_ID_groups,       to_post_proc,     Dtop_Nruns,     n_emu_digits], _ = \
+		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier',  '-Temp_s',  '-phi1_s',   '-phi2',  '-OP0_constr_s',  '-N_ID_groups',    '-to_post_proc',  '-Dtop_Nruns',  '-n_emu_digits'], \
+					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],           [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1],       None,       None,    [0, 1],             None,          [0, 1],             [0, 1],         [0, 1],           [0, 1]], \
+					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],          ['FFS_auto'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],     ['-1'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5'],    ['1.0'],  ['0.015'],  ['0.01'],           [None],          [None],  [my.yes_flags[0]],          ['0'],            ['6']])
 	
 	Ls = np.array([int(l) for l in L], dtype=int)
 	N_L = len(Ls)
@@ -4021,6 +4153,7 @@ def main():
 	N_ID_groups = None if(N_ID_groups[0] is None) else int(N_ID_groups[0])
 	to_post_proc = (to_post_proc[0] in my.yes_flags)
 	Dtop_Nruns = int(Dtop_Nruns[0])
+	n_emu_digits = int(n_emu_digits[0])
 	
 	assert(interface_mode == 'CS'), 'ERROR: only CS (not M) mode is supported'
 	
@@ -4122,12 +4255,13 @@ def main():
 		if(my_seeds[0] == 'FFS_auto'):
 			FFS_npz_template_filename, FFS_npz_template_filename_old = \
 					izing.get_FFS_AB_npzTrajBasename(MC_move_mode, L, e, \
-									'_phi' + my.join_lbls(init_composition[1:], '_'), \
+									'_phi' + my.join_lbls(init_composition[1:], '_', n=n_emu_digits), \
 									OP_interfaces_AB[-1], N_init_states_AB, \
 									Ls[0]**2, OP_sample_BF_A_to[0], OP_match_BF_A_to[0], \
 									timeevol_stride, init_gen_mode, \
 									to_get_timeevol, \
-									N_fourier, '%d')
+									N_fourier, '%d', \
+									n_e_digits=n_emu_digits)
 			FFS_npz_template_filepath = '/scratch/gpfs/yp1065/Izing/npzs/' + FFS_npz_template_filename + '_FFStraj.npz'
 			my_seeds, found_filepaths, _ = \
 				izing.find_finished_runs_npzs(FFS_npz_template_filepath, np.arange(1000, 1200), verbose=True)
@@ -4309,7 +4443,8 @@ def main():
 					to_plot=True, \
 					verbose=verbose, \
 					N_fourier=N_fourier, \
-					to_post_proc=to_post_proc)
+					to_post_proc=to_post_proc, \
+					n_emu_digits=n_emu_digits)
 	
 	elif(mode == 'FFS_AB_many'):
 		F_FFS, d_F_FFS, M_hist_centers_FFS, OP_hist_lens_FFS, ln_k_AB_FFS, d_ln_k_AB_FFS, \
@@ -4328,17 +4463,23 @@ def main():
 					to_get_timeevol=to_get_timeevol, \
 					init_composition=init_composition, \
 					to_save_npz=to_save_npz, to_recomp=to_recomp, \
-					N_fourier=N_fourier, seeds=my_seeds)
+					N_fourier=N_fourier, seeds=my_seeds, \
+					n_emu_digits=n_emu_digits)
 		
 		get_log_errors(np.log(flux0_AB_FFS), d_flux0_AB_FFS / flux0_AB_FFS, lbl='flux0_AB', print_scale=print_scale_flux)
 		k_AB_FFS_mean, k_AB_FFS_min, k_AB_FFS_max, d_k_AB_FFS = get_log_errors(ln_k_AB_FFS, d_ln_k_AB_FFS, lbl='k_AB_FFS', print_scale=print_scale_k)
+		OP_closets_to_OP0_ind = np.argmin(np.abs(PB_AB_FFS - 0.5))
+		rho_dip_specie_ind = 1
+		
 		print('N* =', my.errorbar_str(OP0_AB, d_OP0_AB))
 		print('ZeldovichG =', my.errorbar_str(ZeldovichG_AB, d_ZeldovichG_AB))
 		print('Dtop =', my.errorbar_str(Dtop_AB, d_Dtop_AB))
 		print('dF/T =', my.errorbar_str(dF_AB, d_dF_AB))
-		#print(rho_dip, d_rho_dip, chi2_rho)
-		#print('rho_dip =', my.errorbar_str(rho_dip, d_rho_dip))
-		#print('rho_chi2 =', my.f2s(chi2_rho))
+		print('rho_dip =', my.errorbar_str(rho_dip[rho_dip_specie_ind, OP_closets_to_OP0_ind], d_rho_dip[rho_dip_specie_ind, OP_closets_to_OP0_ind]))
+		print('rho_chi2 =', my.f2s(chi2_rho[rho_dip_specie_ind, OP_closets_to_OP0_ind]))
+		
+		print('rho_dip_full:\n', rho_dip, d_rho_dip)
+		print('rho_chi2_full:\n', chi2_rho)
 	
 	elif('mu' in mode):
 		get_mu_dependence(MC_move_mode, mu, Ls[0], e, N_runs, interface_mode, \
@@ -4360,7 +4501,7 @@ def main():
 							N_fourier=N_fourier, \
 							OP0_constraint_s=OP0_constr_s, \
 							N_ID_groups=N_ID_groups, \
-							to_plot=True, \
+							to_plot=True, n_emu_digits=n_emu_digits, \
 							seeds_range=np.arange(1000, 1200))
 					
 	

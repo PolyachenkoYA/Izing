@@ -620,6 +620,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			N_parent_state_IDs_unique = len(parent_state_IDs_unique)
 			CS_Dtop = []
 			times_Dtop = []
+			print('Estimating Dtop')
 			for i in range(N_parent_state_IDs_unique):
 				_, _, _, CS_Dtop_new, _, times_Dtop_new, _, _ = \
 					proc_T(MC_move_mode, L, e, mu, -1, interface_mode, \
@@ -3564,7 +3565,8 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 					N_points_OP0constr=1000, N_ID_groups=None, \
 					rho_dip_specie_ID=1, fit_ord=2, to_plot=False, 
 					npz_path='/scratch/gpfs/yp1065/Izing/npzs/', \
-					npz_suff='FFStraj', n_emu_digits=6):
+					npz_suff='FFStraj', n_emu_digits=6, \
+					feature_inds_to_plot=[7]):
 	N_OP_interfaces = len(OP_interfaces)
 	N_Temps = len(Temp_s)
 	N_phi1s = len(phi1_s)
@@ -3820,16 +3822,20 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 			axs = [[]] * N_data_pairs
 			assert(len(data_names) == N_data_pairs), 'ERROR: data_names = %s\nhas %d elements, but N_data_pairs = %d' % (str(data_names), len(data_names), N_data_pairs)
 			for i in range(N_data_pairs):
-				if(data_arr_pairs[i][2] is not None):
-					figs[i], axs[i] = plot_Tphi1_data(Temps_arr, phi1s_arr, \
-							data_arr_pairs[i][0], data_arr_pairs[i][1], data_names[i], data_arr_pairs[i][2], \
-							OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets)
-				
+				if(i in feature_inds_to_plot):
+					if(data_arr_pairs[i][2] is not None):
+						figs[i], axs[i] = plot_Tphi1_data(Temps_arr, phi1s_arr, \
+								data_arr_pairs[i][0], data_arr_pairs[i][1], data_names[i], data_arr_pairs[i][2], \
+								OP0_constraint_s=OP0_constraint_s, OP0consr_Tphi1_sets=OP0consr_Tphi1_sets, \
+								scale_fnc_X = ((lambda z, Ncl, x: np.log(np.exp(z) * np.sqrt(Ncl) * x)) if(i == 7) else None), \
+								z_lbl_scaledX = (r'$\ln(\rho_{dip} \cdot \sqrt{N^*} \cdot Temp)$' if(i == 7) else None))
 
 def plot_Tphi1_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$', \
 				N_draw_points=1000, draw_only_inside_convexhull=True, \
 				points_mode='grid', to_add_legend=False, \
-				OP0_constraint_s=[], OP0consr_Tphi1_sets=[]):
+				OP0_constraint_s=[], OP0consr_Tphi1_sets=[], \
+				scale_fnc_X=None, z_lbl_scaledX=None, \
+				scale_fnc_Y=None, z_lbl_scaledY=None):
 	fig, ax, _ = my.get_fig(x_lbl, y_lbl, zlbl=z_lbl, projection='3d')
 	
 	ax.errorbar(x, y, z, zerr=dz, fmt='.', label='data')
@@ -3885,6 +3891,29 @@ def plot_Tphi1_data(x, y, z, dz, z_lbl, z_fitfnc, x_lbl='Temp', y_lbl='$\phi_1$'
 		
 		my.add_legend(fig_vsX, ax_vsX)
 		my.add_legend(fig_vsY, ax_vsY)
+		
+		if(scale_fnc_X is not None):
+			fig_vsX_scaled, ax_vsX_scaled, _ = my.get_fig(x_lbl, z_lbl_scaledX, title='%s(%s | $N^*$)' % (z_lbl_scaledX, x_lbl))
+			for i in range(N_OP0_constr):
+				if(OP0consr_Tphi1_sets[i].shape[0] > 0):
+					ax_vsX_scaled.plot(OP0consr_Tphi1_sets[i][:, 0], \
+								scale_fnc_X(z_fitfnc(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1]), OP0_constraint_s[i], OP0consr_Tphi1_sets[i][:, 0]), \
+								'.', label='$N^* = %d$' % OP0_constraint_s[i], \
+								color=my.get_my_color(i+1))
+			ax_vsX_scaled.set_xlim([min(x), max(x)])
+			my.add_legend(fig_vsX_scaled, ax_vsX_scaled)
+		
+		if(scale_fnc_Y is not None):
+			fig_vsY_scaled, ax_vsY_scaled, _ = my.get_fig(y_lbl, z_lbl_scaledY, title='%s(%s | $N^*$)' % (z_lbl_scaledY, y_lbl))
+			for i in range(N_OP0_constr):
+				if(OP0consr_Tphi1_sets[i].shape[0] > 0):
+					ax_vsY_scaled.plot(OP0consr_Tphi1_sets[i][:, 1], \
+								scale_fnc_Y(z_fitfnc(OP0consr_Tphi1_sets[i][:, 0], OP0consr_Tphi1_sets[i][:, 1]), OP0_constraint_s[i], OP0consr_Tphi1_sets[i][:, 1]), \
+								'.', label='$N^* = %d$' % OP0_constraint_s[i], \
+								color=my.get_my_color(i+1))
+			ax_vsY_scaled.set_xlim([min(y), max(y)])
+			my.add_legend(fig_vsY_scaled, ax_vsY_scaled)
+		
 	
 	if(to_add_legend):
 		my.add_legend(fig, ax)

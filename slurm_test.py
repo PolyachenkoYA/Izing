@@ -35,6 +35,8 @@ def main():
 	# python slurm_test.py --mode search_logs --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1200 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0
 	# python slurm_test.py --mode search_npzs --MC_mode swap --OP_set_name nvt --seed_s -1 1000 1200 --n_s -1 --L_s 128 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 --Temp_s 0.8 0.9 1.0
 	
+	# python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt --seed_s -1 1000 1020 --n_s -1 --L_s 128 --phi1_s 0.014 --Temp_s 0.95 --to_run 0
+	
 	parser = argparse.ArgumentParser()
 	
 	parser.add_argument('--mode', help='what to do', choices=['launch_run', 'search_logs', 'search_npzs'], required=True)
@@ -57,7 +59,7 @@ def main():
 	parser.add_argument('--phi1_s', type=float, help='phi1-s for cycle', nargs='+')
 	parser.add_argument('--Temp_s', type=float, help='Temp-s for cycle', nargs='*', default=1.0)
 	
-	parser.add_argument('--phi_dgt', type=int, help='system name', default=5)
+	parser.add_argument('--phi_dgt', type=int, help='system name', default=6)
 	
 	parser.add_argument('--to_run', type=int, help='whether to run or just print commands', default=0)
 	
@@ -70,6 +72,7 @@ def main():
 	
 	to_run = clargs.to_run
 	script_name = 'run.py'
+	script_name = 'run_tmp2.py'
 	
 	phi_dgt = clargs.phi_dgt
 	phi_2 = clargs.phi_2
@@ -103,12 +106,16 @@ def main():
 								n_FFS = n_use
 								phi_s = my.f2s(phi, n=phi_dgt)
 								
-								name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_OPs%s' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi_s, OP_set_name)
+								#name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_OPs%s' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi_s, OP_set_name)
+								name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_OPs%s_Dtop' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi_s, OP_set_name)
 								#print(name)
 								#input(name)
 								
-								cmd = 'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s -to_show_on_screen 0 -my_seeds %d -to_post_proc %s' \
-										% (script_name, L, n_FFS, n_init, e_T1[0]/Temp, e_T1[1]/Temp, e_T1[2]/Temp, MC_mode, my.f2s(1.0 - phi - phi_2, n=phi_dgt), my.f2s(phi, n=phi_dgt), my.f2s(phi_2, n=phi_dgt), OP_set_name, seed, '1' if(to_post_proc) else '0')
+								# cmd = 'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s -to_show_on_screen 0 -my_seeds %d -to_post_proc %s' \
+										# % (script_name, L, n_FFS, n_init, e_T1[0]/Temp, e_T1[1]/Temp, e_T1[2]/Temp, MC_mode, my.f2s(1.0 - phi - phi_2, n=phi_dgt), my.f2s(phi, n=phi_dgt), my.f2s(phi_2, n=phi_dgt), OP_set_name, seed, '1' if(to_post_proc) else '0')
+								cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns 300 -font_mode present' \
+										% (script_name, L, e_T1[0], e_T1[1], e_T1[2], MC_mode, my.f2s(1.0 - phi - phi_2, n=phi_dgt), my.f2s(phi, n=phi_dgt), my.f2s(phi_2, n=phi_dgt), OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5))
+										
 								
 								
 								if(to_run):
