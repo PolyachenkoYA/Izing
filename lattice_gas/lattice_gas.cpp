@@ -35,7 +35,7 @@ using namespace pybind11::literals;
 
 void print_possible_move_modes()
 {
-	printf("flip : %d\nswap : %d\n", move_mode_flip, move_mode_swap);
+	printf("flip: %d\nswap : %d\n", move_mode_flip, move_mode_swap);
 }
 
 py::int_ init_rand(int my_seed)
@@ -482,7 +482,7 @@ py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<doubl
 	}
 
 	if(verbose){
-		printf("OP interfaces :\n");
+		printf("OP interfaces: \n");
 		for(i = 0; i < N_OP_interfaces; ++i){
 			printf("%d ", OP_interfaces_ptr[i]);
 		}
@@ -1544,6 +1544,7 @@ namespace lattice_gas
 								   1, verbose);
 
 			*Nt = 0;   // forget anything we might have had
+			N_states_done = 0;  // this is =1 because one state in [...; OP_interface[0]) is saved to start outflux generation from it
 			*Nt_OP_saved = 0;
 			*time_total = 0;
 

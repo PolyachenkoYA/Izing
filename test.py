@@ -2,11 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
 import os
+import sys
+import shutil
 
 import mylib as my
 import table_data
-import lattice_gas
-import izing
+#import lattice_gas
+#import izing
 
 def slurm_time_distr():
 	times_list = [[0,2,9], [0,2,11], [0,2,13], [0,2,54], [0,2,59], [0,3,1], [0,3,42], [0,4,2], [0,5,4], [0,5,11], [0,5,13], [0,5,43], [0,6,3], [0,6,27], [0,7,49], [0,8,54], [0,9,42], [0,9,54], [0,9,57], [0,10,26], [0,10,56], [0,11,25], [0,11,35], [0,12,8], [0,12,17], [0,12,55], [0,12,57], [0,13,40], [0,14,58], [0,17,12], [0,18,7], [0,18,13], [0,18,28], [0,19,1], [0,19,13], [0,19,28], [0,19,44], [0,22,1], [0,24,21], [0,27,11], [0,28,25], [0,31,7], [0,31,27], [0,35,54], [0,40,3], [0,41,14], [0,45,12], [0,44,29], [0,43,40], [0,47,6], [0,47,29], [0,51,36], [0,58,4], [1,10,41], [1,22,1], [1,20,27], [1,29,7], [1,30,41], [1,35,30], [1,44,5], [1,50,8], [1,51,1], [1,52,5], [1,53,4], [2,10,10], [2,18,23], [2,19,37], [2,20,40], [2,32,29], [2,39,1], [2,40,57], [2,44,0], [2,45,56], [2,47,29], [3,28,55], [4,19,17], [4,25,37], [4,29,43], [5,34,41]]
@@ -191,6 +193,40 @@ def avg_times(thr_std=6, slurm_time=144):
 	
 	# plt.show()
 
+def pubind11_bug_test(mode):
+	filebase = 'lattice_gas'
+	path_to_so = os.path.join(filebase, 'build')
+	N_dirs_down = path_to_so.count('/') + 1
+	path_back = '/'.join(['..'] * N_dirs_down)
+	if(mode == 'cmp'):
+		os.chdir(path_to_so)
+		compile_results = my.run_it('make %s.so -j 9' % (filebase), check=True).split('\n')
+		os.chdir(path_back)
+	elif(mode == 'cp'):
+		py_suffix = my.run_it('python3-config --extension-suffix', check=True, verbose=False)[:-1]   # [:-1] to remove "\n"
+		#exit()
+		
+		src = '%s/%s.so%s' % (path_to_so, filebase, py_suffix)
+		dst_suff = '_tmp'
+		dst_suff = ''
+		dst = './%s%s.so' % (filebase, dst_suff)
+		
+		#src = 'lattice_gas/build/CMakeCache.txt'
+		#dst = './test.test'
+		#src = '/home/yp1065/.local/lib/libplumed.so'
+		#dst = './test.so'
+		
+		cmd = 'cp %s %s' % (src, dst)
+		print(cmd)
+		shutil.copyfile(src, dst)
+		#my.run_it(cmd, verbose=False)
+		
+		print('recompiled %s' % (filebase))
+		exit()
+		#import lattice_gas
+		#print(lattice_gas.get_move_modes())
+
+
 def main():
 	#slurm_time_distr()
 	
@@ -214,7 +250,9 @@ def main():
 	#find_finished_runs_npzs('/scratch/gpfs/yp1065/Izing/npzs/MCmoves2_L128_eT-2.68_-1.34_-1.72_phi0.015_0.01_NinitStates160_80_80_80_80_80_80_80_80_80_80_80_80_80_80_OPs19_23_27_31_35_39_43_48_52_56_60_65_70_75_80_stab16384_OPbf27_23_stride763_initGenMode-3_timeDataFalse_ID%d_FFStraj.npz', np.arange(100, 500), verbose=True)
 	#find_finished_runs_npzs('/scratch/gpfs/yp1065/Izing/npzs/MCmoves2_L128_eT-2.68_-1.34_-1.72_phi0.015_0.01_NinitStates160_80_80_80_80_80_80_80_80_80_80_80_80_80_80_OPs19_23_27_31_35_39_43_48_52_56_60_65_70_75_80_stab16384_OPbf27_23_stride763_initGenMode-3_timeDataFalse_ID%d_FFStraj.npz', np.arange(500, 1000), verbose=True)
 	
-	avg_times()
+	#avg_times()
+	
+	pubind11_bug_test(sys.argv[1])
 	
 
 if(__name__ == "__main__"):

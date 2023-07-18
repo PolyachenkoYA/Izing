@@ -107,13 +107,21 @@ void test_BF()
 	// N_states_saved is set to its initial values by default, so the equilibrated state is not saved
 	// ++N prevents further processes from overwriting the initial state so it will be returned as states[0]
 
-
+/*
+ * int move_mode, int L, const double *e, const double *mu, long *time_total, int N_states, int *states,
+						 long *OP_arr_len, long *Nt, long *Nt_OP_saved, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
+						 int interface_mode, int OP_A, int OP_B, int to_cluster, int to_start_only_state0,
+						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
+						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
+						 int N_spins_up_init, int verbose, long Nt_max, int *N_tries, int to_save_final_state,
+						 int to_regenerate_init_state, long save_states_stride, int to_use_smart_swap
+ */
 	lattice_gas::run_bruteforce_C(move_mode, L, e_ptr, mu_ptr, &time_total, N_saved_states_max, states_ptr,
 								  to_remember_timeevol ? &OP_arr_len : nullptr,
 								  &Nt, &Nt_OP_saved, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
-								  interface_mode, OP_A, OP_B, OP_A > 1,
+								  interface_mode, OP_A, OP_B, OP_A > 1, 0,
 								  OP_min, OP_max, &N_states_saved,
-								  OP_min_save_state, OP_max_save_state,save_state_mode_Inside,
+								  OP_min_save_state, OP_max_save_state, save_state_mode_Inside,
 								  N_spins_up_init, verbose, Nt_max, &N_launches, 0,
 								  (OP_A <= 1) && (!bool(_init_state_ptr)), save_states_stride,
 								  to_use_smart_swap);
@@ -274,6 +282,8 @@ void test_FFS_C()
 	}
 	int *states = (int*) malloc(state_size_in_bytes * N_states_total);   // technically there are N+2 states' sets, but we are not interested in the first and the last sets
 
+	int *states_parent_inds = (int*) malloc(state_size_in_bytes * (N_states_total - N_init_states[0]));
+
 	double *E;
 	int *M;
 	int *time;
@@ -303,7 +313,14 @@ void test_FFS_C()
 	int *_init_state_ptr = (int*)malloc(state_size_in_bytes);
 	lattice_gas::generate_state(_init_state_ptr, L, lround(phi0[main_specie_id] * L2) + 1, mode_ID_M, verbose);
 
-	lattice_gas::run_FFS_C(move_mode, &flux0, &d_flux0, L, e, mu, states, N_init_states,
+	/*
+	 * 	int run_FFS_C(int move_mode, double *flux0, double *d_flux0, int L, const double *e, const double *mu, int *states,
+				  int *states_parent_inds, int *N_init_states, long *Nt, long *Nt_OP_saved, long stab_step,
+				  long *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
+				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode,
+				  const int *init_state, int to_use_smart_swap);
+	 */
+	lattice_gas::run_FFS_C(move_mode, &flux0, &d_flux0, L, e, mu, states, states_parent_inds, N_init_states,
 						   Nt, Nt_OP_saved, stab_step, to_remember_timeevol ? &OP_arr_len : nullptr, OP_interfaces, N_OP_interfaces,
 						   probs, d_probs, &E, &M, &biggest_cluster_sizes, &time,
 						   verbose, init_gen_mode, interface_mode, _init_state_ptr, to_use_smart_swap);

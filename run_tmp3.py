@@ -6,9 +6,10 @@ import scipy
 import sys
 import scipy.interpolate
 import filecmp
-import shutil
 
 import mylib as my
+import table_data
+import izing
 
 # ========================== general params ==================
 dim = 2
@@ -53,7 +54,7 @@ feature_label['CS'] = 'Scl'
 
 # ========================== recompile ==================
 if(__name__ == "__main__"):
-	to_recompile = True
+	to_recompile = False
 	if(to_recompile):
 		# try:
 			# which_cmake_res = my.run_it('which cmake', check=True, verbose=False)
@@ -105,26 +106,29 @@ if(__name__ == "__main__"):
 				dst_suff = ''
 				dst = './%s%s.so' % (filebase, dst_suff)
 				
+				#print(compile_results)
+				#exit()
+				
 				to_copy = (not filecmp.cmp(src, dst, shallow=False)) if(os.path.isfile(dst)) else True
 				if(to_copy):
 					# TODO: ask the user only after checking tasks with 'squeue --me'
 					if(input('About to copy "%s" to "%s". This may cause disruption of active running tasks.\nProceed? (y/[n]) -> ' % (src, dst)) == 'y'):
+					#if(True):
 						my.run_it('cp %s %s' % (src, dst))
 						print('recompiled %s' % (filebase))
 					else:
 						print('Not copying the new .so, using the old version')
 				else:
 					print('"%s" and "%s" seem to be the same, not copying anything' % (src, dst))
+				#input('ok')
 	
-	import lattice_gas
-	#import lattice_gas_tmp as lattice_gas
+	#import lattice_gas
+	import lattice_gas_tmp as lattice_gas
 	
 	move_modes = lattice_gas.get_move_modes()
+	
+	#print(move_modes)
 	#exit()
-
-	import table_data
-	import izing
-	# all libs that import lattice_gas have to be imported after (possibly) overwriting lattice_gas.so. Otherwise, the .so is imported, then overwritten, which causes a segfault.
 
 # ========================== functions ==================
 
@@ -547,28 +551,6 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				OP_init_states[i][j] = cluster_sizes[maxclust_ind[i][j]]
 				max_cluster_1st_ind_id[i][j] = np.sum(cluster_sizes[:maxclust_ind[i][j]])
 				max_cluster_inds[i].append(cluster_element_inds[max_cluster_1st_ind_id[i][j] : max_cluster_1st_ind_id[i][j] + cluster_sizes[maxclust_ind[i][j]]])
-				
-		
-		# TODO: fix; In principle, all the simulations have to be redone. This is not feasible so we just fill the voids with normal states to not break further pipeline. 
-		bad_OPinit_states_inds = (OP_init_states[i] < OP_interfaces[i])
-		N_bad_states = np.sum(bad_OPinit_states_inds)
-		if(N_bad_states > 0):
-			replacement_states_inds = np.random.choice(np.where(~bad_OPinit_states_inds)[0], N_bad_states)
-			bad_OPinit_states_inds = np.where(bad_OPinit_states_inds)[0]
-			print('WARNING: states %s of interface %d have OP-s = %s < OP_interface = %d. Replacing with states %s with OP-s %s' % \
-				(str(bad_OPinit_states_inds), i, str(OP_init_states[i][bad_OPinit_states_inds]), OP_interfaces[i], str(replacement_states_inds), str(OP_init_states[i][replacement_states_inds])))
-			for j in range(N_bad_states):
-				j_bad = bad_OPinit_states_inds[j]
-				j_repl = replacement_states_inds[j]
-				
-				states[i][j_bad, :, :] = states[i][j_repl, :, :]
-				#(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j_bad, :, :].flatten())
-				maxclust_ind[i][j_bad] = maxclust_ind[i][j_repl]
-				OP_init_states[i][j_bad] = OP_init_states[i][j_repl]
-				max_cluster_1st_ind_id[i][j_bad] = max_cluster_1st_ind_id[i][j_repl]
-				max_cluster_inds[i][j_bad] = np.copy(max_cluster_inds[i][j_repl])# .append(cluster_element_inds[max_cluster_1st_ind_id[i][j] : max_cluster_1st_ind_id[i][j] + cluster_sizes[maxclust_ind[i][j]]])
-			
-			#N_init_states[i] -= N_bad_states
 		
 		OP_init_states_OP0exactly_inds.append(np.array([j for j in range(N_init_states[i]) if(OP_init_states[i][j] == OP_interfaces[i])], dtype=int))
 	
@@ -599,10 +581,11 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	# =========== estimate Dtop ==============
 	if(Dtop_Nruns > 0):
 		# ======= estimate D* at the top (P_B = 1/2) ======
-		to_use_random_OPexactly_init_states = (states_parent_inds is None)
-		if(to_use_random_OPexactly_init_states):
+		if(states_parent_inds is None):
 			print('WARNING: Give Dtop_Nruns = %d > 0 to estimate Dtop, but no states_parent_inds is provided. Will pick OP0 states at random')
-		else:
+		
+		to_use_random_OPexactly_init_states = (states_parent_inds is None)
+		if(not to_use_random_OPexactly_init_states):
 			to_use_random_OPexactly_init_states = (len(OP0_parent_inds_OP0exactly) == 0)
 			# this is a choice - if OP0_parent_inds do not overlap with OP0_exactly, then we can either take states that have OP0_exactly or that are parents.
 			# Here I am taking all OP0_exactly states
@@ -631,38 +614,24 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 										np.random.choice(parent_state_source_IDs, Dtop_Nruns - Dtop_Nruns_perState_min * len(parent_state_source_IDs), \
 														p=parent_state_source_IDs_p))
 		else:
+			# TODO: make "Dtop_Nruns = auto" work
 			print('WARNING: Dtop_Nruns = %s is too small (<= %d * len(parent_state_source_IDs) = %d), not all states will be well represented.\nAvised setting Dtop_Nruns to at least %d\n' \
 					% (Dtop_Nruns, Dtop_Nruns_perState_min, Dtop_Nruns_perState_min * len(parent_state_source_IDs), Dtop_Nruns_perState_min * len(parent_state_source_IDs) + 1))
 			
 			Dtop_NparentStates_to_use = int(np.floor(Dtop_Nruns / Dtop_Nruns_perState_min) + 0.1)
+			Dtop_NparentStates_repeats = int(np.floor(Dtop_Nruns / Dtop_NparentStates_to_use) + 0.1)
 			if(Dtop_NparentStates_to_use > 0):
-				Dtop_NparentStates_repeats = int(np.floor(Dtop_Nruns / Dtop_NparentStates_to_use) + 0.1)
-				parent_state_IDs_useSubset_inds = np.arange(Dtop_NparentStates_to_use) if(to_use_random_OPexactly_init_states) \
-													else np.argsort(-OP0_parent_inds_OP0exactly_Nchildren)[:Dtop_NparentStates_to_use]
-				parent_state_IDs_useSubset = parent_state_source_IDs[parent_state_IDs_useSubset_inds]
-				parent_state_IDs = np.append(np.tile(parent_state_IDs_useSubset, Dtop_NparentStates_repeats), \
-											parent_state_IDs_useSubset[:(Dtop_Nruns - Dtop_NparentStates_to_use * Dtop_NparentStates_repeats)])
-			else:
-				parent_state_IDs = np.tile(parent_state_source_IDs[0 if(to_use_random_OPexactly_init_states) else np.argmax(OP0_parent_inds_OP0exactly_Nchildren)], Dtop_Nruns)
-				print(parent_state_source_IDs[0 if(to_use_random_OPexactly_init_states) else np.argmax(OP0_parent_inds_OP0exactly_Nchildren)], Dtop_Nruns, parent_state_IDs)
+				parent_state_IDs_useSubset = parent_state_source_IDs[:Dtop_NparentStates_to_use]
+				parent_state_IDs = np.append(np.tile(parent_state_IDs_useSubset, Dtop_Nruns_perState_min), \
+							parent_state_IDs_useSubset[:(Dtop_Nruns - Dtop_NparentStates_to_use * Dtop_Nruns_perState_min)])
 			
-			# TODO: make "Dtop_Nruns = auto" work
 			# == It's bad to modify Dtop_Nruns because it makes runs with different IDs have different names which breaks analisys ==
 			# print('WARNING: Dtop_Nruns = %s is too small (<= %d * len(parent_state_source_IDs) = %d), not all states will be well represented. Setting Dtop_Nruns to %d' \
 					# % (Dtop_Nruns, Dtop_Nruns_perState_min, Dtop_Nruns_perState_min * len(parent_state_source_IDs), Dtop_Nruns_perState_min * len(parent_state_source_IDs)))
 			# Dtop_Nruns = Dtop_Nruns_perState_min * len(parent_state_source_IDs)
 		
-		# print(to_use_random_OPexactly_init_states, np.argmax(OP0_parent_inds_OP0exactly_Nchildren), parent_state_source_IDs[0 if(to_use_random_OPexactly_init_states) else np.argmax(OP0_parent_inds_OP0exactly_Nchildren)], parent_state_source_IDs, OP0_parent_inds_OP0exactly_Nchildren)
-		# print('parent IDs in use:', parent_state_IDs)
-		# exit()
-		
 		parent_state_IDs_unique, parent_state_IDs_lens = np.unique(parent_state_IDs, return_counts=True)
 		N_parent_state_IDs_unique = len(parent_state_IDs_unique)
-		
-		# print(parent_state_IDs_unique, parent_state_IDs_lens)
-		# print(states_parent_inds, parent_state_source_IDs)
-		# print(OP_init_states[OP_closest_to_OP0_ind], OP_interfaces[OP_closest_to_OP0_ind], Dtop_OPtop)
-		# input('ok2')
 		
 		P_B_erfinv_interp = scipy.interpolate.interp1d(OP_interfaces_scaled[:-1], P_B_erfinv, fill_value='extrapolate', bounds_error=False)
 		Dtop_OPmin = max(2, \
@@ -691,8 +660,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		if((not os.path.isfile(npz_Dtop_filepath)) or (to_recomp > 0)):
 			CS_Dtop = []
 			times_Dtop = []
-			print('Did not find "%s"\nEstimating Dtop' % npz_Dtop_filepath)
-			exit()
+			print('Estimating Dtop')
 			for i in range(N_parent_state_IDs_unique):
 				_, _, _, CS_Dtop_new, _, times_Dtop_new, _, _ = \
 					proc_T(MC_move_mode, L, e, mu, -1, interface_mode, \
@@ -751,14 +719,14 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			assert(len(restart_timesteps) == parent_state_IDs_lens[i]), 'ERROR: len(restart_timesteps) = %d that must be == N_saved_states_max = parent_state_IDs_lens[i], but it is not' % (len(restart_timesteps), parent_state_IDs_lens[i])
 			
 			totaltime_Dtop = np.empty(parent_state_IDs_lens[i])
-			CS_Dtop_shifted = [np.append(Dtop_OPtop, CS_Dtop[i][ : restart_timesteps[0]+1])]
+			CS_Dtop_shifted = [np.append(OP_interfaces[OP_closest_to_OP0_ind], CS_Dtop[i][ : restart_timesteps[0]+1])]
 			times_Dtop_shifted = [np.append(0, np.cumsum(times_Dtop[i][ : restart_timesteps[0]+1]))]
 			CS_Dtop_interp = [scipy.interpolate.interp1d(times_Dtop_shifted[0], CS_Dtop_shifted[0], \
 									bounds_error=False,
 									fill_value = (CS_Dtop_shifted[0][0], CS_Dtop_shifted[0][-1]))]
 			totaltime_Dtop[0] = times_Dtop_shifted[0][-1]
 			for j in range(1, parent_state_IDs_lens[i]):
-				CS_Dtop_shifted.append(np.append(Dtop_OPtop, CS_Dtop[i][restart_timesteps[j-1]+1 : restart_timesteps[j]+1]))
+				CS_Dtop_shifted.append(np.append(OP_interfaces[OP_closest_to_OP0_ind], CS_Dtop[i][restart_timesteps[j-1]+1 : restart_timesteps[j]+1]))
 				times_Dtop_shifted.append(np.append(0, np.cumsum(times_Dtop[i][restart_timesteps[j-1]+1 : restart_timesteps[j]+1])))
 				totaltime_Dtop[j] = times_Dtop_shifted[j][-1]
 				CS_Dtop_interp.append(scipy.interpolate.interp1d(times_Dtop_shifted[j], CS_Dtop_shifted[j], \
@@ -772,7 +740,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			CS_Dtop_shifted_cut = np.empty((parent_state_IDs_lens[i], len(Dtop_event_commontime)))
 			for j in range(parent_state_IDs_lens[i]):
 				CS_Dtop_shifted_cut[j, :] = CS_Dtop_interp[j](Dtop_event_commontime)
-			CS_Dtop_MSD, d_CS_Dtop_MSD = my.get_average((CS_Dtop_shifted_cut - Dtop_OPtop)**2, axis=0)
+			CS_Dtop_MSD, d_CS_Dtop_MSD = my.get_average((CS_Dtop_shifted_cut - OP_interfaces[OP_closest_to_OP0_ind])**2, axis=0)
 			Dtop_CSok_inds = (d_CS_Dtop_MSD > 0)
 			to_plot_Dtop_debug = False
 			if(np.any(Dtop_CSok_inds)):
@@ -788,9 +756,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			else:
 				print('ERROR: no common "d_CS_Dtop_MSD > 0" timepoints found.\nDtop_event_commontime = [0; %s], Dtop_event_commonsteps_lens = %s' % \
 						(my.f2s(Dtop_event_commontime[-1]), str(Dtop_event_commonsteps_lens)))
-				#to_plot_Dtop_debug = True
-				Dtop_arr[i] = 0
-				d_Dtop_arr[i] = 0
+				to_plot_Dtop_debug = True
 			
 			if(to_plot_Dtop_debug):
 				tit = '$P_B \in %s$' % (str(Dtop_PBthr))
@@ -798,15 +764,15 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				ax.plot(np.cumsum(times_Dtop[i]), CS_Dtop[i])
 				ax.plot([times_Dtop[i][0], np.sum(times_Dtop[i])], [Dtop_OPmax]*2, '--')
 				ax.plot([times_Dtop[i][0], np.sum(times_Dtop[i])], [Dtop_OPmin - 1]*2, '--')
-				ax.plot([times_Dtop[i][0], np.sum(times_Dtop[i])], [Dtop_OPtop]*2, '--')
+				ax.plot([times_Dtop[i][0], np.sum(times_Dtop[i])], [OP_interfaces[OP_closest_to_OP0_ind]]*2, '--')
 				
 				fig_cut, ax_cut, _ = my.get_fig('t', 'CS', title=tit + r'; cut $t_{min}$')
 				fig_all, ax_all, _ = my.get_fig('t', 'CS', title=tit + r'; all times')
 				for j in range(parent_state_IDs_lens[i]):
 					ax_all.plot(times_Dtop_shifted[j], CS_Dtop_shifted[j])
 					ax_cut.plot(Dtop_event_commontime, CS_Dtop_shifted_cut[j, :])
-				ax_all.plot([0, max(totaltime_Dtop)], [Dtop_OPtop]*2, label=r'$N_{\lambda} = %d$, $N_{top} = %d$' % (OP_interfaces[OP_closest_to_OP0_ind], Dtop_OPtop))
-				ax_cut.plot([0, max(Dtop_event_commontime)], [Dtop_OPtop]*2, label=r'$N_{\lambda} = %d$, $N_{top} = %d$' % (OP_interfaces[OP_closest_to_OP0_ind], Dtop_OPtop))
+				ax_all.plot([0, max(totaltime_Dtop)], [OP_interfaces[OP_closest_to_OP0_ind]]*2, label=r'$N^* = %d$' % (OP_interfaces[OP_closest_to_OP0_ind]))
+				ax_cut.plot([0, max(Dtop_event_commontime)], [OP_interfaces[OP_closest_to_OP0_ind]]*2, label=r'$N^* = %d$' % (OP_interfaces[OP_closest_to_OP0_ind]))
 				my.add_legend(fig_all, ax_all)
 				my.add_legend(fig_cut, ax_cut)
 				
@@ -819,11 +785,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			
 		
 		#Dtop, d_Dtop = my.get_average(Dtop_arr, weights=parent_state_IDs_lens)
-		Dtop_ok_inds = (d_Dtop_arr > 0)
-		if(np.any(Dtop_ok_inds)):
-			Dtop, d_Dtop = my.get_average(Dtop_arr[d_Dtop_arr > 0], weights=1/d_Dtop_arr[d_Dtop_arr > 0])
-		else:
-			Dtop, d_Dtop = tuple([0] * 2)
+		Dtop, d_Dtop = my.get_average(Dtop_arr, weights=1/d_Dtop_arr)
 		
 	else:
 		Dtop, d_Dtop = tuple([0] * 2)
@@ -1459,8 +1421,6 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 								init_gen_mode=init_gen_mode, \
 								interface_mode=OP_C_id[interface_mode], \
 								init_state=None if(init_state is None) else init_state.flatten())
-		
-		#_states_parent_inds = None
 		
 		if(to_save_npz):
 			np.savez(traj_filepath, states=_states, probs=probs, \
@@ -3023,28 +2983,14 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			
 			sgmfit_species_id = 0
 			assert(sgmfit_species_id in species_to_fit_rho_inds), 'ERROR: Species N%d to be used for width estimation but this specie is not included in species to be fit: %s' % (sgmfit_species_id, str(species_to_fit_rho_inds))
-			
-			d_rho_fit_params_forWeights = d_rho_fit_params[sgmfit_species_id, 1, :]
-			# ==0 can be if too few measurements, nan can be if hess_inv does not work properly
-			bad_d_rho_fit_params_forWeights_inds = (d_rho_fit_params_forWeights <= 0) | np.isnan(d_rho_fit_params_forWeights)
-			if(np.all(bad_d_rho_fit_params_forWeights_inds)):
-				d_rho_fit_params_forWeights = np.ones(d_rho_fit_params_forWeights.shape)
-			else:
-				d_rho_fit_params_forWeights[bad_d_rho_fit_params_forWeights_inds] = \
-					np.amin(d_rho_fit_params_forWeights[~bad_d_rho_fit_params_forWeights_inds])
-			
 			sgm_logfit_Nmin = OP0_erfinv_AB
 			sgm_logfit_inds = (OP_interfaces_AB >= sgm_logfit_Nmin)
 			if(np.sum(sgm_logfit_inds) < 3):
 				sgm_logfit_inds = np.arange(len(OP_interfaces_AB) - 3, len(OP_interfaces_AB))
-			
-			# print(np.log(OP_interfaces_AB[sgm_logfit_inds]), \
-							# np.log(rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds]))
-			# print(d_rho_fit_params_forWeights[sgm_logfit_inds], rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds])
 			sgm_logfit, sgm_logfit_cov = \
 				np.polyfit(np.log(OP_interfaces_AB[sgm_logfit_inds]), \
 							np.log(rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds]), \
-							1, cov=True, w=1 / (d_rho_fit_params_forWeights[sgm_logfit_inds] / rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds]))
+							1, cov=True, w=1 / (d_rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds] / rho_fit_params[sgmfit_species_id, 1, sgm_logfit_inds]))
 			
 		if((rho_inf_crit is None) or (Dtop_AB == 0)):
 			dF_AB_accum, d_dF_AB_accum = tuple([None] * 2)
@@ -3637,7 +3583,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 					rho_dip_specie_ID=1, fit_ord=2, to_plot=False, 
 					npz_path='/scratch/gpfs/yp1065/Izing/npzs/', \
 					npz_suff='FFStraj', n_emu_digits=6, \
-					feature_inds_to_plot=[7], verbose=None):
+					feature_inds_to_plot=[7]):
 	N_OP_interfaces = len(OP_interfaces)
 	N_Temps = len(Temp_s)
 	N_phi1s = len(phi1_s)
@@ -3674,8 +3620,6 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 		for i_phi1, phi1 in enumerate(phi1_s):
 			n_FFS = table_data.nPlot_FFS_dict[MC_move_mode_name][my.f2s(Temp, n=2)][my.f2s(phi1, n=5)]
 			if(n_FFS > 0):
-				#Dtop_Nruns = table_data.Dtop_FFS_dict[MC_move_mode_name][my.f2s(Temp, n=2)][my.f2s(phi1, n=5)]*10
-				Dtop_Nruns = int(table_data.n144h_Dtop_FFS_dict[MC_move_mode_name][my.f2s(Temp, n=2)][my.f2s(phi1, n=5)]/6 + 0.5)*10
 				e_use = e / Temp
 				mu = np.array([0] * N_species)
 				init_composition = np.array([1 - phi1 - phi2, phi1, phi2])
@@ -3704,8 +3648,6 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 					izing.find_finished_runs_npzs(templ, seeds_range, verbose=True)
 				#print(found_IDs)
 				#input('ok')
-				
-				found_IDs = found_IDs[:6]
 				
 				N_found_npzs = len(found_IDs)
 				if(N_ID_groups is None):
@@ -3766,7 +3708,6 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 									n_emu_digits=n_emu_digits, \
 									to_recomp=max([to_recomp - 1, 0]), \
 									N_fourier=N_fourier, \
-									Dtop_Nruns=Dtop_Nruns, \
 									seeds=ID_groups[i_group], \
 									to_plot=False)
 					
@@ -3890,7 +3831,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 									np.array([[min(Temp_s), max(Temp_s)], [min(phi1_s), max(phi1_s)], [min(ln_OP0_arr), max(ln_OP0_arr)]]).T, \
 									trial_points=N_points_OP0constr))
 	else:
-		print('N_ok_points = %d >= (fit_ord + 1)**2 = %d, not doing interpolation' % (N_ok_points, (fit_ord + 1)**2))
+		print('N_ok_points = %d >= fit_ord**2 = %d, not doing interpolation' % (N_ok_points, fit_ord**2))
 	
 	if(to_plot):
 		if(N_ok_points >= (fit_ord + 1)**2):
@@ -4106,8 +4047,6 @@ def main():
 	# python run.py -mode FFS_AB_many -init_composition 0.975 0.015 0.01 -Temp 1.0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -font_mode present -MC_move_mode swap -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -OP_interfaces_set_IDs nvt -my_seeds FFS_auto -to_recomp 1
 	# python run.py -mode FFS_AB_many -init_composition 0.974 0.016 0.01 -Temp 0.8 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -font_mode present -MC_move_mode swap -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -OP_interfaces_set_IDs nvt -my_seeds FFS_auto -to_recomp 2
 	# python run.py -mode FFS_AB -L 32 -OP_interfaces_set_IDs mu5 -to_get_timeevol 0 -N_states_FFS 25 -N_init_states_FFS 50 -mu 5.15 4.92238326 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode flip -to_recomp 2 -Dtop_Nruns 100
-	
-	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.95 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 1 -font_mode present -OP0_constr_s 15 20 30 50 100
 	
 	# TODO: run failed IDs with longer times
 	
@@ -4580,8 +4519,7 @@ def main():
 							OP0_constraint_s=OP0_constr_s, \
 							N_ID_groups=N_ID_groups, \
 							to_plot=True, n_emu_digits=n_emu_digits, \
-							seeds_range=np.arange(1000, 1200), \
-							verbose=verbose)
+							seeds_range=np.arange(1000, 1200))
 					
 	
 	elif('L' in mode):
