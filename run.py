@@ -3433,11 +3433,18 @@ def rho_fit_spline(R_centers, Rdens, d_Rdens, rho_bulk, L2, s=None, ext='const',
 		Rmax_fit = R_peak_right - Rmax_fit * (R_peak_right - R_peak_left)
 	fit_inds = (R_centers >= R_peak_right) & (R_centers < Rmax_fit)
 	
+	bad_RdensW_inds = np.isnan(d_Rdens) | (d_Rdens <= 0)
+	if(np.all(bad_RdensW_inds)):
+		d_Rdens_forWeights = np.ones(d_Rdens.shape)
+	else:
+		d_Rdens_forWeights = np.copy(d_Rdens)
+		d_Rdens_forWeights[bad_RdensW_inds] = np.amin(d_Rdens_forWeights[~bad_RdensW_inds])
+	
 	if(s is not None):
 		if(s < 0):
 			s = -s * np.sum(fit_inds)
 	
-	spl = scipy.interpolate.UnivariateSpline(R_centers[fit_inds], Rdens[fit_inds], w=1/d_Rdens[fit_inds], ext=ext, s=s, k=k)
+	spl = scipy.interpolate.UnivariateSpline(R_centers[fit_inds], Rdens[fit_inds], w=1/d_Rdens_forWeights[fit_inds], ext=ext, s=s, k=k)
 	full_fnc = lambda r, \
 					R_peak_right_loc=R_peak_right, \
 					Rmax_fit_loc=Rmax_fit, \
@@ -3637,7 +3644,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 					rho_dip_specie_ID=1, fit_ord=2, to_plot=False, 
 					npz_path='/scratch/gpfs/yp1065/Izing/npzs/', \
 					npz_suff='FFStraj', n_emu_digits=6, \
-					feature_inds_to_plot=[7], verbose=None):
+					feature_inds_to_plot=[-1], verbose=None):
 	N_OP_interfaces = len(OP_interfaces)
 	N_Temps = len(Temp_s)
 	N_phi1s = len(phi1_s)
@@ -3855,6 +3862,9 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 						  [ln_chi2_rho1_arr, d_ln_chi2_rho1_arr], \
 						  [ln_chi2_rho2_arr, d_ln_chi2_rho2_arr]]
 		N_data_pairs = len(data_arr_pairs)
+		if(feature_inds_to_plot[0] == -1):
+			feature_inds_to_plot = np.arange(N_data_pairs)
+		
 		for i in range(N_data_pairs):
 			nan_inds = np.isnan(data_arr_pairs[i][1])
 			if(np.all(nan_inds)):
@@ -3890,7 +3900,7 @@ def get_Tphi1_dependence(Temp_s, phi1_s, phi2, MC_move_mode_name, \
 									np.array([[min(Temp_s), max(Temp_s)], [min(phi1_s), max(phi1_s)], [min(ln_OP0_arr), max(ln_OP0_arr)]]).T, \
 									trial_points=N_points_OP0constr))
 	else:
-		print('N_ok_points = %d >= (fit_ord + 1)**2 = %d, not doing interpolation' % (N_ok_points, (fit_ord + 1)**2))
+		print('N_ok_points = %d < (fit_ord + 1)**2 = %d, not doing interpolation' % (N_ok_points, (fit_ord + 1)**2))
 	
 	if(to_plot):
 		if(N_ok_points >= (fit_ord + 1)**2):
