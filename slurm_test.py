@@ -113,8 +113,10 @@ def main():
 								
 								# cmd = 'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s -to_show_on_screen 0 -my_seeds %d -to_post_proc %s' \
 										# % (script_name, L, n_FFS, n_init, e_T1[0]/Temp, e_T1[1]/Temp, e_T1[2]/Temp, MC_mode, my.f2s(1.0 - phi - phi_2, n=phi_dgt), my.f2s(phi, n=phi_dgt), my.f2s(phi_2, n=phi_dgt), OP_set_name, seed, '1' if(to_post_proc) else '0')
-								cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns 300 -font_mode present' \
+								cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns 30000 -font_mode present' \
 										% (script_name, L, e_T1[0], e_T1[1], e_T1[2], MC_mode, my.f2s(1.0 - phi - phi_2, n=phi_dgt), my.f2s(phi, n=phi_dgt), my.f2s(phi_2, n=phi_dgt), OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5))
+								# cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns 2000 -font_mode present' \
+										# % (script_name, L, e_T1[0], e_T1[1], e_T1[2], MC_mode, my.f2s(1.0 - phi - phi_2, n=phi_dgt), my.f2s(phi, n=phi_dgt), my.f2s(phi_2, n=phi_dgt), OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5))
 										
 								
 								
