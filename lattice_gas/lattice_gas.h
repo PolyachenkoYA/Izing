@@ -117,7 +117,6 @@ namespace lattice_gas
 
 
 	int init_rand_C(int my_seed);
-	int get_max_CS(int *state, int L);
 	double comp_E(const int* state, int L, const double *e, const double *mu);
 	int comp_M(const int *s, int L);
 	int generate_state(int *s, int L, int mode, int interface_mode, int verbose);
@@ -146,6 +145,7 @@ namespace lattice_gas
 	void uncheck_state(int *is_checked, int N);
 	void clear_cluster(int* cluster, int *cluster_size);
 	void clear_clusters(int *clusters, int *cluster_sizes, int *N_clusters);
+	int get_max_CS_C(int *state, int L);
 }
 
 //py::tuple get_init_states(int L, double Temp, double h, int N0, int M_0, int to_get_EM, std::optional<int> _verbose);

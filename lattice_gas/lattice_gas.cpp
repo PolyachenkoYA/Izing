@@ -1427,12 +1427,15 @@ namespace lattice_gas
 //		long N_steps_to_equil = 2 * Nt_to_reach_OP_A + stab_step;   // * 2 because we already have Nt = Nt_reach, and we want to run Nt_reach+stab_step new steps
 			long N_steps_to_equil = Nt_to_reach_OP_A + stab_step;
 			long Nt;
+			int equil_end_CS = -1;
 			N_tries = 0;
 			do{
 				*N_states_done = N_states_done_local;
 				Nt = Nt_to_reach_OP_A;
 				if(verbose > 0){
 //				printf("Proc N_states_done = %d\n", N_states_done);
+					if(equil_end_CS >= 0)
+						printf("Last run resulted in a state with CS_max = %d; ", equil_end_CS);
 					printf("Attempting to simulate Nt = %ld MC steps towards the local optimum            \r", N_steps_to_equil);
 					if(N_tries > 0){
 						printf("Previous attempt results in %d reaches of state B (OP_B = %d), so restating from the initial ~OP_A\n", N_tries, OP_B);
@@ -1449,10 +1452,13 @@ namespace lattice_gas
 								 0, N_steps_to_equil, &N_tries, 1, 0,
 								 1, to_use_smart_swap);
 				if(N_tries == 0){
-					if(get_max_CS(&(state[(*N_states_done - 1) * L2]), L) < OP_A){
+					equil_end_CS = get_max_CS_C(&(state[(*N_states_done - 1) * L2]), L);
+					if(equil_end_CS < OP_A){
 						memcpy(&(state[(N_states_done_local - 1) * L2]), &(state[(*N_states_done - 1) * L2]), state_size_in_bytes);
 						*N_states_done = N_states_done_local;
 						break;
+					} else if(equil_end_CS == OP_A)	{   // ==OP_A => did not have time to leave ==OP_A
+						N_steps_to_equil *= 2;
 					} else {
 						N_steps_to_equil = std::max(lround(N_steps_to_equil * 0.5), (long)(L2 * 1));
 					}
@@ -1468,7 +1474,7 @@ namespace lattice_gas
 				}
 			}while(true);
 
-			printf("Equilibrated state generated                                                \n");
+			printf("Equilibrated state generated using %ld steps                                                \n", N_steps_to_equil);
 			// N_tries = 0 in the beginning of BF. If we went over the N_c, I want to restart because we might not have obtained enough statistic back around the optimum.
 		}
 
@@ -2009,7 +2015,7 @@ namespace lattice_gas
 		return N_flip_tries;
 	}
 
-	int get_max_CS(int *state, int L)
+	int get_max_CS_C(int *state, int L)
 	{
 		int L2 = L * L;
 

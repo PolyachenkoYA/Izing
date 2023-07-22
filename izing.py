@@ -49,7 +49,7 @@ def find_finished_runs_npzs(filename_mask, inds, verbose=False):
 		print('mask:', filename_mask)
 		report_found(found_IDs)
 		if(len(found_mult_IDs) > 0):
-			print('WARNING: multiplt candidates found for')
+			print('WARNING: multiple candidates found for')
 			report_found(found_mult_IDs)
 	
 	return found_IDs, found_filepaths, found_mult_filepaths
