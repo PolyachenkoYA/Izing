@@ -10,8 +10,8 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(lattice_gas_tmp, m)
-//PYBIND11_MODULE(lattice_gas, m)
+//PYBIND11_MODULE(lattice_gas_tmp, m)
+PYBIND11_MODULE(lattice_gas, m)
 {
 // py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
 //				  int to_remember_timeevol, int init_gen_mode, int interface_mode,

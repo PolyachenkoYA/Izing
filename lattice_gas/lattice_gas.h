@@ -172,7 +172,7 @@ py::int_ set_verbose(int new_verbose);
 py::int_ get_verbose();
 py::int_ get_seed();
 void print_possible_move_modes();
-py::dict get_move_modes();
+py::tuple get_move_modes();
 
 template <typename T> T cmpfunc_inrc (const void * a, const void * b) {	return ( *(T*)a - *(T*)b ); }
 template <typename T> T cmpfunc_decr (const void * a, const void * b) {	return -cmpfunc_inrc<T>(a, b); }

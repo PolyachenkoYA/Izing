@@ -1,0 +1,240 @@
+% "Станет проще"
+
+\documentclass[a4paper,12pt]{article} % тип документа
+
+% report, book
+
+% Рисунки
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage{lscape}
+\usepackage{biblatex}
+\usepackage{bbold}
+\usepackage{physics}
+
+\usepackage{hyperref}
+\usepackage[rgb]{xcolor}
+\hypersetup{				% Гиперссылки
+    colorlinks=true,       	% false: ссылки в рамках
+	urlcolor=blue          % на URL
+}
+
+%  Русский язык
+
+%\usepackage[T2A]{fontenc}			% кодировка
+\usepackage[utf8]{inputenc}			% кодировка исходного текста
+%\usepackage[english,russian]{babel}	% локализация и переносы
+\usepackage[english]{babel}
+
+
+% Математика
+\usepackage{amsmath,amsfonts,amssymb,amsthm,mathtools} 
+
+\usepackage{wasysym}
+
+\author{Polyachenko Yury}
+\title{Estimations}
+\date{\today}
+
+\begin{document} % начало документа
+
+\clearpage\maketitle
+\thispagestyle{empty}
+
+\newpage
+
+\section{Diffusion on a parabolic peak}
+
+Let's say $\rho(t=0) = \rho_0(x)$. Then we can say
+
+\begin{equation}
+\rho_0(x) = \int \rho_0(y) \delta (x-y) \dd y
+\end{equation}
+
+We also know how a delta function evolves under a linear potential $f=-cx$:
+
+\begin{equation}
+\eval{\delta(x - x_{init})}_{t=0} \to \frac{1}{\sqrt{4 \pi D t}} \exp \qty[-\frac{(x - x_{init} - vt)^2}{4 D t}]
+\end{equation}
+
+where 
+
+\begin{equation}
+v = - \frac{D}{T} \eval{\pdv{f}{x}}_x = c \frac{D}{T}
+\end{equation}
+
+Now, we can say that if $v(x) \neq const$ and $D(x) \neq const$, then for small enough $\delta t$ we can still say that each $\delta(x-y)$ in the initialintegral will transform approximately under liner force.
+
+So, we define 
+
+\begin{equation}
+P(x, \delta t | y, 0) = \frac{1}{\sqrt{4 \pi D(x) \delta t}} \exp \qty[-\frac{(x - y - v(x) t)^2}{4 D(x) \delta t}], \hspace{10pt} v(x) = - \frac{D}{T} \eval{\pdv{f}{x}}_x
+\end{equation}
+
+Then we can evolve each $\delta(x-y)$ and get 
+
+\begin{equation} \label{eq:rho1_general}
+\rho_1(x) = \rho(t=\delta t, x) \approx \int \rho_0(y) P(x, \delta t | y, 0) \dd y
+\end{equation}
+
+If $v(x) = v_0 = const$ and $D(x) = D_0 = const$, then we can easily solve this because we basically have 
+
+\begin{equation}
+\rho_1(x) = \int \rho_0(y) g(x-y, \delta t, D, ...) \dd y
+\end{equation}
+
+so for fourier images
+
+\begin{equation}
+\tilde{\rho}_1(k) = \tilde{\rho}_0(k) \cdot \tilde{P}(k, \delta t, D, ...)
+\end{equation}
+
+so
+
+\begin{equation}
+\tilde{\rho}_n(k) = \tilde{\rho}_0(k) \cdot \tilde{P}^n(k, \delta t, D, ...)
+\end{equation}
+
+therefore we get a convolution
+
+\begin{equation}
+\rho_{n=t/\delta t}(x) = \qty{\rho_0 * F^{-1}\qty[\tilde{P}^n(k, \delta t, D, ...)]}(x)
+\end{equation}
+
+A typical case of $\rho_0(x) = \delta(x - x_{init})$ gives us
+
+\begin{equation}
+\rho_{n=t/\delta t}(x) = F^{-1}\qty[\tilde{P}^n(k, \delta t, D, ...)](x - x_{init})
+\end{equation}
+
+However, our case is morecomplicated since we at least do not have $v(x) = const$. For us $f(x) = - \pi \Gamma^2 (x - x_0)^2$, so $v(x) = 2 \pi (x - x_0) \Gamma^2 D/T$. This does not allow us to write $P(x, \delta t | y, 0)$ as a function on $x-y$ so $\rho_1(x)$ is not a convolution of $\rho_0(x)$ with a function.
+
+So, we have to go back to a more straighforward way of eq.\eqref{eq:rho1_general}. We also need to choose $D(x)$ and we choose the simplest thing $D(x) = D = const$.
+
+After performing a few integrals of the form of eq.\eqref{eq:rho1_general} we can notice that the density has the form of 
+
+\begin{equation}
+\rho_n(x) = A_n \exp \qty[-\frac{(\alpha_n x + \beta_n x_0 - x_i)^2}{\sigma_n^2}]
+\end{equation}
+
+where $A_n = |\alpha_n / \sigma_n| / \sqrt{\pi}$.
+
+We also notice 
+
+\begin{equation}
+\begin{aligned}
+& \alpha_n = (1 - 2 D \delta t \pi \Gamma^2)^n \\
+& \beta_n = 1 - (1 - 2 D \delta t \pi \Gamma^2)^n = 1 - \alpha_n \\
+& \sigma_n^2 - \sigma_{n-1}^2 = \frac{\alpha_n^2}{\alpha_1^2} \sigma_1^2 \\
+\end{aligned}
+\end{equation}
+
+Finally, we can notice $n = t/\delta t$ and take the limit $2 \pi \Gamma^2 D \delta t \to 0$ to get
+
+\begin{equation}
+\begin{aligned}
+& \alpha_t = e^{-2 D t \pi \Gamma^2} \\
+& \beta_t = 1 - \alpha_t \\
+& \sigma_t^2 = \frac{1-\alpha_t^2}{\pi \Gamma^2} \\
+\end{aligned}
+\end{equation}
+
+Defining $\tau = 1/2 \pi D \Gamma^2$ we can write
+
+\begin{equation}
+\rho_t(x) = \frac{1}{\sqrt{\pi s_t^2}}  \exp \qty[-\frac{[(x - x_0) - (x_{init} - x_0) e^{t / \tau}]^2}{s_t^2}], \hspace{10pt} s_t^2 = \frac{e^{2t / \tau} - 1}{\pi \Gamma^2}
+\end{equation}
+
+where $\tau$ is the time at which $\Delta F(\sqrt{2 D \tau}) / T = -1$. This also makes the limit $\delta t \to 0$ from above to be natural : $\delta t / \tau \ll 1$.
+
+One can plug this solution into the original Smoluchowski diffusion equation $\div\qty[D(\vec{\nabla} + \vec{\nabla} f(x))P(x,t|y,0)] = \partial_t P(x,t|y,0)$
+
+In principle, one can choose any form for $f(x)$ and $D(x)$ and perform the procedure similar to eq.\eqref{eq:rho1_general}. The answer should be exact in the limit of small $\delta t$.
+
+We can also estimate the thing we are getting in the simulation:
+
+\begin{equation}
+\expval{(x - x_{init})^2} = s_t^2 + (x_{init} - x_0)^2 (e^{t/\tau}-1)^2
+\end{equation}
+
+For $t/\tau \ll 1$ we get
+
+\begin{equation}
+\expval{(x - x_{init})^2} \approx 2 D t \qty[1 + \frac{t}{\tau} + \frac{(x_{init} - x_0)^2}{2 D \tau} \frac{t}{\tau}]
+\end{equation}
+
+So
+
+\begin{equation}
+\frac{\expval{(x - x_{init})^2}}{2 D t} - 1 \approx \frac{t}{\tau} \qty(1 + \pi \Gamma^2 (x_{init} - x_0)^2) = \frac{t}{\tau} \qty(1 + \abs{\frac{\Delta F(x_{init})}{T}}) 
+\end{equation}
+
+or specifically for $x_{init} = x_0$ we get
+
+\begin{equation}
+\frac{\expval{(x - x_{init})^2}}{2 D t} - 1 \approx \frac{t}{\tau} = 2 D t \pi \Gamma^2
+\end{equation}
+
+If we choose $t_{max}$ such that a normal diffusion would have reached $\Delta F_{max}/T$, i.e. $t_{max} / \tau = 2 D t_{max} \pi \Gamma^2 = \abs{\Delta F_{max} / T}$, then we can see that the error depends only on the $\Delta F$ values at important points:
+
+\begin{equation}
+\frac{\expval{(x(t_{max}) - x_{init})^2}}{2 D t_{max}} - 1 \approx \abs{\frac{\Delta F_{max}}{T}} \qty(1 + \abs{\frac{\Delta F(x_{init})}{T}})
+\end{equation}
+
+or, more precisely
+
+\begin{equation}
+\frac{\expval{(x - x_{init})^2}}{2 D t} - 1 \approx \frac{2 D t}{l^2} \qty(1 + \frac{(x_{init} - x_0)^2}{l^2} )
+\end{equation}
+
+where $l^2 = 1/\pi \Gamma^2$.
+
+\newpage
+
+\section{NVT CNT}
+
+We know for 2D
+
+\begin{equation}
+\begin{aligned}
+& \Delta G_{\mu V T} = \pi r^2 \rho_{\beta} + 2 \pi r \sigma \\
+& S = e^{-\Delta \mu / T} \approx \rho / \rho_c \\
+& N^* = \pi \qty(\frac{\sigma}{\Delta \mu})^2 \\
+\end{aligned}
+\end{equation}
+
+where $\rho_{\beta}$ is the density of the nucleated phase, $\rho$ is the density of the nucleating component in the bulk and $\rho_c$ is the coexistance density of the nucleating component,
+
+We can write $\Delta \mu \approx -T \ln(\rho / \rho_c)$ and notice that $\rho$ changes in the process of nucleation for a finite system at NVT:
+
+\begin{equation}
+\rho = \frac{\rho_0 L^2 - \pi r^2 \rho_{\beta}}{L^2 - \pi r^2} = \rho_0 \frac{1 - N_{cl} / N_{\Sigma}}{1 - (N_{cl} / N_{\Sigma})(\rho_0 / \rho_{\beta})}
+\end{equation}
+
+so
+
+\begin{equation}
+S(N_{cl}) = S_0 \frac{1 - N_{cl} / N_{\Sigma}}{1 - S_0 (\rho_c / \rho_{\beta})(N_{cl} / N_{\Sigma})}
+\end{equation}
+
+and therefore
+
+\begin{equation}
+g_{NVT} = \frac{\Delta G_{N V T}}{T} = \frac{\Delta G_{\mu V T}}{T} - N_{cl} \ln \qty(\frac{1 - N_{cl} / N_{\Sigma}}{1 - S_0 \frac{\rho_c}{\rho_{\beta}} \frac{N_{cl}}{N_{\Sigma}}})
+\end{equation}
+
+The condition for small disturbance is
+
+\begin{equation}
+\frac{\Delta S}{S_0 - 1} = \frac{S_0}{S_0 - 1} \qty[1 - \frac{1 - N_{cl} / N_{\Sigma}}{1 - S_0 \frac{\rho_c}{\rho_{\beta}} \frac{N_{cl}}{N_{\Sigma}}}] \ll 1
+\end{equation}
+
+We can also directly mimic simulation results by plotting
+
+\begin{equation}
+P_n = Z^{-1} \sum_{k=1}^{n-1} e^{g_k} k^{-2/3}, \hspace{10pt} Z = \sum_{k=1}^{N-1} e^{g_k} k^{-2/3}
+\end{equation}
+
+Then one can (numerically) solve for $P(n) = 1/2$ for different ($\sigma/T$, $\rho_c$) and choose such $\sigma/T$ and $\rho_c$ that minimize $\chi^2$ from the simulation data.
+
+\end{document}

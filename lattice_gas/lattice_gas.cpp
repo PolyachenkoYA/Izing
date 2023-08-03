@@ -60,9 +60,17 @@ py::int_ get_verbose()
 	return lattice_gas::verbose_dafault;
 }
 
-py::dict get_move_modes()
+py::tuple get_move_modes()
 {
-	return py::dict("flip"_a=move_mode_flip, "swap"_a=move_mode_swap, "long_swap"_a=move_mode_long_swap);
+	py::dict nums2strs;
+//	nums2strs[py::int_{move_mode_flip}] = "flip";
+//	nums2strs[py::int_{move_mode_swap}] = "swap";
+//	nums2strs[py::int_{move_mode_long_swap}] = "long_swap";
+	nums2strs[py::cast(move_mode_flip)] = "flip";
+	nums2strs[py::cast(move_mode_swap)] = "swap";
+	nums2strs[py::cast(move_mode_long_swap)] = "long_swap";
+	return py::make_tuple(py::dict("flip"_a=move_mode_flip, "swap"_a=move_mode_swap, "long_swap"_a=move_mode_long_swap),
+						  nums2strs);
 }
 
 //int compute_hA(py::array_t<int> *h_A, int *OP, long Nt, int OP_A, int OP_B)
