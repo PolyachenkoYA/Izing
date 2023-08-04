@@ -120,7 +120,7 @@ if(__name__ == "__main__"):
 	import lattice_gas
 	#import lattice_gas_tmp as lattice_gas
 	
-	print(lattice_gas.get_move_modes())
+	#print(lattice_gas.get_move_modes())
 	move_modes, move_mode_names = lattice_gas.get_move_modes()
 	#exit()
 	nvt_movemodes = [move_modes["swap"], move_modes["long_swap"]]
@@ -131,11 +131,11 @@ if(__name__ == "__main__"):
 
 # ========================== functions ==================
 
-def get_ThL_lbl(e, mu, init_composition, L, MC_move_mode):
-	return r'$\epsilon_{11,12,22}/T = ' + my.join_lbls([e[1,1], e[1,2], e[2,2]], ',') + \
-				'$;\n' + move_mode_names[MC_move_mode] + '; $'  + ((r'\phi_{1,2} = ' + my.join_lbls(init_composition[1:], ',')) \
+def get_ThL_lbl(e, mu, init_composition, L, MC_move_mode, n_dgt=3):
+	return r'$\epsilon_{11,12,22}/T = ' + my.join_lbls([e[1,1], e[1,2], e[2,2]], ',', n=n_dgt) + \
+				'$;\n' + move_mode_names[MC_move_mode] + '; $'  + ((r'\phi_{1,2} = ' + my.join_lbls(init_composition[1:], ',', n=n_dgt)) \
 						if(MC_move_mode in nvt_movemodes) \
-						else (r'\mu_{1,2}/T = ' + my.join_lbls(mu[1:], ','))) + '$; L = ' + str(L)
+						else (r'\mu_{1,2}/T = ' + my.join_lbls(mu[1:], ',', n=n_dgt))) + '$; L = ' + str(L)
 
 def set_OP_defaults(L2):
 	OP_min_default['M'] = - 1
@@ -1700,12 +1700,12 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 							stride=1, OP_jumps_hist_edges=None, init_composition=None, \
 							possible_jumps=None, means_only=False, to_recomp=0, \
 							npz_basename=None, to_animate=False):
-
+	
 	k_AB, d_k_AB, k_BA, d_k_BA, k_bc_AB, k_bc_BA, ax_OP, ax_OP_hist, ax_F, \
 		F, d_F, OP_hist_centers, OP_hist_lens, rho_interp1d, d_rho_interp1d, \
 		OP_mean, OP_std, d_OP_mean, E_avg, S, phi_Lmeans = \
 		tuple([None] * 21)
-
+	
 	L2 = L**2
 	Nt_OP = len(m)
 	steps = np.arange(Nt_OP) * stride
@@ -1714,7 +1714,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 	assert(Nt_stab > 1), 'ERROR: the system may not have reached equlibrium, stab_step = %d, max-present-step = %d' % (stab_step, max(steps))
 	Nt_states = states.shape[0]
 	swap_type_move = (MC_move_mode in nvt_movemodes)
-
+	
 	# npz_basepath = os.path.join(my.git_root_path(), 'izing_npzs')
 	# npz_basename = 'L' + str(L) + '_eT' + my.join_lbls([e[1,1], e[1,2], e[2,2]], '_') + \
 					# (('_muT' + my.join_lbls(mu[1:], '_')) if(init_composition is None) \
@@ -1722,11 +1722,11 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 					# '_stride' + str(stride) + \
 					# '_OP' + str(OP_A) + '_' + str(OP_B) + '_stab' + str(stab_step) + \
 					# '_Nstates' + str(Nt_states) + '_ID' + str(lattice_gas.get_seed())
-
+	
 	states_timesteps = np.arange(Nt_states) * stride
 	stab_states_inds = (states_timesteps > stab_step)
 	N_stab_states = np.sum(stab_states_inds)
-
+	
 	phi_filepath = os.path.join(npz_basename + '_phi.npz')
 	if((not os.path.isfile(phi_filepath)) or to_recomp):
 		phi_Lmeans = np.zeros((N_species, Nt_states))
@@ -1740,47 +1740,48 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 	else:
 		print('loading', phi_filepath)
 		npz_data = np.load(phi_filepath, allow_pickle=True)
-
+		
 		states_timesteps = npz_data['states_timesteps']
 		phi_Lmeans = npz_data['phi_Lmeans']
 		stab_step = npz_data['stab_step']
-
+	
 	# metastable_inds = (~stab_states_inds) & (states_timesteps > 5 * L2)
 	# N_metastable_states = np.sum(metastable_inds)
 	# phi_Lmeans_stab = phi_Lmeans[:, metastable_inds].reshape((N_species, N_metastable_states))
 	# phi_LTmeans = np.mean(phi_Lmeans_stab, axis=1)
 	# d_phi_LTmeans = (np.std(phi_Lmeans_stab, axis=1) * np.sqrt(N_metastable_states / (N_metastable_states-1)))# / np.sqrt(N_stab_states)
 	phi_Lmeans_stab = phi_Lmeans[:, stab_states_inds].reshape((N_species, N_stab_states))
-	phi_LTmeans = np.mean(phi_Lmeans_stab, axis=1)
-	d_phi_LTmeans = np.std(phi_Lmeans_stab, axis=1)
-
-	ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, MC_move_mode)
-
+	#phi_LTmeans = np.mean(phi_Lmeans_stab, axis=1)
+	#d_phi_LTmeans = np.std(phi_Lmeans_stab, axis=1)
+	phi_LTmeans, d_phi_LTmeans = my.get_average(phi_Lmeans_stab, axis=1)
+	
+	ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, MC_move_mode, n_dgt=5)
+	
 	if(to_animate):
 		my.animate_2D(states, 'x', 'y', 's(x, y)', yx_lims = [0, L-1, 0, L-1], fps=100)
 		# for it in range(Nt_states):
 			# draw_state(states[it, :, :], to_show=True)
-
+	
 	if(to_plot_time_evol):
 		fig_phi, ax_phi, _ = my.get_fig('step', r'$\varphi$', title=r'$\vec{\varphi}$(step); ' + ThL_lbl)
-
+		
 		for i in range(N_species):
 			#print()
-
+			
 			ax_phi.plot(states_timesteps, phi_Lmeans[i, :], \
 					label=(r'$<\varphi_%d> = %s$' % (i, my.errorbar_str(phi_LTmeans[i], d_phi_LTmeans[i]))))
 			ax_phi.plot([stab_step, max(states_timesteps)], [phi_LTmeans[i]] * 2, '--', \
 					label=None, color=my.get_my_color(i))
 		ax_phi.plot([stab_step] * 2, [0, 1], '--', label='equilibr')
-
+		
 		my.add_legend(fig_phi, ax_phi)
-
+	
 	if(not means_only):
 		F_filepath = os.path.join(npz_basename + '_F.npz')
-
+		
 		if((not os.path.isfile(F_filepath)) or to_recomp):
 			OP_stab = m[stab_ind]
-
+			
 			OP_jumps = OP_stab[1:] - OP_stab[:-1]
 			OP_mean = np.mean(OP_stab)
 			OP_std = np.std(OP_stab)
@@ -1789,7 +1790,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 			# Time of statistical decorelation of the system state.
 			# 'the number of flips necessary to cover the typical system states range' * 'the upper-bound estimate on the number of steps for 1 flip to happen'
 			print('memory time =', my.f2s(memory_time))
-
+			
 			OP_hist, _ = np.histogram(OP_stab, bins=OP_hist_edges)
 			OP_jumps_hist, _ = np.histogram(OP_jumps, bins=OP_jumps_hist_edges)
 			OP_jumps_hist = OP_jumps_hist / Nt_stab
@@ -1800,14 +1801,14 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 			OP_hist_centers = (OP_hist_edges[1:] + OP_hist_edges[:-1]) / 2
 			rho = OP_hist / OP_hist_lens / Nt_stab
 			d_rho = np.sqrt(OP_hist * (1 - OP_hist / Nt_stab)) / OP_hist_lens / Nt_stab
-
+			
 			rho_interp1d = scipy.interpolate.interp1d(OP_hist_centers, rho, fill_value='extrapolate')
 			d_rho_interp1d = scipy.interpolate.interp1d(OP_hist_centers, d_rho, fill_value='extrapolate')
-
+			
 			F = -np.log(rho * OP_hist_lens)
 			F = F - F[0]
 			d_F = d_rho / rho
-
+			
 			E_avg = np.empty(N_m_points)
 			for i in range(N_m_points):
 				E_for_avg = E[(OP_hist_edges[i] < m) & (m < OP_hist_edges[i+1])] * L2
@@ -1816,7 +1817,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 			E_avg = E_avg - E_avg[0]   # we can choose the E constant
 			S = (E_avg - F)
 			S = S - S[0] # S[m=+-1] = 0 because S = log(N), and N(m=+-1)=1
-
+			
 			if(to_save_npz):
 				print('writing', F_filepath)
 				np.savez(F_filepath, OP_hist_centers=OP_hist_centers, \
@@ -1830,7 +1831,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 		else:
 			print('loading', F_filepath)
 			npz_data = np.load(F_filepath, allow_pickle=True)
-
+			
 			OP_hist_centers = npz_data['OP_hist_centers']
 			rho = npz_data['rho']
 			d_rho = npz_data['d_rho']
@@ -1846,7 +1847,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 			OP_mean = npz_data['OP_mean']
 			OP_std = npz_data['OP_std']
 			d_OP_mean = npz_data['d_OP_mean']
-
+		
 		if(to_estimate_k):
 			k_filepath = os.path.join(npz_basename + '_kAB.npz')
 			if((not os.path.isfile(k_filepath)) or to_recomp):
@@ -1854,21 +1855,21 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 				#k_AB_ratio = np.sum(hA > 0.5) / np.sum(hA < 0.5)
 				hA_jump = hA[1:] - hA[:-1]   # jump > 0 => {0->1} => from B to A => k_BA ==> k_ratio = k_BA / k_AB
 				jump_inds = np.where(hA_jump != 0)[0]
-
+				
 				N_AB_jumps = np.sum(hA_jump < 0)
 				if(N_AB_jumps > 0):
 					k_AB = N_AB_jumps / np.sum(hA > 0.5)
 					d_k_AB = k_AB / np.sqrt(N_AB_jumps)
 				else:
 					k_AB, d_k_AB = 0, 0
-
+				
 				N_BA_jumps = np.sum(hA_jump > 0)
 				if(N_BA_jumps > 0):
 					k_BA = N_BA_jumps / np.sum(hA < 0.5)
 					d_k_BA = k_BA / np.sqrt(N_BA_jumps)
 				else:
 					k_BA, d_k_BA = 0, 0
-
+				
 				if(to_save_npz):
 					print('writing', k_filepath)
 					np.savez(k_filepath, hA=hA, hA_jump=hA_jump, \
@@ -1878,7 +1879,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 			else:
 				print('loading', k_filepath)
 				npz_data = np.load(k_filepath, allow_pickle=True)
-
+				
 				hA = npz_data['hA']
 				hA_jump = npz_data['hA_jump']
 				jump_inds = npz_data['jump_inds']
@@ -1887,7 +1888,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 				d_k_AB = npz_data['d_k_AB']
 				k_BA = npz_data['k_BA']
 				d_k_BA = npz_data['d_k_BA']
-
+			
 			OP_fit2_OPmin_ind = np.argmax(OP_hist_centers > OP_peak_guess - OP_OP_fit2_width)
 			OP_fit2_OPmax_ind = np.argmax(OP_hist_centers > OP_peak_guess + OP_OP_fit2_width)
 			assert(OP_fit2_OPmin_ind > 0), 'issues finding analytical border'
@@ -1907,21 +1908,21 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 			else:
 				print('WARNING: too few (%d) points with good data found near guessed OP_peak (%d)' % (N_good_points_near_OPpeak, OP_peak_guess))
 				k_bc_AB, k_bc_BA = 0, 0
-
+				
 				# OP_fit2, OP_peak, m_peak_ind, F_max, bc_Z_AB, bc_Z_BA, \
 				# k_bc_AB, k_bc_BA = \
 					# tuple([np.nan] * 8)
-
+			
 			if(k_AB > 0):
 				get_log_errors(np.log(k_AB), d_k_AB / k_AB, lbl='k_AB_BF', print_scale=print_scale_k)
 			else:
 				print('k_AB = 0')
-
+			
 			if(k_BA > 0):
 				get_log_errors(np.log(k_BA), d_k_BA / k_BA, lbl='k_BA_BF', print_scale=print_scale_k)
 			else:
 				print('k_BA = 0')
-
+		
 		if(to_plot_time_evol):
 			fig_OP, ax_OP, _ = my.get_fig('step', y_lbl, title='$' + x_lbl + '$(step); ' + ThL_lbl)
 			ax_OP.plot(steps, m, label='data')
@@ -1931,16 +1932,16 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 				ax_OP.plot([0, max(steps)], [OP_A] * 2, '--', label='state A, B', color=my.get_my_color(1))
 				ax_OP.plot([0, max(steps)], [OP_B] * 2, '--', label=None, color=my.get_my_color(1))
 			my.add_legend(fig_OP, ax_OP)
-
+			
 			if(to_estimate_k):
 				fig_hA, ax_hA, _ = my.get_fig('step', '$h_A$', title='$h_{A, ' + x_lbl + '}$(step); ' + ThL_lbl)
 				ax_hA.plot(steps, hA, label='$h_A$')
 				ax_hA.plot(steps[jump_inds+1], hA_jump[jump_inds], '.', label='$h_A$ jumps')
 				my.add_legend(fig_hA, ax_hA)
-
+			
 			#print('k_' + x_lbl + '_AB    =    (' + my.errorbar_str(k_AB, d_k_AB) + ')    (1/step);    dk/k =', my.f2s(d_k_AB / k_AB))
 			#print('k_' + x_lbl + '_BA    =    (' + my.errorbar_str(k_BA, d_k_BA) + ')    (1/step);    dk/k =', my.f2s(d_k_BA / k_BA))
-
+		
 		if(to_plot_F):
 			fig_OP_hist, ax_OP_hist, _ = my.get_fig(y_lbl, r'$\rho(' + x_lbl + ')$', title=r'$\rho(' + x_lbl + ')$; ' + ThL_lbl)
 			ax_OP_hist.bar(OP_hist_centers, rho, yerr=d_rho, width=OP_hist_lens, label=r'$\rho(' + x_lbl + ')$', align='center')
@@ -1948,10 +1949,10 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 				ax_OP_hist.plot([OP_A] * 2, [0, max(rho)], '--', label='state A,B', color=my.get_my_color(1))
 				ax_OP_hist.plot([OP_B] * 2, [0, max(rho)], '--', label=None, color=my.get_my_color(1))
 			my.add_legend(fig_OP_hist, ax_OP_hist)
-
+			
 			fig_OP_jumps_hist, ax_OP_jumps_hist, _ = my.get_fig('d' + x_lbl, 'probability', title=x_lbl + ' jumps distribution; ' + ThL_lbl, yscl='log')
 			ax_OP_jumps_hist.plot(possible_jumps, OP_jumps_hist, '.')
-
+			
 			fig_F, ax_F, _ = my.get_fig(y_lbl, r'$F/T$', title=r'$F(' + x_lbl + ')/T$; ' + ThL_lbl)
 			ax_F.errorbar(OP_hist_centers, F, yerr=d_F, fmt='.', label='$F(' + x_lbl + ')/T$')
 			if(to_estimate_k):
@@ -1959,16 +1960,16 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 					ax_F.plot([OP_A] * 2, [min(F), max(F)], '--', label='state A, B', color=my.get_my_color(1))
 					ax_F.plot([OP_B] * 2, [min(F), max(F)], '--', label=None, color=my.get_my_color(1))
 					ax_F.plot(OP_hist_centers[OP_fit2_inds], np.polyval(OP_fit2, OP_hist_centers[OP_fit2_inds]), label='fit2; $' + x_lbl + '_0 = ' + my.f2s(OP_peak) + '$')
-
+			
 			if(to_plot_ETS):
 				ax_F.plot(OP_hist_centers, E_avg, '.', label='<E>(' + x_lbl + ')/T')
 				ax_F.plot(OP_hist_centers, S, '.', label='$T \cdot S(' + x_lbl + ')$')
 			my.add_legend(fig_F, ax_F)
-
+			
 			if(to_estimate_k):
 				print('k_' + x_lbl + '_bc_AB   =   ' + my.f2s(k_bc_AB * print_scale_k) + '   (%e/step);' % (1/print_scale_k))
 				print('k_' + x_lbl + '_bc_BA   =   ' + my.f2s(k_bc_BA * print_scale_k) + '   (%e/step);' % (1/print_scale_k))
-
+	
 	return F, d_F, OP_hist_centers, OP_hist_lens, rho_interp1d, d_rho_interp1d, \
 			k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, \
 			OP_mean, OP_std, d_OP_mean, \
@@ -1981,7 +1982,7 @@ def plot_correlation(x, y, x_lbl, y_lbl):
 	R = scipy.stats.pearsonr(x, y)[0]
 	ax.plot(x, y, '.', label='R = ' + my.f2s(R))
 	my.add_legend(fig, ax)
-
+	
 	return ax, R
 
 def get_fixed_composition_random_state(L, composition, N_main_min_warning=0):
@@ -1992,22 +1993,22 @@ def get_fixed_composition_random_state(L, composition, N_main_min_warning=0):
 	if(N_main_min_warning > 0):
 		if(N_main_min_warning > N_main_component):
 			print('WARNING:   N_main = %d < %d' % (N_main_component, N_main_min_warning))
-
+	
 	#init_state = np.zeros((L, L), dtype=int)   # background = 0
 	#main_inds = np.unique(np.minimum(np.arange(N_main_component) * (L2 // (N_main_component - 1)), L2 - 1))
 	#minor_inds = np.minimum(np.arange(N_minor_component) * (L2 // (N_minor_component - 1)), L2 - 2) + 1
 	#minor_inds[np.isin(minor_inds, main_inds)] += 1
 	#minor_inds = np.unique(minor_inds % L2)
-
+	
 	init_state = np.zeros(L2, dtype=int)   # background = 0
 	init_state[ : N_main_component] = 1
 	init_state[N_main_component : (N_main_component + N_minor_component)] = 2
-
+	
 	np.random.shuffle(init_state)
-
+	
 	assert(np.sum(init_state == 1) == N_main_component)
 	assert(np.sum(init_state == 2) == N_minor_component)
-
+	
 	return init_state.reshape((L, L))
 
 def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
@@ -2021,7 +2022,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 			to_save_npz=True, to_recomp=0, R_clust_init=None, \
 			to_animate=False, to_equilibrate=None, to_post_process=True, \
 			init_state=None, to_gen_init_state=None, stab_step_BF_run=-1, \
-			save_state_mode=1, to_start_only_state0=0):
+			save_state_mode=1, to_start_only_state0=0, n_emu_digits=6):
 	'''
 		save_state_mode
 			1 == lattice_gas.save_state_mode_Inside
@@ -2070,14 +2071,14 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 	traj_basepath = '/scratch/gpfs/yp1065/Izing/npzs'
 	traj_basename, traj_basename_olds = \
 		izing.get_BF_npzTrajBasename(MC_move_mode, L, e, \
-						('_phi' + my.join_lbls(init_composition[1:], '_')) \
+						('_phi' + my.join_lbls(init_composition[1:], '_', n=n_emu_digits)) \
 								if(swap_type_move) \
-								else ('_muT' + my.join_lbls(mu[1:], '_')), \
+								else ('_muT' + my.join_lbls(mu[1:], '_', n=n_emu_digits)), \
 						Nt, N_saved_states_max, R_clust_init, stab_step, \
 						OP_A, OP_B, OP_min, OP_max, \
 						OP_min_save_state, OP_max_save_state, \
 						timeevol_stride, to_equilibrate, to_get_timeevol, \
-						lattice_gas.get_seed(), )
+						lattice_gas.get_seed())
 			
 	
 	BFtraj_suff = '_BFtraj.npz'
@@ -2093,7 +2094,10 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 		if(R_clust_init is not None):
 			y_crds, x_crds = tuple(np.mgrid[0:L, 0:L])
 			init_clust_inds = (x_crds - (L-1)/2)**2 + (y_crds - (L-1)/2)**2 < R_clust_init**2
-			init_state[y_crds[init_clust_inds], x_crds[init_clust_inds]] = 1
+			if(np.any(init_clust_inds)):
+				init_state[y_crds[init_clust_inds], x_crds[init_clust_inds]] = 1
+			else:
+				print('WARNING: no sites will be filled with R_clust_init = %s' % (my.f2s(R_clust_init)))
 			
 			#draw_state(init_state, to_show=True)
 		
@@ -4327,6 +4331,8 @@ def main():
 	# python run.py -mode FFS_AB_Tphi1 -Temp_s 0.95 0.85 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 0 -font_mode present -OP0_constr_s 15 20 30 50 100
 	
 	# python run.py -mode FFS_AB_many -L 64 -OP_interfaces_set_IDs mu8 -to_get_timeevol 0 -N_states_FFS 30 -N_init_states_FFS 60 -mu 5.15 4.92238326 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode flip -to_recomp 0 -Dtop_Nruns 300 -my_seeds 1000 1001 1002 1003 1004
+	
+	# python run.py -mode BF_1 -Nt 1500000000 -L 32 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode flip -mu 5.36020584 1e10 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -timeevol_stride 1024 -R_clust_init 0 -to_recomp 0
 	
 	# TODO: run failed IDs with longer times
 	
