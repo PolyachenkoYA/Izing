@@ -22,10 +22,10 @@ int main(int argc, char** argv) {
 
 void test_BF()
 {
-	double phi0[] = {0, 0.05, 0.02};
+	double phi0[] = {0, 0.01, 0.0};
 	phi0[0] = 1.0 - phi0[1] - phi0[2];
 	int my_seed = 23;
-	int L = 16;
+	int L = 32;
 	int i, j;
 	int L2 = L*L;
 	int to_use_smart_swap = 0;
@@ -34,28 +34,29 @@ void test_BF()
 
 	lattice_gas::set_OP_default(L2);
 
-	long N_saved_states_max = -1;
+	long N_saved_states_max = 0;
 	int stab_step = -10;
-	int Nt_max = 100000;
-	int save_states_stride = 1;
+	int Nt_max = 1500000000;
+	int save_states_stride = 1024;
 	int move_mode = move_mode_long_swap;
-	move_mode = move_mode_swap;
+	move_mode = move_mode_flip;
 
 	int state_size_in_bytes = L2 * sizeof(int);
 
 	lattice_gas::set_OP_default(L2);
 
 	double e_ptr[] = {0.000000, 0.000000, 0.000000, 0.000000, -2.680103, -1.340051, 0.000000, -1.340051, -1.715266};
-	double mu_ptr[] = {0.000000, 0.000000, 0.000000};
+//	double mu_ptr[] = {0.000000, 0.000000, 0.000000};
+	double mu_ptr[] = {0.000000, 5.36020584, 1e10};
 
 // -------------- check input ----------------
 	int verbose = 1;
 	int to_remember_timeevol = 1;
 	int interface_mode = mode_ID_CS;   // 'M' mode
-	int OP_A = 14;
-	int OP_B = 44;
-	int OP_min_save_state = OP_A;
-	int OP_max_save_state = OP_B;
+	int OP_A = 2;
+	int OP_B = 1025;
+	int OP_min_save_state = -1;
+	int OP_max_save_state = L2+1;
 	int OP_min = -1;
 	int OP_max = L2 + 1;
 	int N_spins_up_init = -1;
@@ -77,7 +78,7 @@ void test_BF()
 //	int *state_ptr = static_cast<int *>(state_info.ptr);
 
 //	int *states = (int*) malloc(sizeof (int) * L2 * std::max((long)1, N_saved_states_max));
-	if(N_saved_states_max == 0){
+	if(N_saved_states_max == -1){
 		N_saved_states_max = Nt_max / save_states_stride;
 	}
 

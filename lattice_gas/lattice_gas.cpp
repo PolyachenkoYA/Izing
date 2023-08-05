@@ -148,7 +148,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 						 std::optional<int> _interface_mode, int save_state_mode,
 						 std::optional< pybind11::array_t<int> > _init_state,
 						 int to_use_smart_swap, int to_equilibrate, int to_start_only_state0,
-						 std::optional<int> _verbose)
+						 std::optional<int> _verbose, std::optional<int> _to_cluster)
 /**
  *
  * @param move_mode - type of MC moves
@@ -213,6 +213,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 	int OP_min_save_state = (_OP_min_save_state.has_value() ? _OP_min_save_state.value() : OP_min);
 	int OP_max_save_state = (_OP_max_save_state.has_value() ? _OP_max_save_state.value() : OP_max);
 	int N_spins_up_init = (_N_spins_up_init.has_value() ? _N_spins_up_init.value() : -1);
+	int to_cluster = (_to_cluster.has_value() ? _to_cluster.value() : (OP_A > 1));
 	if(stab_step < 0) stab_step *= (-L2);
 
 	py::buffer_info _init_state_info;
@@ -222,6 +223,8 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 		_init_state_ptr = static_cast<int *>(_init_state_info.ptr);
 		assert(_init_state.value().ndim() == 1);
 		assert(_init_state.value().shape()[0] == L2);
+	} else {
+		assert(!to_equilibrate);
 	}
 
 // ----------------- create return objects --------------
@@ -268,12 +271,14 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 	lattice_gas::run_bruteforce_C(move_mode, L, e_ptr, mu_ptr, &time_total, N_saved_states_max, states_ptr,
 							to_remember_timeevol ? &OP_arr_len : nullptr,
 								  &Nt, &Nt_OP_saved, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
-								  interface_mode, OP_A, OP_B, OP_A > 1, to_start_only_state0,
+								  interface_mode, OP_A, OP_B, to_cluster, to_start_only_state0,
 								  OP_min, OP_max, &N_states_saved,
 								  OP_min_save_state, OP_max_save_state, save_state_mode,
 								  N_spins_up_init, verbose, Nt_max, &N_launches, 0,
-								  (OP_A <= 1) && (!bool(_init_state_ptr)), save_states_stride,
+								  !bool(_init_state_ptr) && (!to_equilibrate), save_states_stride,
 								  to_use_smart_swap);
+//								  (OP_A <= 1) && (!bool(_init_state_ptr)), save_states_stride,
+//								  to_use_smart_swap);
 
 	int N_last_elements_to_print = std::min(Nt_OP_saved, (long)10);
 
@@ -1011,12 +1016,11 @@ namespace lattice_gas
 			find_potential_swaps(s, L, &potential_swap_positions);
 		}
 
-		double E_tolerance = 1e-5;   // J=1
-//		unsigned long long Nt_for_numerical_error = sqr(lround(1e13 * E_tolerance / L2));
-//		unsigned long long Nt_for_numerical_error = sqr(lround(1e15 * E_tolerance / L2));
-		unsigned long long Nt_for_numerical_error = 1;
+		double E_tolerance = 1e-2;   // J=1
+		unsigned long long Nt_for_numerical_error = lround(sqr(1e15 * E_tolerance / L2));
+//		unsigned long long Nt_for_numerical_error = 1;
 		// the error accumulates, so we need to recompute form scratch time to time
-//      |E| ~ L2 => |dE_numerical| ~ L2 * 1e-13 => |dE_num_total| ~ sqrt(Nt) * L2 * 1e-13 << E_tolerance => Nt << (1e13 * E_tolerance / L2)^2
+//      |E| ~ L2 => |dE_numerical| ~ L2 * 1e-15 => |dE_num_total| ~ sqrt(Nt) * L2 * 1e-13 << E_tolerance => Nt << (1e13 * E_tolerance / L2)^2
 
 		while(1){
 			// ----------- decide on state change -----------
@@ -1213,20 +1217,17 @@ namespace lattice_gas
 				if(abs(E_current - E_curent_real) > E_tolerance){
 					if(verbose >= 2){
 						printf("\nE-error out of bound: E_current = %lf, dE = %lf, Nt = %ld, E_real = %lf\n", E_current, dE, *Nt, E_curent_real);
+						printf("(ix, iy) = (%d, %d), s_new = %d\n", ix, iy, s[ix * L + iy]);
+						switch (move_mode) {
+							case move_mode_flip:
+								break;
+							case move_mode_swap:
+							case move_mode_long_swap:
+								printf("(ix, iy)_new = (%d, %d), s_old = %d\n", ix_new, iy_new, s[ix_new * L + iy_new]);
+								break;
+						}
 						if(verbose >= 3){
 							print_E(&((*E)[*Nt_OP_saved - 10]), 10);
-							printf("(ix, iy) = (%d, %d)\n", ix, iy);
-							switch (move_mode) {
-								case move_mode_flip:
-									printf("s_new = %d", s_new);
-									break;
-								case move_mode_swap:
-									printf("(ix, iy)_new = (%d, %d)\n", ix_new, iy_new);
-									break;
-								case move_mode_long_swap:
-									printf("(ix, iy)_new = (%d, %d)\n", ix_new, iy_new);
-									break;
-							}
 							if(verbose >= 4){
 								print_S(s, L, 'r');
 							}
@@ -1234,7 +1235,7 @@ namespace lattice_gas
 //						throw -1;
 //						getchar();
 					}
-					STP
+//					STP
 					E_current = E_curent_real;
 				}
 			}
@@ -1286,7 +1287,18 @@ namespace lattice_gas
 	 * @param N_tries - The number of times the BF run got outside of [OP_min_stop_state; OP_max_stop_state) and thus was restarted
 	 * @return error code (none implemented)
 	 */
+//			(int move_mode, int L, const double *e, const double *mu, long *time_total, int N_states, int *states,
+//			 long *OP_arr_len, long *Nt, long *Nt_OP_saved, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
+//			 int interface_mode, int OP_A, int OP_B, int to_cluster, int to_start_only_state0,
+//			 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
+//			 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
+//			 int N_spins_up_init, int verbose, long Nt_max, int *N_tries, int to_save_final_state,
+//			 int to_regenerate_init_state, long save_states_stride, int to_use_smart_swap)
+
 	{
+//		printf("move_mode = %d\n", move_mode);
+//		printf("")
+
 		int L2 = L*L;
 		int state_size_in_bytes = sizeof(int) * L2;
 
@@ -1423,6 +1435,9 @@ namespace lattice_gas
 		int N_states_done_local = *N_states_done;
 		int N_tries;
 //		long Nt = 0;
+
+//		printf("init_state: %d, to_eq = %d\n", bool(init_state), to_equilibrate);
+//		STP
 
 		if(init_state){
 			memcpy(state, init_state, state_size_in_bytes);

@@ -163,7 +163,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 						 std::optional<int> _interface_mode, int save_state_mode,
 						 std::optional< pybind11::array_t<int> > _init_state,
 						 int to_use_smart_swap, int to_equilibrate, int to_start_only_state0,
-						 std::optional<int> _verbose);
+						 std::optional<int> _verbose, std::optional<int> _to_cluster);
 int compute_hA(py::array_t<int> *h_A, int *OP, long Nt, int OP_A, int OP_B);
 py::tuple cluster_state(py::array_t<int> state, std::optional<int> _verbose);
 void print_state(py::array_t<int> state);
