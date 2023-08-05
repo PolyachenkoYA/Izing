@@ -235,7 +235,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 //	int *state_ptr = static_cast<int *>(state_info.ptr);
 
 //	int *states = (int*) malloc(sizeof (int) * L2 * std::max((long)1, N_saved_states_max));
-	if(N_saved_states_max == 0){
+	if(N_saved_states_max == -1){
 		N_saved_states_max = Nt_max / save_states_stride;
 	}
 
@@ -265,13 +265,12 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 	// N_states_saved is set to its initial values by default, so the equilibrated state is not saved
 	// ++N prevents further processes from overwriting the initial state so it will be returned as states[0]
 
-
 	lattice_gas::run_bruteforce_C(move_mode, L, e_ptr, mu_ptr, &time_total, N_saved_states_max, states_ptr,
 							to_remember_timeevol ? &OP_arr_len : nullptr,
 								  &Nt, &Nt_OP_saved, &_E, &_M, &_biggest_cluster_sizes, &_h_A, &_time,
 								  interface_mode, OP_A, OP_B, OP_A > 1, to_start_only_state0,
 								  OP_min, OP_max, &N_states_saved,
-								  OP_min_save_state, OP_max_save_state,save_state_mode,
+								  OP_min_save_state, OP_max_save_state, save_state_mode,
 								  N_spins_up_init, verbose, Nt_max, &N_launches, 0,
 								  (OP_A <= 1) && (!bool(_init_state_ptr)), save_states_stride,
 								  to_use_smart_swap);
@@ -1013,7 +1012,9 @@ namespace lattice_gas
 		}
 
 		double E_tolerance = 1e-5;   // J=1
-		unsigned long long Nt_for_numerical_error = sqr(lround(1e13 * E_tolerance / L2));
+//		unsigned long long Nt_for_numerical_error = sqr(lround(1e13 * E_tolerance / L2));
+//		unsigned long long Nt_for_numerical_error = sqr(lround(1e15 * E_tolerance / L2));
+		unsigned long long Nt_for_numerical_error = 1;
 		// the error accumulates, so we need to recompute form scratch time to time
 //      |E| ~ L2 => |dE_numerical| ~ L2 * 1e-13 => |dE_num_total| ~ sqrt(Nt) * L2 * 1e-13 << E_tolerance => Nt << (1e13 * E_tolerance / L2)^2
 
@@ -1092,7 +1093,7 @@ namespace lattice_gas
 							to_save_state = false;
 							if(verbose){
 								printf("WARNING:\nN_states_to_save = %d > 0 provided, but wrong save_state_mode = %d. Not saving states\n", N_states_to_save, save_state_mode);
-								STP
+//								STP
 							}
 					}
 				}
@@ -1212,11 +1213,28 @@ namespace lattice_gas
 				if(abs(E_current - E_curent_real) > E_tolerance){
 					if(verbose >= 2){
 						printf("\nE-error out of bound: E_current = %lf, dE = %lf, Nt = %ld, E_real = %lf\n", E_current, dE, *Nt, E_curent_real);
-						print_E(&((*E)[*Nt_OP_saved - 10]), 10);
-						print_S(s, L, 'r');
+						if(verbose >= 3){
+							print_E(&((*E)[*Nt_OP_saved - 10]), 10);
+							printf("(ix, iy) = (%d, %d)\n", ix, iy);
+							switch (move_mode) {
+								case move_mode_flip:
+									printf("s_new = %d", s_new);
+									break;
+								case move_mode_swap:
+									printf("(ix, iy)_new = (%d, %d)\n", ix_new, iy_new);
+									break;
+								case move_mode_long_swap:
+									printf("(ix, iy)_new = (%d, %d)\n", ix_new, iy_new);
+									break;
+							}
+							if(verbose >= 4){
+								print_S(s, L, 'r');
+							}
+						}
 //						throw -1;
 //						getchar();
 					}
+					STP
 					E_current = E_curent_real;
 				}
 			}
@@ -1353,7 +1371,7 @@ namespace lattice_gas
 //				printf("v: %d\n", verbose);
 //				STP
 				if(verbose > 0)	{
-					printf("brute-force done %lf %%, N_tries = %d, N_states_done = %d              \n", 100 * (double)(*N_states_done) / N_states, *N_tries, *N_states_done);
+					printf("brute-force done %lf %%, N_tries = %d, N_states_done = %d, N_states_max = %d              \n", 100 * (double)(*N_states_done) / N_states, *N_tries, *N_states_done, N_states);
 					fflush(stdout);
 				}
 				if(*N_states_done >= N_states) {
@@ -1861,7 +1879,18 @@ namespace lattice_gas
 
 	double swap_mode_dE(const int *state, int L, const double *e, const double *mu, int ix, int iy, int ix_new, int iy_new)
 	{
-		if(abs(ix - ix_new) + abs(iy - iy_new) > 1){
+		// this gives the right answer for sure
+		/*
+		double E = comp_E(state, L, e, mu);
+		int *s1 = copy_state(state, L*L);
+		std::swap(s1[ix * L + iy], s1[ix_new * L + iy_new]);
+		double Enew = comp_E(s1, L, e, mu);
+		free(s1);
+		return Enew - E;
+		 */
+
+		int R = L/2;
+		if(abs(mds(ix - ix_new, R)) + abs(mds(iy - iy_new, R)) > 1){
 			return long_swap_mode_dE(state, L, e, mu, ix, iy, ix_new, iy_new);
 		} else {
 			return short_swap_mode_dE(state, L, e, mu, ix, iy, ix_new, iy_new);
