@@ -8,6 +8,13 @@ import table_data
 import lattice_gas
 move_modes, move_mode_names = lattice_gas.get_move_modes()
 
+sgm_th_izing = lambda e: (e/2 + np.log(np.tanh(e/4)) + np.sqrt(2) * np.log(np.sinh(e/2))) / (2 * (1 - np.sinh(e/2)**(-4))**(1.0/16))   # sgm/T
+# fig, ax, _ = my.get_fig('T/J = 4T/e = 1/K', r'$\sigma / J$')
+# e_draw = np.linspace(2,8,100)
+# ax.plot(4/e_draw, sgm_th(e_draw) / (e_draw/4))
+# plt.show()
+
+
 def find_finished_runs_logs(filename_mask, inds, verbose=False):
 	done_list = []
 	found_list = []

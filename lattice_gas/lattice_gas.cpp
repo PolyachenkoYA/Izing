@@ -2040,7 +2040,7 @@ namespace lattice_gas
 			rnd = gsl_rng_uniform_int(rng, total_range);
 			pos = rnd % L2;
 			*s_new = (state[pos] + 1 + rnd / L2) % N_species;
-//			*s_new = 1 - state[*ix];
+//			*s_new = 1 - state[pos];   // true 2-component Ising model
 			*iy = pos % L;
 			*ix = pos / L;
 

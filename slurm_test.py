@@ -47,13 +47,9 @@ def main():
 	
 	# python slurm_test.py --mode launch_run --MC_mode      swap --OP_set_name nvtBig --seed_s -1 1000 1010 --n_s 30 --L_s 320 --phi1_s 0.015 --Temp_s 1.0 --slurm_time 144:00:00 --to_run 0
 	# python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt21 --seed_s -1 1000 1004 --n_s 30 --L_s 320 --phi1_s 0.01225 0.012 0.01175 0.0115 0.01125 0.011 --Temp_s 1.0 --slurm_time 72:00:00 --to_run 0
+	# python slurm_test.py --mode launch_run_FFSDtop --MC_mode long_swap --OP_set_name nvt22 --seed_s -1 1000 1004 --n_s 30 --L_s 450 --phi1_s 0.0098 0.0096 --phi_2 0.0 --Temp_s 1.0 --slurm_time 144:00:00 --RAM_per_CPU 5G --Dtop_Nruns 300 --to_run 0
 	# 0.011   0.01105 0.0111  0.01115 0.0112  0.01125 0.0113  0.01135 0.0114 0.01145 0.0115  0.01155 0.0116  0.01165 0.0117  0.01175 0.0118  0.01185 0.0119  0.01195 0.012   0.01205 0.0121  0.01215 0.0122  0.01225
-	# 0.00875 0.0088  0.00885 0.0089  0.00895 0.009   0.00905 0.0091  0.00915
- 0.0092  0.00925 0.0093  0.00935 0.0094  0.00945 0.0095  0.00955 0.0096
- 0.00965 0.0097  0.00975 0.0098  0.00985 0.0099  0.00995 0.01    0.01005
- 0.0101  0.01015 0.0102  0.01025 0.0103  0.01035 0.0104  0.01045 0.0105
- 0.01055 0.0106  0.01065 0.0107  0.01075 0.0108  0.01085 0.0109  0.01095
- 0.011
+	# 0.00875 0.0088  0.00885 0.0089  0.00895 0.009   0.00905 0.0091  0.00915 0.0092  0.00925 0.0093  0.00935 0.0094  0.00945 0.0095  0.00955 0.0096 0.00965 0.0097  0.00975 0.0098  0.00985 0.0099  0.00995 0.01    0.01005 0.0101  0.01015 0.0102  0.01025 0.0103  0.01035 0.0104  0.01045 0.0105 0.01055 0.0106  0.01065 0.0107  0.01075 0.0108  0.01085 0.0109  0.01095 0.011
 	# 0.00825 ... 0.01005
 	
 	parser = argparse.ArgumentParser()
@@ -93,7 +89,7 @@ def main():
 	to_run = clargs.to_run
 	script_name = 'run.py'
 	script_name = 'run_tmp.py'
-	#script_name = 'run_tmp2.py'
+	script_name = 'run_tmp2.py'
 	
 	phi_dgt = clargs.phi_dgt
 	phi_2 = clargs.phi_2
@@ -143,7 +139,7 @@ def main():
 									n_FFS = n_use
 									phi0_str = my.f2s(1.0 - phi - phi_2, n=phi_dgt)
 									phi1_str = my.f2s(phi, n=phi_dgt)
-									phi2_str = my.f2s(phi2, n=phi_dgt)
+									phi2_str = my.f2s(phi_2, n=phi_dgt)
 									
 									if(mode == 'launch_run_FFS'):
 										name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name)
@@ -151,12 +147,16 @@ def main():
 												% (script_name, L, n_FFS, n_init, e_T1[0]/Temp, e_T1[1]/Temp, e_T1[2]/Temp, MC_mode, phi0_str, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0')
 									elif(mode == 'launch_run_Dtop'):
 										name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s_DtopRuns%d' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name, Dtop_Nruns_use)
-										cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s  -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns 2000' \
-												% (script_name, L, e_T1[0], e_T1[1], e_T1[2], MC_mode, phi0_str, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5))
+										cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s  -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns %d' \
+												% (script_name, L, e_T1[0], e_T1[1], e_T1[2], MC_mode, phi0_str, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5), Dtop_Nruns_use)
 									elif(mode == 'launch_run_FFSDtop'):
 										name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s_FFSDtopRuns%d' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name, Dtop_Nruns_use)
 										cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s  -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns %d' \
 												% (script_name, L, n_FFS, n_init, e_T1[0], e_T1[1], e_T1[2], MC_mode, phi0_str, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5), Dtop_Nruns_use)
+									#  -timeevol_stride 2000
+									
+									cmd_comment = r'   # SLURM: time = %s; RAM = %s ' % (clargs.slurm_time, clargs.RAM_per_CPU)
+									cmd += cmd_comment
 									#print(name)
 									#input(name)
 									

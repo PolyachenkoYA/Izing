@@ -1699,7 +1699,11 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 							to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, \
 							stride=1, OP_jumps_hist_edges=None, init_composition=None, \
 							possible_jumps=None, means_only=False, to_recomp=0, \
-							npz_basename=None, to_animate=False):
+							npz_basename=None, to_animate=False, to_plot=True):
+	
+	to_plot_time_evol = to_plot_time_evol and to_plot
+	to_plot_F = to_plot_F and to_plot
+	to_plot_ETS = to_plot_ETS and to_plot
 	
 	k_AB, d_k_AB, k_BA, d_k_BA, k_bc_AB, k_bc_BA, ax_OP, ax_OP_hist, ax_F, \
 		fig_OP, fig_OP_hist, fig_F, F, d_F, OP_hist_centers, OP_hist_lens, \
@@ -1777,7 +1781,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 	if(not means_only):
 		F_filepath = os.path.join(npz_basename + '_F.npz')
 		
-		if((not os.path.isfile(F_filepath)) or to_recomp):
+		if((not os.path.isfile(F_filepath)) or (to_recomp > 0)):
 			OP_stab = m[stab_ind]
 			
 			OP_jumps = OP_stab[1:] - OP_stab[:-1]
@@ -1848,7 +1852,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 		
 		if(to_estimate_k):
 			k_filepath = os.path.join(npz_basename + '_kAB.npz')
-			if((not os.path.isfile(k_filepath)) or to_recomp):
+			if((not os.path.isfile(k_filepath)) or (to_recomp > 0)):
 				assert(hA is not None), 'ERROR: k estimation is requested in BF, but no hA provided'
 				#k_AB_ratio = np.sum(hA > 0.5) / np.sum(hA < 0.5)
 				hA_jump = hA[1:] - hA[:-1]   # jump > 0 => {0->1} => from B to A => k_BA ==> k_ratio = k_BA / k_AB
@@ -2048,7 +2052,7 @@ def form_cluster(state, Rclust, clust_component_ID, to_keep_composition):
 			state[y_crds[init_clust_inds], x_crds[init_clust_inds]] = clust_component_ID
 	
 	else:
-		print('WARNING: no sites will be filled with R_clust_init = %s' % (my.f2s(R_clust_init)))
+		print('WARNING: no sites will be filled with R_clust_init = %s' % (my.f2s(Rclust)))
 	
 	#draw_state(state, to_show=True)
 	
@@ -2066,6 +2070,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 			to_keep_composition=False, main_component_ID=1, \
 			to_animate=False, to_equilibrate=None, to_post_process=True, \
 			init_state=None, to_gen_init_state=None, stab_step_BF_run=-1, \
+			to_cluster=True, N_CS_bins=50, to_plot=True, \
 			save_state_mode=1, to_start_only_state0=0, n_emu_digits=6):
 	'''
 		save_state_mode
@@ -2131,8 +2136,8 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 	
 	traj_filepath = keep_new_npz_file(traj_filepath_olds, traj_filepath_new)
 	
-	if((not os.path.isfile(traj_filepath)) or to_recomp):
-		if(not to_recomp):
+	if((not os.path.isfile(traj_filepath)) or (to_recomp > 1)):
+		if(to_recomp <= 1):
 			print('not found "%s", doing full simulation' % traj_filepath)
 		
 		if(to_gen_init_state):
@@ -2154,10 +2159,13 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 						 std::optional<int> _verbose)
 		'''
 		
-		#print('input:')
-		#print(e)
-		#print(mu)
-		#print(None if(init_state is None) else init_state.flatten())
+		print('input:')
+		print(e)
+		print(mu)
+		print('N_saved_states_max =', N_saved_states_max)
+		if(init_state is not None):
+			print([np.sum(init_state == i) for i in range(N_species)])
+		#input('ok')
 		
 		(states, E, M, CS, hA, times, k_AB_launches, time_total) = \
 			lattice_gas.run_bruteforce(MC_move_mode, L, e.flatten(), mu, Nt,
@@ -2174,6 +2182,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 				to_equilibrate=to_equilibrate, \
 				save_state_mode=save_state_mode, \
 				to_start_only_state0=to_start_only_state0, \
+				to_cluster=to_cluster, \
 				verbose=verbose)
 		
 		if(to_save_npz):
@@ -2235,9 +2244,18 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 			
 			data['CS'] = CS
 			#hist_edges['CS'] = get_OP_hist_edges(interface_mode, OP_min if(interface_mode == 'CS') else None, OP_max if(interface_mode == 'CS') else None)
-			hist_edges = np.arange(min(CS), max(CS) + 1)
+			
+			#
+			if(N_CS_bins is None):
+				hist_edges = np.arange(min(CS), max(CS) + 1)
+			else:
+				hist_edges = np.arange(N_CS_bins + 1) * max(1, np.ceil((max(CS) - min(CS) - 1) / N_CS_bins + 1)) + (min(CS) - 1)
 			
 			N_features = len(data.keys())
+			
+			to_plot_timeevol = to_plot_timeevol and to_plot
+			to_plot_F = to_plot_F and to_plot
+			to_plot_ETS=to_plot_ETS and to_plot
 			
 			F, d_F, hist_centers, hist_lens, rho_interp1d, d_rho_interp1d, \
 				k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, OP_avg, \
@@ -2252,7 +2270,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 										OP_A=int(OP_A / OP_scale[interface_mode] + 0.1), OP_B=int(OP_B / OP_scale[interface_mode] + 0.1), OP_jumps_hist_edges=OP_jumps_hist_edges, \
 										possible_jumps=OP_possible_jumps[interface_mode], means_only=means_only, to_save_npz=to_save_npz, \
 										init_composition=init_composition, to_recomp=to_recomp, npz_basename=os.path.join(traj_basepath, traj_basename), \
-										to_animate=to_animate)
+										to_animate=to_animate, to_plot=to_plot)
 			
 			if(not means_only):
 				BC_cluster_size = L2 / np.pi
@@ -4386,12 +4404,14 @@ def main():
 	# python run.py -mode BF_1 -Nt 1500000000 -L 32 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode flip -mu 5.36020584 1e10 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -timeevol_stride 1024 -R_clust_init 0 -to_recomp 0
 	# python run.py -mode BF_1 -Nt 150000 -L 450 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.99 0.01 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -timeevol_stride 2000 -R_clust_init 0 -to_recomp 0
 	
+	# python run.py -mode BF_AB -Nt 100000000 -L 32 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.99 0.01 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -timeevol_stride 2000 -R_clust_init 0 -to_recomp 10 -verbose 4
+	
 	# TODO: run failed IDs with longer times
 	
-	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier,     Temp_s,     phi1_s,      phi2,     OP0_constr_s,     N_ID_groups,       to_post_proc,     Dtop_Nruns,     n_emu_digits,        to_do_Dtop,     Tphi1_fit_ord,      Dtop_PBthr,            to_plot,     to_keep_composition], _ = \
-		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier',  '-Temp_s',  '-phi1_s',   '-phi2',  '-OP0_constr_s',  '-N_ID_groups',    '-to_post_proc',  '-Dtop_Nruns',  '-n_emu_digits',     '-to_do_Dtop',  '-Tphi1_fit_ord',   '-Dtop_PBthr',         '-to_plot',  '-to_keep_composition'], \
-					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],           [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1],       None,       None,    [0, 1],             None,          [0, 1],             [0, 1],         [0, 1],           [0, 1],            [0, 1],            [0, 1],          [0, 2],             [0, 1],                  [0, 1]], \
-					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],          ['FFS_auto'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],     ['-1'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5'],    ['1.0'],  ['0.015'],  ['0.01'],           [None],          [None],  [my.yes_flags[0]],          ['0'],            ['6'],  [my.no_flags[0]],             ['2'],  ['0.1', '0.1'],  [my.yes_flags[0]],        [my.no_flags[0]]])
+	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier,     Temp_s,     phi1_s,      phi2,     OP0_constr_s,     N_ID_groups,       to_post_proc,     Dtop_Nruns,     n_emu_digits,        to_do_Dtop,     Tphi1_fit_ord,      Dtop_PBthr,            to_plot,     to_keep_composition,     to_equilibrate,        to_cluster], _ = \
+		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',        '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier',  '-Temp_s',  '-phi1_s',   '-phi2',  '-OP0_constr_s',  '-N_ID_groups',    '-to_post_proc',  '-Dtop_Nruns',  '-n_emu_digits',     '-to_do_Dtop',  '-Tphi1_fit_ord',   '-Dtop_PBthr',         '-to_plot',  '-to_keep_composition',  '-to_equilibrate',     '-to_cluster'], \
+					  possible_arg_numbers=[['+'],                   None,       [1],       [0, 1],           [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                     [0, 3],                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1],       None,       None,    [0, 1],             None,          [0, 1],             [0, 1],         [0, 1],           [0, 1],            [0, 1],            [0, 1],          [0, 2],             [0, 1],                  [0, 1],             [0, 1],            [0, 1]], \
+					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],          ['FFS_auto'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],     ['-1'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,   ['0.97', '0.02', '0.01'],      [my.yes_flags[0]],  [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5'],    ['1.0'],  ['0.015'],  ['0.01'],           [None],          [None],  [my.yes_flags[0]],          ['0'],            ['6'],  [my.no_flags[0]],             ['2'],  ['0.1', '0.1'],  [my.yes_flags[0]],        [my.no_flags[0]],   [my.no_flags[0]],  [my.yes_flags[0]]])
 	
 	Ls = np.array([int(l) for l in L], dtype=int)
 	N_L = len(Ls)
@@ -4514,6 +4534,8 @@ def main():
 	Dtop_PBthr = np.array([float(xx) for xx in Dtop_PBthr])
 	to_plot = (to_plot[0] in my.yes_flags)
 	to_keep_composition = (to_keep_composition[0] in my.yes_flags)
+	to_equilibrate = (to_equilibrate[0] in my.yes_flags)
+	to_cluster = (to_cluster[0] in my.yes_flags)
 	
 	assert(interface_mode == 'CS'), 'ERROR: only CS (not M) mode is supported'
 	
@@ -4654,7 +4676,8 @@ def main():
 				stab_step=stab_step, init_composition=init_composition, \
 				R_clust_init=R_clust_init, to_animate=to_animate, \
 				to_save_npz=to_save_npz, to_recomp=to_recomp, \
-				to_keep_composition=to_keep_composition)
+				to_keep_composition=to_keep_composition, \
+				to_equilibrate=to_equilibrate, to_cluster=to_cluster)
 	
 	elif(mode == 'BF_mu_grid'):
 		mu1_vec = np.linspace(3, 3.3, 16)   # t=0.8
@@ -4762,7 +4785,8 @@ def main():
 				timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max, \
 				stab_step=stab_step, init_composition=init_composition, \
 				R_clust_init=R_clust_init, to_keep_composition=to_keep_composition, \
-				to_save_npz=to_save_npz, to_recomp=to_recomp)
+				to_equilibrate=to_equilibrate, to_save_npz=to_save_npz, \
+				to_recomp=to_recomp, to_cluster=to_cluster, to_plot=to_plot)
 	
 	elif(mode == 'BF_many'):
 		run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, Nt_per_BF_run=Nt, \
