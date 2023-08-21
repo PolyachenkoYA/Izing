@@ -54,7 +54,7 @@ feature_label['CS'] = 'Scl'
 
 # ========================== recompile ==================
 if(__name__ == "__main__"):
-	to_recompile = True
+	to_recompile = False
 	if(to_recompile):
 		# try:
 			# which_cmake_res = my.run_it('which cmake', check=True, verbose=False)
@@ -102,8 +102,8 @@ if(__name__ == "__main__"):
 			else:
 				py_suffix = my.run_it('python3-config --extension-suffix', check=True, verbose=False)[:-1]   # [:-1] to remove "\n"
 				src = '%s/%s.so%s' % (path_to_so, filebase, py_suffix)
-				dst_suff = '_tmp'
-				dst_suff = ''
+				dst_suff = '_tmp3'
+				#dst_suff = ''
 				dst = './%s%s.so' % (filebase, dst_suff)
 				
 				to_copy = (not filecmp.cmp(src, dst, shallow=False)) if(os.path.isfile(dst)) else True
@@ -117,8 +117,8 @@ if(__name__ == "__main__"):
 				else:
 					print('"%s" and "%s" seem to be the same, not copying anything' % (src, dst))
 	
-	import lattice_gas
-	#import lattice_gas_tmp as lattice_gas
+	#import lattice_gas
+	import lattice_gas_tmp3 as lattice_gas
 	
 	#print(lattice_gas.get_move_modes())
 	move_modes, move_mode_names = lattice_gas.get_move_modes()
@@ -484,7 +484,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							init_composition=None, to_do_hists=True, \
 							Dtop_est_timestride=1, Dtop_PBthr=[0.1,  0.1], \
 							Dtop_Nruns=0, dF_species_id=1, Dtop_Nruns_perState_min=10, \
-							t_CSrelax=-3.0, \
+							t_CSrelax=-1.0, \
 							to_plot_interface_states=False, verbose=None):
 	L2 = L**2
 	ln_k_AB = np.log(flux0 * 1) + np.sum(np.log(probs))   # [flux0 * 1] = 1, because [flux] = 1/time = 1/step
@@ -703,8 +703,8 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 						# )
 		
 		# ==== choise close to the reference paper ====
-		Dtop_OPmin = int(OP_interfaces_scaled[OP_closest_to_OP0_ind] - 6 + 0.1)
-		Dtop_OPmax = int(OP_interfaces_scaled[OP_closest_to_OP0_ind] + 6 + 0.1)
+		Dtop_OPmin = int(OP_interfaces_scaled[OP_closest_to_OP0_ind] - 4 + 0.1)
+		Dtop_OPmax = int(OP_interfaces_scaled[OP_closest_to_OP0_ind] + 4 + 0.1)
 		
 		#print(Dtop_OPmin, Dtop_OPmax)
 		#input('ok')

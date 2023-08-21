@@ -48,9 +48,11 @@ def main():
 	# python slurm_test.py --mode launch_run --MC_mode      swap --OP_set_name nvtBig --seed_s -1 1000 1010 --n_s 30 --L_s 320 --phi1_s 0.015 --Temp_s 1.0 --slurm_time 144:00:00 --to_run 0
 	# python slurm_test.py --mode launch_run --MC_mode long_swap --OP_set_name nvt21 --seed_s -1 1000 1004 --n_s 30 --L_s 320 --phi1_s 0.01225 0.012 0.01175 0.0115 0.01125 0.011 --Temp_s 1.0 --slurm_time 72:00:00 --to_run 0
 	# python slurm_test.py --mode launch_run_FFSDtop --MC_mode long_swap --OP_set_name nvt22 --seed_s -1 1000 1004 --n_s 30 --L_s 450 --phi1_s 0.0098 0.0096 --phi_2 0.0 --Temp_s 1.0 --slurm_time 144:00:00 --RAM_per_CPU 5G --Dtop_Nruns 300 --to_run 0
-	# 0.011   0.01105 0.0111  0.01115 0.0112  0.01125 0.0113  0.01135 0.0114 0.01145 0.0115  0.01155 0.0116  0.01165 0.0117  0.01175 0.0118  0.01185 0.0119  0.01195 0.012   0.01205 0.0121  0.01215 0.0122  0.01225
-	# 0.00875 0.0088  0.00885 0.0089  0.00895 0.009   0.00905 0.0091  0.00915 0.0092  0.00925 0.0093  0.00935 0.0094  0.00945 0.0095  0.00955 0.0096 0.00965 0.0097  0.00975 0.0098  0.00985 0.0099  0.00995 0.01    0.01005 0.0101  0.01015 0.0102  0.01025 0.0103  0.01035 0.0104  0.01045 0.0105 0.01055 0.0106  0.01065 0.0107  0.01075 0.0108  0.01085 0.0109  0.01095 0.011
-	# 0.00825 ... 0.01005
+	
+	# python slurm_test.py --mode launch_run_FFS --MC_mode swap --OP_set_name nvt23 --seed_s -1 1000 1004 --n_s 30 --L_s 450 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 0.0165 0.017 --phi_2 0.0 --Temp_s 1.0 --slurm_time 144:00:00 --RAM_per_CPU 5G --Dtop_Nruns 300 --to_run 0
+	# python slurm_test.py --mode launch_run_Dtop --MC_mode long_swap --OP_set_name nvt22 --seed_s -1 1000 1004 --n_s 30 --L_s 450 --phi1_s 0.0096 0.0098 0.01 0.0102 0.0104 --phi_2 0.0 --Temp_s 1.0 --slurm_time 72:00:00 --RAM_per_CPU 10G --Dtop_Nruns 300 --to_run 0
+	
+	# python slurm_test.py --mode launch_run_FFS --MC_mode swap --OP_set_name nvt24 --seed_s -1 1000 1004 --n_s 30 --L_s 300 350 400 450 --phi1_s 0.0104 --phi_2 0.0 --Temp_s 1.0 --slurm_time 144:00:00 --RAM_per_CPU 5G --Dtop_Nruns 300 --to_run 0
 	
 	parser = argparse.ArgumentParser()
 	
@@ -90,6 +92,7 @@ def main():
 	script_name = 'run.py'
 	script_name = 'run_tmp.py'
 	script_name = 'run_tmp2.py'
+	script_name = 'run_tmp3.py'
 	
 	phi_dgt = clargs.phi_dgt
 	phi_2 = clargs.phi_2

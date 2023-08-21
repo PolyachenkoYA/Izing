@@ -484,7 +484,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							init_composition=None, to_do_hists=True, \
 							Dtop_est_timestride=1, Dtop_PBthr=[0.1,  0.1], \
 							Dtop_Nruns=0, dF_species_id=1, Dtop_Nruns_perState_min=10, \
-							t_CSrelax=-3.0, \
+							t_CSrelax=-1.0, \
 							to_plot_interface_states=False, verbose=None):
 	L2 = L**2
 	ln_k_AB = np.log(flux0 * 1) + np.sum(np.log(probs))   # [flux0 * 1] = 1, because [flux] = 1/time = 1/step
@@ -703,8 +703,8 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 						# )
 		
 		# ==== choise close to the reference paper ====
-		Dtop_OPmin = int(OP_interfaces_scaled[OP_closest_to_OP0_ind] - 6 + 0.1)
-		Dtop_OPmax = int(OP_interfaces_scaled[OP_closest_to_OP0_ind] + 6 + 0.1)
+		Dtop_OPmin = int(OP_interfaces_scaled[OP_closest_to_OP0_ind] - 4 + 0.1)
+		Dtop_OPmax = int(OP_interfaces_scaled[OP_closest_to_OP0_ind] + 4 + 0.1)
 		
 		#print(Dtop_OPmin, Dtop_OPmax)
 		#input('ok')

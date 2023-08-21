@@ -61,6 +61,7 @@ def fit_Ns(phi1_s, Ns, d_Ns=None, d_phi1_s=None, L=320, \
 
 def mu1_phi1_interp():
 	# ====== e11 = -2.68 =====
+	# e11 = -2.68010292
 	# mu2 = np.array([4.92238326, 1e10])
 	# mu1 = [np.array([5.1, 5.125, 5.15, 5.175, 5.2]), \
 			# np.array([5.025, 5.05, 5.075, 5.1, 5.125, 5.15, 5.175, 5.2])]
@@ -82,15 +83,30 @@ def mu1_phi1_interp():
 	'''
 	
 	# ====== e11 = -2.6666666666667 =====
+	e11 = -2.6666666666667
 	mu2 = np.array([1e10])
-	mu1 = [np.array([5.025, 5.05, 5.075, 5.1, 5.125, 5.15, 5.175, 5.2])]
+	mu1 = [np.array([5.0, 5.025, 5.05, 5.075, 5.1, 5.125, 5.15, 5.175, 5.2])]
 	
-	phi1 = [np.array([0.01127993, 0.01092002, 0.01055463, 0.01005816, 0.009681567, 0.009336748, 0.008989878, 0.007863043])]
-	d_phi1 = [np.array([0.00012997, 0.0001145, 0.0001611, 0.0001682, 0.00013127, 8.864e-05, 0.00015656, 0.00012324])]
-	dF = [np.array([8.903408, 9.693966, 10.1888, 11.5485, 12.8307, 14.34696, 16.03613, 19.17258])]
-	d_dF = [np.array([0.1592, 0.17655, 0.3256, 0.371, 0.4929, 0.09819, 0.2823, 0.11304])]
-	Ns = [np.array([33.73477, 34.91058, 43.0346, 49.28451, 58.21434, 72.21557, 97.17265, 124.6213])]
-	d_Ns = [np.array([0.9715, 0.7803, 1.967, 1.2, 0.8955, 1.6744, 1.827, 0.9167])]
+	phi1 = [np.array([0.01219422, 0.01127993, 0.01092002, 0.01055463, 0.01005816, 0.009681567, 0.009336748, 0.008989878, 0.007863043])]
+	d_phi1 = [np.array([0.0001413, 0.00012997, 0.0001145, 0.0001611, 0.0001682, 0.00013127, 8.864e-05, 0.00015656, 0.00012324])]
+	dF = [np.array([8.685898, 8.903408, 9.693966, 10.1888, 11.5485, 12.8307, 14.34696, 16.03613, 19.17258])]
+	d_dF = [np.array([0.10357, 0.1592, 0.17655, 0.3256, 0.371, 0.4929, 0.09819, 0.2823, 0.11304])]
+	Ns = [np.array([29.24, 33.73477, 34.91058, 43.0346, 49.28451, 58.21434, 72.21557, 97.17265, 124.6213])]
+	d_Ns = [np.array([0.9091, 0.9715, 0.7803, 1.967, 1.2, 0.8955, 1.6744, 1.827, 0.9167])]
+	
+	# ======== NVT ==========
+	
+	NVT_phi1 = np.array([0.0096, 0.0098, 0.01, 0.0102, 0.0104])
+	NVT_Ns = np.array([[63.7879, 51.00845, 48.9819, 37.7059, 33.52265],\
+					   [1.0715, 1.445, 3.406, 1.21, 0.6273]])
+	NVT_ZeldovichG = np.array([[0.0142309, 0.0176965, 0.0182455, 0.0233043, 0.0268414],\
+							   [0.001487, 0.0017934, 0.002411, 0.002518, 0.0011746]])
+	NVT_Dtop = np.array([[0.633601, 0.540246, 0.476702, 0.5268, 0.401122],\
+						 [0.06706, 0.03904, 0.02119, 0.05734, 0.02533]])
+	NVT_dF = np.array([[13.09379, 13.1879, 11.9407, 12.3724, 11.6823],\
+					   [0.3995, 0.904, 0.5897, 0.8099, 0.5647]])
+	NVT_dFdens = np.array([[17.80723, 17.8674, 16.5991, 17.0075, 16.2703],\
+						   [0.3447, 0.7989, 0.7035, 0.7811, 0.5564]])
 	
 	# ======================= processing ==========================
 	N_mu2 = len(mu2)
@@ -110,8 +126,12 @@ def mu1_phi1_interp():
 	fig_Ns, ax_Ns, _ = my.get_fig(r'$\mu_1$', r'$N^*$')
 	fig_S, ax_S, _ = my.get_fig(r'$-e_{11} z/2 + \mu_1$', r'$\ln(\rho_1)$')
 	fig_phiN, ax_phiN, _ = my.get_fig(r'$\phi_1$', r'$N^*$')#, xscl='log', yscl='log'
+	fig_phiDF, ax_phiDF, _ = my.get_fig(r'$\phi_1$', r'$\Delta F/T$')#, xscl='log', yscl='log'
 	
-	e11 = -2.68010292
+	ax_phiN.errorbar(NVT_phi1, NVT_Ns[0, :], yerr=NVT_Ns[1, :], fmt='.', label='NVT-global', color=my.get_my_color(0))
+	ax_phiDF.errorbar(NVT_phi1, NVT_dF[0, :], yerr=NVT_dF[1, :], fmt='.', label='NVT-global', color=my.get_my_color(0))
+	
+	Temp_effective = -4 / e11
 	for i2 in range(N_mu2):
 		h = -e11 - mu1[i2]/2
 		Ns_th = np.pi * (izing.sgm_th_izing(-e11) / (2 * h))**2
@@ -140,6 +160,11 @@ def mu1_phi1_interp():
 		phi1_draw = np.linspace(min(phi1[i2]), max(phi1[i2]), 100)
 		ax_phiN.errorbar(phi1[i2], Ns[i2], yerr=d_Ns[i2], xerr=d_phi1[i2], fmt='.', label=lbl, color=my.get_my_color(1 + clr_id))
 		ax_phiN.plot(phi1_draw, np.exp(lnNs_fitFnc[i2](np.log(phi1_draw), lnNs_opts[i2].x)), label=r'$\phi_c = %s$' % (my.f2s(rho_c[i2])), color=my.get_my_color(1 + clr_id))
+		my.add_legend(fig_phiN, ax_phiN)
+		
+		ax_phiDF.errorbar(phi1[i2], dF[i2], yerr=d_dF[i2], xerr=d_phi1[i2], fmt='.', label=lbl, color=my.get_my_color(1 + clr_id))
+		#ax_phiDF.plot(phi1_draw, np.exp(lnNs_fitFnc[i2](np.log(phi1_draw), lnNs_opts[i2].x)), label=r'$\phi_c = %s$' % (my.f2s(rho_c[i2])), color=my.get_my_color(1 + clr_id))
+		my.add_legend(fig_phiDF, ax_phiDF)
 		
 		dF_ref = 12    # dF/T
 		mu0 = get_mu0(mu1[i2], dF[i2], dF_ref, dF_fit2)
