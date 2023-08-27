@@ -52,7 +52,11 @@ def main():
 	# python slurm_test.py --mode launch_run_FFS --MC_mode swap --OP_set_name nvt23 --seed_s -1 1000 1004 --n_s 30 --L_s 450 --phi1_s 0.014 0.0145 0.015 0.0155 0.016 0.0165 0.017 --phi_2 0.0 --Temp_s 1.0 --slurm_time 144:00:00 --RAM_per_CPU 5G --Dtop_Nruns 300 --to_run 0
 	# python slurm_test.py --mode launch_run_Dtop --MC_mode long_swap --OP_set_name nvt22 --seed_s -1 1000 1004 --n_s 30 --L_s 450 --phi1_s 0.0096 0.0098 0.01 0.0102 0.0104 --phi_2 0.0 --Temp_s 1.0 --slurm_time 72:00:00 --RAM_per_CPU 10G --Dtop_Nruns 300 --to_run 0
 	
-	# python slurm_test.py --mode launch_run_FFS --MC_mode swap --OP_set_name nvt24 --seed_s -1 1000 1004 --n_s 30 --L_s 300 350 400 450 --phi1_s 0.0104 --phi_2 0.0 --Temp_s 1.0 --slurm_time 144:00:00 --RAM_per_CPU 5G --Dtop_Nruns 300 --to_run 0
+	# python slurm_test.py --mode launch_run_FFSDtop --MC_mode swap --OP_set_name nvt24 --seed_s -1 1000 1004 --n_s 30 --L_s 300 350 400 450 --phi1_s 0.0104 --phi_2 0.0 --Temp_s 1.0 --slurm_time 144:00:00 --RAM_per_CPU 5G --Dtop_Nruns 300 --to_run 0
+	
+	# python slurm_test.py --mode launch_run_FFSDtop --MC_mode swap --OP_set_name nvt25 --seed_s -1 1000 1004 --n_s 15 20 30 --L_s 300 350 400 450 --phi1_s 0.0104 --phi_2 0.0 --Temp_s 1.0 --slurm_time 144:00:00 --RAM_per_CPU 20G --Dtop_Nruns 300 --to_run 0
+	
+	# python slurm_test.py --mode launch_run_FFSDtop --MC_mode swap --OP_set_name nvt25 --seed_s -1 1005 1017 --n_s 15 20 30 --L_s 300 --phi1_s 0.0104 --phi_2 0.0 --Temp_s 1.0 --slurm_time 24:00:00 --RAM_per_CPU 4G --Dtop_Nruns 300 --to_run 0
 	
 	parser = argparse.ArgumentParser()
 	
