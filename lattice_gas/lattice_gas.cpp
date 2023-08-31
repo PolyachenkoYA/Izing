@@ -1186,10 +1186,12 @@ namespace lattice_gas
 						printf("BF run: Nt = %ld, Nt_OP = %ld, CS = %d", *Nt, Nt_OP_saved ? *Nt_OP_saved : -1, biggest_cluster_sizes_current);
 					}
 
-					qsort(cluster_sizes, N_clusters_current, sizeof(int), cmpfunc_decr<int>);
-					printf(";       CSs:");
-					for(int j = 0; j < std::min(10, N_clusters_current); ++j){
-						printf(" %d,", cluster_sizes[j]);
+					if(to_cluster){
+						qsort(cluster_sizes, N_clusters_current, sizeof(int), cmpfunc_decr<int>);
+						printf(";       CSs:");
+						for(int j = 0; j < std::min(10, N_clusters_current); ++j){
+							printf(" %d,", cluster_sizes[j]);
+						}
 					}
 					printf("               \r");
 

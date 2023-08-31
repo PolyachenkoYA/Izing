@@ -484,7 +484,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							init_composition=None, to_do_hists=True, \
 							Dtop_est_timestride=1, Dtop_PBthr=[0.1,  0.1], \
 							Dtop_Nruns=0, dF_species_id=1, Dtop_Nruns_perState_min=10, \
-							t_CSrelax=-1.0, \
+							t_CSrelax=-1.0, N_clusters_deplet_track=15, phi_c=0.746e-2, \
 							to_plot_interface_states=False, verbose=None):
 	L2 = L**2
 	ln_k_AB = np.log(flux0 * 1) + np.sum(np.log(probs))   # [flux0 * 1] = 1, because [flux] = 1/time = 1/step
@@ -545,11 +545,26 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	max_cluster_1st_ind_id = []
 	max_cluster_inds = []
 	OP_init_states_OP0exactly_inds = []
+	phi1_fraction_data = []
+	S_phi1_excess_data = []
+	phi1_fraction = np.empty((N_OP_interfaces, N_clusters_deplet_track))
+	d_phi1_fraction = np.empty((N_OP_interfaces, N_clusters_deplet_track))
+	S_phi1_excess = np.empty((N_OP_interfaces, N_clusters_deplet_track))
+	d_S_phi1_excess = np.empty((N_OP_interfaces, N_clusters_deplet_track))
+	S_effective_data = []
+	S_effective = np.empty(N_OP_interfaces)
+	d_S_effective = np.empty(N_OP_interfaces)
+	if(phi_c is not None):
+		S_phi1_excess = np.empty((N_OP_interfaces, N_clusters_deplet_track))
 	for i in range(N_OP_interfaces):
 		OP_init_states.append(np.empty(N_init_states[i], dtype=int))
 		maxclust_ind.append(np.empty(N_init_states[i], dtype=int))
 		max_cluster_1st_ind_id.append(np.empty(N_init_states[i], dtype=int))
 		max_cluster_inds.append([])
+		phi1_fraction_data.append(np.empty((N_init_states[i], N_clusters_deplet_track)))
+		if(phi_c is not None):
+			S_phi1_excess_data.append(np.empty((N_init_states[i], N_clusters_deplet_track)))
+			S_effective_data.append(np.empty(N_init_states[i]))
 		for j in range(N_init_states[i]):
 			if(interface_mode == 'M'):
 				OP_init_states[i][j] = np.sum(states[i][j, :, :])
@@ -561,6 +576,22 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				max_cluster_1st_ind_id[i][j] = np.sum(cluster_sizes[:maxclust_ind[i][j]])
 				max_cluster_inds[i].append(cluster_element_inds[max_cluster_1st_ind_id[i][j] : max_cluster_1st_ind_id[i][j] + cluster_sizes[maxclust_ind[i][j]]])
 				
+				cluster_sizes_sorted = np.flip(np.sort(cluster_sizes))
+				phi1_fraction_new = np.cumsum(cluster_sizes_sorted)
+				if(len(phi1_fraction_new) < N_clusters_deplet_track):
+					phi1_fraction_new = np.append(phi1_fraction_new, [0]*(N_clusters_deplet_track - len(phi1_fraction_new)))
+				else:
+					phi1_fraction_new = phi1_fraction_new[:N_clusters_deplet_track]
+				N_phi1 = np.sum(states[i][j, :, :].flatten() == dF_species_id)
+				phi1_fraction_data[i][j, :] = phi1_fraction_new / N_phi1
+				if(phi_c is not None):
+					S_phi1_excess_data[i][j, :] = N_phi1 * (1 - phi1_fraction_data[i][j, :]) / L2 / phi_c
+					S_effective_data[i][j] = (N_phi1 - np.sum(cluster_sizes[cluster_sizes > 1])) / L2 / phi_c
+			
+		phi1_fraction[i, :], d_phi1_fraction[i, :] = my.get_average(phi1_fraction_data[i], axis=0)
+		if(phi_c is not None):
+			S_effective[i], d_S_effective[i] = my.get_average(S_effective_data[i])
+			S_phi1_excess[i, :], d_S_phi1_excess[i, :] = my.get_average(S_phi1_excess_data[i], axis=0)
 		
 		# TODO: fix; In principle, all the simulations have to be redone. This is not feasible so we just fill the voids with normal states to not break further pipeline. 
 		bad_OPinit_states_inds = (OP_init_states[i] < OP_interfaces[i])
@@ -1518,7 +1549,8 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	return ln_k_AB, d_ln_k_AB, P_B, d_P_B, \
 			P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, \
 			P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, \
-			ZeldovichG, Dtop, d_Dtop, dF, d_dF, \
+			ZeldovichG, Dtop, d_Dtop, dF, d_dF, S_effective, d_S_effective, \
+			phi1_fraction, d_phi1_fraction, S_phi1_excess, d_S_phi1_excess, \
 			rho, d_rho, OP_hist_centers, OP_hist_lens, \
 			state_Rdens_centers, state_centered_Rdens_total, d_state_centered_Rdens, \
 			cluster_centered_map_total, cluster_map_centers, rho_fourier2D, \
@@ -1570,6 +1602,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 				init_gen_mode=-2, Ms_alpha=0.5, OP_optim_minstep=8, \
 				init_composition=None, to_recomp=0, to_save_npz=True, \
 				to_post_proc=True, Dtop_PBthr=[0.1, 0.1], \
+				N_clusters_deplet_track=15, phi_c=0.746e-2, \
 				Dtop_Nruns=0, dF_species_id=1, \
 				n_emu_digits=6):
 	
@@ -1611,7 +1644,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 								init_gen_mode=init_gen_mode, \
 								interface_mode=OP_C_id[interface_mode], \
 								init_state=None if(init_state is None) else init_state.flatten())
-		
+		# TODO: pass dF_species_id to C-code
 		#_states_parent_inds = None
 		
 		if(to_save_npz):
@@ -1668,7 +1701,8 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 		ln_k_AB, d_ln_k_AB, P_B, d_P_B, \
 			P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, \
 			P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, \
-			ZeldovichG, Dtop, d_Dtop, dF, d_dF, \
+			ZeldovichG, Dtop, d_Dtop, dF, d_dF, S_effective, d_S_effective, \
+			phi1_fraction, d_phi1_fraction, S_phi1_excess, d_S_phi1_excess, \
 			rho, d_rho, OP_hist_centers, OP_hist_lens, \
 			state_Rdens_centers, state_centered_Rdens_total, d_state_centered_Rdens, \
 			cluster_centered_map_total, cluster_map_centers, rho_fourier2D, \
@@ -1682,7 +1716,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 							to_plot_time_evol=to_plot_time_evol, to_plot_hists=to_plot_hists, stride=timeevol_stride, \
 							x_lbl=feature_label[interface_mode], y_lbl=title[interface_mode], Ms_alpha=Ms_alpha, \
 							states=states, OP_optim_minstep=OP_optim_minstep, Dtop_Nruns=Dtop_Nruns, \
-							Dtop_PBthr=Dtop_PBthr, \
+							Dtop_PBthr=Dtop_PBthr, N_clusters_deplet_track=N_clusters_deplet_track, phi_c=phi_c, \
 							dF_species_id=dF_species_id, npz_basename=os.path.join(traj_basepath, traj_basename), \
 							to_save_npz=to_save_npz, to_recomp=to_recomp, verbose=verbose, \
 							init_composition=init_composition, to_do_hists=to_do_hists)
@@ -1691,7 +1725,8 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 				OP_hist_centers, OP_hist_lens, P_B, d_P_B, \
 				P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, \
 				P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, \
-				ZeldovichG, Dtop, d_Dtop, dF, d_dF, \
+				ZeldovichG, Dtop, d_Dtop, dF, d_dF, S_effective, d_S_effective, \
+				phi1_fraction, d_phi1_fraction, S_phi1_excess, d_S_phi1_excess, \
 				state_Rdens_centers, state_centered_Rdens_total, d_state_centered_Rdens, \
 				cluster_centered_map_total, cluster_map_centers, rho_fourier2D
 
@@ -1727,13 +1762,14 @@ def exp2_integrate(fit2, x1):
 
 	return np.exp(c) / 2 * np.sqrt(np.pi / np.abs(a)) * (scipy.special.erfi(dx) if(a > 0) else scipy.special.erf(dx))
 
-def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
+def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, stab_step, \
 							dOP_step, OP_hist_edges, OP_peak_guess, OP_OP_fit2_width, \
 							x_lbl=None, y_lbl=None, verbose=None, to_estimate_k=False, \
 							hA=None, OP_A=None, OP_B=None, to_save_npz=False, \
 							to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, \
 							stride=1, OP_jumps_hist_edges=None, init_composition=None, \
 							possible_jumps=None, means_only=False, to_recomp=0, \
+							main_component_ID=1, \
 							npz_basename=None, to_animate=False, to_plot=True):
 	
 	to_plot_time_evol = to_plot_time_evol and to_plot
@@ -1819,11 +1855,16 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 		if((not os.path.isfile(F_filepath)) or (to_recomp > 0)):
 			OP_stab = m[stab_ind]
 			
+			M_mean = np.mean(M[stab_ind])
+			
 			OP_jumps = OP_stab[1:] - OP_stab[:-1]
 			OP_mean = np.mean(OP_stab)
 			OP_std = np.std(OP_stab)
+			
 			memory_time = max(1, OP_std / dOP_step)
-			d_OP_mean = OP_std / np.sqrt(Nt_stab / memory_time)
+			N_indep_measurs = Nt_stab / memory_time
+			d_M_mean = np.std(M[stab_ind]) / np.sqrt(N_indep_measurs)
+			d_OP_mean = OP_std / np.sqrt(N_indep_measurs)
 			# Time of statistical decorelation of the system state.
 			# 'the number of flips necessary to cover the typical system states range' * 'the upper-bound estimate on the number of steps for 1 flip to happen'
 			print('memory time =', my.f2s(memory_time))
@@ -1962,12 +2003,20 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, E, stab_step, \
 		
 		if(to_plot_time_evol):
 			fig_OP, ax_OP, _ = my.get_fig('step', y_lbl, title='$' + x_lbl + '$(step); ' + ThL_lbl)
+			fig_M, ax_M, _ = my.get_fig('step', '$m = M / L^2$', title='$m$(step); ' + ThL_lbl)
+			
+			ax_M.plot(steps, M, label='data')
+			ax_M.plot([stab_step] * 2, [min(M), max(M)], '--', label='equilibr')
+			ax_M.plot([stab_step, max(steps)], [M_mean] * 2, '--', label=('$<m> = ' + my.errorbar_str(M_mean, d_M_mean) + '$'))
+			
 			ax_OP.plot(steps, m, label='data')
 			ax_OP.plot([stab_step] * 2, [min(m), max(m)], '--', label='equilibr')
 			ax_OP.plot([stab_step, max(steps)], [OP_mean] * 2, '--', label=('$<' + x_lbl + '> = ' + my.errorbar_str(OP_mean, d_OP_mean) + '$'))
 			if(to_estimate_k):
 				ax_OP.plot([0, max(steps)], [OP_A] * 2, '--', label='state A, B', color=my.get_my_color(1))
 				ax_OP.plot([0, max(steps)], [OP_B] * 2, '--', label=None, color=my.get_my_color(1))
+			
+			my.add_legend(fig_M, ax_M)
 			my.add_legend(fig_OP, ax_OP)
 			
 			if(to_estimate_k):
@@ -2112,6 +2161,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 			1 == lattice_gas.save_state_mode_Inside
 			2 == lattice_gas.save_state_mode_Influx
 	'''
+	# TODO: pass main_component_ID to the C-code
 	L2 = L**2
 	swap_type_move = MC_move_mode in nvt_movemodes
 	if(verbose is None):
@@ -2306,14 +2356,14 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 					phi_Lmeans, phi_LTmeans, d_phi_LTmeans, \
 					ax_time, ax_hist, ax_F, \
 					fig_time, fig_hist, fig_F = \
-						proc_order_parameter_BF(MC_move_mode, L, e, mu, states, data[interface_mode] / OP_scale[interface_mode], E / L2, stab_step, \
+						proc_order_parameter_BF(MC_move_mode, L, e, mu, states, data[interface_mode] / OP_scale[interface_mode], M / L2, E / L2, stab_step, \
 										dOP_step[interface_mode], hist_edges, int((OP_A + OP_B) / 2 + 0.5), OP_fit2_width[interface_mode], \
 										x_lbl=feature_label[interface_mode], y_lbl=title[interface_mode], verbose=verbose, to_estimate_k=to_estimate_k, hA=hA, \
 										to_plot_time_evol=to_plot_timeevol, to_plot_F=to_plot_F, to_plot_ETS=to_plot_ETS, stride=timeevol_stride, \
 										OP_A=int(OP_A / OP_scale[interface_mode] + 0.1), OP_B=int(OP_B / OP_scale[interface_mode] + 0.1), OP_jumps_hist_edges=OP_jumps_hist_edges, \
 										possible_jumps=OP_possible_jumps[interface_mode], means_only=means_only, to_save_npz=to_save_npz, \
 										init_composition=init_composition, to_recomp=to_recomp, npz_basename=os.path.join(traj_basepath, traj_basename), \
-										to_animate=to_animate, to_plot=to_plot)
+										main_component_ID=main_component_ID, to_animate=to_animate, to_plot=to_plot)
 			
 			if(not means_only):
 				BC_cluster_size = L2 / np.pi
@@ -2618,6 +2668,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			init_composition=None, to_save_npz=True, to_recomp=0, \
 			R_clust_init=None, seeds=None, interfacesIDs_to_plot_dens='main', \
 			Dtop_Nruns=0, Dtop_PBthr=[0.05, 0.05], N_fourier=5, dF_species_id=1, \
+			N_clusters_deplet_track=15, phi_c=0.746e-2, \
 			to_plot=True, n_emu_digits=6):
 	if(verbose is None):
 		verbose = lattice_gas.get_verbose()
@@ -2691,6 +2742,9 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		ZeldovichG_AB_data = np.empty(N_runs)
 		Dtop_AB_data = np.empty(N_runs)
 		dF_AB_data = np.empty(N_runs)
+		phi1_fraction_data = np.empty((N_OP_interfaces_AB, N_clusters_deplet_track, N_runs))
+		S_phi1_excess_data = np.empty((N_OP_interfaces_AB, N_clusters_deplet_track, N_runs))
+		S_effective_data = np.empty((N_OP_interfaces_AB, N_runs))
 		cluster_centered_map_total_interps = [[]] * N_runs
 		cluster_map_XYlims = np.zeros(2)
 		rho_fourier2D_data = np.empty((N_OP_interfaces_AB, 2, N_fourier, N_runs))
@@ -2894,7 +2948,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					PB_AB_data[:, i], d_PB_AB_data[:, i], \
 					PB_sigmoid_data[:, i], d_PB_sigmoid_data[:, i], PB_linfit_sigmoid_data[:, i], PB_linfit_sigmoid_inds_data[:, i], OP0_sigmoid_AB_data[i], \
 					PB_erfinv_data[:, i], d_PB_erfinv_data[:, i], PB_linfit_erfinv_data[:, i], PB_linfit_erfinv_inds_data[:, i], OP0_erfinv_AB_data[i], \
-					ZeldovichG_AB_data[i], Dtop_AB_data[i], _, dF_AB_data[i], _, \
+					ZeldovichG_AB_data[i], Dtop_AB_data[i], _, dF_AB_data[i], _, S_effective_data[:, i], _, \
+					phi1_fraction_data[:, :, i], _, S_phi1_excess_data[:, :, i], _, \
 					state_Rdens_centers_new, state_centered_Rdens_total_new, d_state_centered_Rdens_new, \
 					cluster_centered_map_total_new, cluster_map_centers_new, rho_fourier2D_data[:, :, :, i] = \
 						proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states_AB, \
@@ -2913,6 +2968,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								N_fourier=N_fourier, \
 								Dtop_Nruns=Dtop_Nruns, \
 								Dtop_PBthr=Dtop_PBthr, \
+								N_clusters_deplet_track=N_clusters_deplet_track, \
+								phi_c=phi_c, \
 								dF_species_id=dF_species_id)
 				
 				if(to_save_npz):
@@ -2939,6 +2996,9 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 							ZeldovichG_AB_data=ZeldovichG_AB_data[i], \
 							Dtop_AB_data=Dtop_AB_data[i], \
 							dF_AB_data=dF_AB_data[i], \
+							phi1_fraction_data=phi1_fraction_data[:, :, i], \
+							S_phi1_excess_data=S_phi1_excess_data[:, :, i], \
+							S_effective_data=S_effective_data[:, i], \
 							state_Rdens_centers_new=state_Rdens_centers_new, \
 							state_centered_Rdens_total_new=state_centered_Rdens_total_new, \
 							d_state_centered_Rdens_new=d_state_centered_Rdens_new, \
@@ -2986,6 +3046,9 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				ZeldovichG_AB_data[i] = npz_data['ZeldovichG_AB_data']
 				Dtop_AB_data[i] = npz_data['Dtop_AB_data']
 				dF_AB_data[i] = npz_data['dF_AB_data']
+				phi1_fraction_data[:, :, i] = npz_data['phi1_fraction_data']
+				S_phi1_excess_data[:, :, i] = npz_data['S_phi1_excess_data']
+				S_effective_data[:, i] = npz_data['S_effective_data']
 				state_Rdens_centers_new = npz_data['state_Rdens_centers_new']
 				state_centered_Rdens_total_new = npz_data['state_centered_Rdens_total_new']
 				d_state_centered_Rdens_new = npz_data['d_state_centered_Rdens_new']
@@ -3084,6 +3147,9 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		ZeldovichG_AB, d_ZeldovichG_AB = my.get_average(ZeldovichG_AB_data)
 		Dtop_AB, d_Dtop_AB = my.get_average(Dtop_AB_data)
 		dF_AB, d_dF_AB = my.get_average(dF_AB_data)
+		phi1_fraction, d_phi1_fraction = my.get_average(phi1_fraction_data, axis=2)
+		S_phi1_excess, d_S_phi1_excess = my.get_average(S_phi1_excess_data, axis=2)
+		S_effective, d_S_effective = my.get_average(S_effective_data, axis=1)
 		
 		assert(probs_AB_data.shape[1] > 1), 'ERROR: invalid prob_AB_data: shape = %s' % (str(probs_AB_data.shape))
 		assert(PB_AB_data.shape[1] > 1), 'ERROR: invalid PB_AB_data: shape = %s' % (str(PB_AB_data.shape))
@@ -3318,7 +3384,12 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				fig_state_Rdens[k], ax_state_Rdens[k], _ = my.get_fig('r', r'$\phi_%d$' % k, title=(r'$\phi_%d(r)$; ' % k) + ThL_lbl)
 				fig_state_Rdens_log[k], ax_state_Rdens_log[k], _ = my.get_fig('r', r'$\phi_%d$' % k, title=(r'$\phi_%d(r)$; ' % k) + ThL_lbl, yscl='logit')
 			
-			fig_rho_fourier, ax_rho_fourier, _ = my.get_fig('$n$', r'$\sim F_n[\phi]$', title=r'$F[\phi(\theta)](n)$')
+			fig_rho_fourier, ax_rho_fourier, _ = my.get_fig('$n$', r'$\sim F_n[\phi]$', title=r'$F[\phi(\theta)](n)$' + ThL_lbl)
+			fig_phi1_fraction, ax_phi1_fraction, _ = my.get_fig('$\#_{cl}$', r'$N_{%d} / N_{%d, \Sigma}$' % (dF_species_id, dF_species_id), title=(r'$n_{%d}(\#_{cl})$' % (dF_species_id)) + ThL_lbl, yscl='log')
+			fig_phi1RelClusts, ax_phi1RelClusts, _ = my.get_fig('$\#_{cl}$', r'$N_{%d,n} / N_{%d,max}$' % (dF_species_id, dF_species_id), title=(r'$n_{%d}(\#_{cl})$' % (dF_species_id)) + ThL_lbl, yscl='log')
+			fig_phi1S, ax_phi1S, _ = my.get_fig('$\#_{cl}$', r'$S = \phi_{%d} / \phi_{c,%d}$' % (dF_species_id, dF_species_id), title=(r'$S_{%d}(\#_{cl})$' % (dF_species_id)) + ThL_lbl)
+			if(phi_c is not None):
+				fig_phi1Seff, ax_phi1Seff, _ = my.get_fig('$N_{cl}$', r'$S = \phi_{%d} / \phi_{c,%d}$' % (dF_species_id, dF_species_id), title=(r'$S_{%d}(N_{cl})$' % (dF_species_id)) + ThL_lbl)
 			
 			if(interfacesIDs_to_plot_dens == 'main'):
 				#interfacesIDs_to_plot_dens = np.array([0, np.argmin(np.abs(OP_interfaces_AB - OP0_erfinv_AB)), len(OP_interfaces_AB) - 1], dtype=int)
@@ -3331,6 +3402,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			ax_cluster_map = [[]] * N_interfaces_to_plot
 			
 			ax_rho_fourier.plot([0, N_fourier], [0] * 2, '--', label='F=0')
+			ax_phi1Seff.errorbar(OP_interfaces_AB, S_effective, yerr=d_S_effective, label='data')
 			for i, OPind in enumerate(interfacesIDs_to_plot_dens):
 				cluster_lbl = r'$OP[%d] = %d$; ' % (OPind, OP_interfaces_AB[OPind])
 				
@@ -3338,6 +3410,15 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 										yerr = np.append(0, d_rho_fourier2D_Abs[OPind, :]), \
 										label=cluster_lbl, color=my.get_my_color(i))
 				
+				ax_phi1_fraction.errorbar(np.arange(N_clusters_deplet_track) + 1, phi1_fraction[OPind, :], yerr=d_phi1_fraction[OPind, :], \
+											label=cluster_lbl, color=my.get_my_color(i))
+				ax_phi1RelClusts.errorbar(np.arange(N_clusters_deplet_track) + 1, phi1_fraction[OPind, :] / phi1_fraction[OPind, 0], \
+											yerr=np.sqrt((d_phi1_fraction[OPind, :] / phi1_fraction[OPind, 0])**2 + (d_phi1_fraction[OPind, 0] * phi1_fraction[OPind, :] / phi1_fraction[OPind, 0]**2)**2), \
+											label=cluster_lbl, color=my.get_my_color(i))
+				if(phi_c is not None):
+					ax_phi1S.errorbar(np.arange(N_clusters_deplet_track) + 1, S_phi1_excess[OPind, :], yerr=d_S_phi1_excess[OPind, :], \
+										label=cluster_lbl, color=my.get_my_color(i))
+					
 				for k in range(N_species):
 					#chi2_lbl = r'$\chi_{%s,%s}^2 = %s$' % (my.f2s(R_fit_minmax[0, k, OPind]), my.f2s(R_fit_minmax[1, k, OPind]), my.f2s(rho_chi2[k, OPind]))
 					chi2_lbl = r'$\chi^2 = %s$' % (my.f2s(rho_chi2[k, OPind]))
@@ -3393,6 +3474,11 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			
 			my.add_legend(fig_rhoW, ax_rhoW)
 			my.add_legend(fig_rho_fourier, ax_rho_fourier)
+			my.add_legend(fig_phi1_fraction, ax_phi1_fraction)
+			my.add_legend(fig_phi1RelClusts, ax_phi1RelClusts)
+			if(phi_c is not None):
+				my.add_legend(fig_phi1S, ax_phi1S)
+				my.add_legend(fig_phi1Seff, ax_phi1Seff)
 			
 			for k in range(N_species):
 				my.add_legend(fig_state_Rdens[k], ax_state_Rdens[k])
