@@ -95,8 +95,8 @@ def main():
 	to_run = clargs.to_run
 	script_name = 'run.py'
 	script_name = 'run_tmp.py'
-	script_name = 'run_tmp2.py'
-	script_name = 'run_tmp3.py'
+	#script_name = 'run_tmp2.py'
+	#script_name = 'run_tmp3.py'
 	
 	phi_dgt = clargs.phi_dgt
 	phi_2 = clargs.phi_2

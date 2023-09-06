@@ -2668,7 +2668,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			init_composition=None, to_save_npz=True, to_recomp=0, \
 			R_clust_init=None, seeds=None, interfacesIDs_to_plot_dens='main', \
 			Dtop_Nruns=0, Dtop_PBthr=[0.05, 0.05], N_fourier=5, dF_species_id=1, \
-			N_clusters_deplet_track=15, phi_c=0.746e-2, \
+			N_clusters_deplet_track=15, phi_c=0.746e-2, rho_chi2_p=2, \
 			to_plot=True, n_emu_digits=6):
 	if(verbose is None):
 		verbose = lattice_gas.get_verbose()
@@ -3210,8 +3210,10 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					state_centered_Rdens_total[j][k], d_state_centered_Rdens_total[j][k] = \
 						my.get_average(state_centered_Rdens_total_data[j][k], axis=1)
 			
-			rho_fit_params = np.empty((N_species, 4, N_OP_interfaces_AB))
-			d_rho_fit_params = np.empty((N_species, 4, N_OP_interfaces_AB))
+			#rho_fit_params = np.empty((N_species, 4, N_OP_interfaces_AB))
+			#d_rho_fit_params = np.empty((N_species, rho_fit_params.shape[1], N_OP_interfaces_AB))
+			rho_fit_params = []
+			d_rho_fit_params = []
 			species_to_fit_rho_inds = np.array([0, 1], dtype=int)   # , 2
 			rho_fit_fncs = []
 			rho_splines = []
@@ -3226,7 +3228,15 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				rho_fit_fncs.append([])
 				for j in range(N_OP_interfaces_AB):
 					if(k in species_to_fit_rho_inds):
-						rho_fit_params[k, :, j], d_rho_fit_params[k, :, j] = \
+						# rho_fit_params[k, :, j], d_rho_fit_params[k, :, j] = \
+							# rho_fit_full(state_Rdens_centers_new, \
+										# state_centered_Rdens_total[j][k], \
+										# d_state_centered_Rdens_total[j][k], \
+										# init_composition[k], \
+										# OP_interfaces_AB[j], L2, \
+										# fit_error_name='specie-N%d' % k, \
+										# mode=k)
+						rho_fit_params_new, d_rho_fit_params_new = \
 							rho_fit_full(state_Rdens_centers_new, \
 										state_centered_Rdens_total[j][k], \
 										d_state_centered_Rdens_total[j][k], \
@@ -3234,6 +3244,20 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 										OP_interfaces_AB[j], L2, \
 										fit_error_name='specie-N%d' % k, \
 										mode=k)
+						#if((k == species_to_fit_rho_inds[0]) and (j == 0)):
+						if(len(rho_fit_params) == 0):
+							assert(np.all(rho_fit_params_new.shape == d_rho_fit_params_new.shape)), 'ERROR: fit_params.shape=%s but d_fit_params.shape=%s for Rdens_center - do not match' % (str(rho_fit_params_new.shape.shape), str(d_rho_fit_params_new.shape))
+							N_rhofit_params = len(rho_fit_params_new)
+							assert(N_rhofit_params >= 3), 'ERROR: N_rhofit_params = %d, but is must have at least 3 values with meaning {rho(r=0), interface_w, interface_R}' % (N_rhofit_params)
+							# [0] - rho(r=0)
+							# [1] - interface_w
+							# [2] - interface_R
+							#input(str(N_rhofit_params))
+							rho_fit_params = np.empty((N_species, N_rhofit_params, N_OP_interfaces_AB))
+							d_rho_fit_params = np.empty((N_species, N_rhofit_params, N_OP_interfaces_AB))
+						
+						rho_fit_params[k, :, j] = np.copy(rho_fit_params_new)
+						d_rho_fit_params[k, :, j] = np.copy(d_rho_fit_params_new)
 						rho_fit_fncs[k].append(lambda r, \
 													pp1=rho_fit_params[k, :, j], \
 													pp2=init_composition[k], \
@@ -3288,7 +3312,9 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					R_fit_minmax[0, k, j] = state_Rdens_centers_new[R_fit_inds][R_fit_left_ind]
 					
 					rho_chi2_inds = (state_Rdens_centers_new >= R_fit_minmax[0, k, j]) & (state_Rdens_centers_new < R_fit_minmax[1, k, j]) & ok_inds
-					rho_chi2[k, j] = np.mean(((state_centered_Rdens_total[j][k][rho_chi2_inds] - rho_inf[k][j]) / d_state_centered_Rdens_total[j][k][rho_chi2_inds])**2)
+					#rho_chi2[k, j] = np.mean(((state_centered_Rdens_total[j][k][rho_chi2_inds] - rho_inf[k][j]) / d_state_centered_Rdens_total[j][k][rho_chi2_inds])**2)
+					#rho_chi2[k, j] = np.sqrt(np.mean(((state_centered_Rdens_total[j][k][rho_chi2_inds] - rho_inf[k][j]))**2))
+					rho_chi2[k, j] = (np.mean(((state_centered_Rdens_total[j][k][rho_chi2_inds] - rho_inf[k][j]) / d_state_centered_Rdens_total[j][k][rho_chi2_inds])**rho_chi2_p))**(1/rho_chi2_p)
 					
 					print('j =', j, '; k =', k, ' :', my.errorbar_str(rho_inf[k][j], d_rho_inf[k][j]))
 					
@@ -3367,9 +3393,9 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		else:
 			# k = rho_inf * ZeldG * D* * exp(-dF/T)
 			# dF/T = - ln(k / (rho_inf * ZeldG * D*))
-			#dF_AB_accum = -ln_k_AB + np.log(rho_inf_crit * ZeldovichG_AB * Dtop_AB)
+			dF_AB_accum = -ln_k_AB + np.log(rho_inf_crit * ZeldovichG_AB * Dtop_AB)
 			print('phi1: ', rho_inf_crit * L2)
-			dF_AB_accum = -ln_k_AB + np.log(ZeldovichG_AB * Dtop_AB)
+			#dF_AB_accum = -ln_k_AB + np.log(ZeldovichG_AB * Dtop_AB)
 			d_dF_AB_accum = np.sqrt((d_ln_k_AB)**2 + (d_ZeldovichG_AB / ZeldovichG_AB)**2 + (d_Dtop_AB / Dtop_AB)**2 + (d_rho_inf_crit / rho_inf_crit)**2)
 	
 	if(to_plot):
@@ -3385,11 +3411,13 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				fig_state_Rdens_log[k], ax_state_Rdens_log[k], _ = my.get_fig('r', r'$\phi_%d$' % k, title=(r'$\phi_%d(r)$; ' % k) + ThL_lbl, yscl='logit')
 			
 			fig_rho_fourier, ax_rho_fourier, _ = my.get_fig('$n$', r'$\sim F_n[\phi]$', title=r'$F[\phi(\theta)](n)$' + ThL_lbl)
-			fig_phi1_fraction, ax_phi1_fraction, _ = my.get_fig('$\#_{cl}$', r'$N_{%d} / N_{%d, \Sigma}$' % (dF_species_id, dF_species_id), title=(r'$n_{%d}(\#_{cl})$' % (dF_species_id)) + ThL_lbl, yscl='log')
-			fig_phi1RelClusts, ax_phi1RelClusts, _ = my.get_fig('$\#_{cl}$', r'$N_{%d,n} / N_{%d,max}$' % (dF_species_id, dF_species_id), title=(r'$n_{%d}(\#_{cl})$' % (dF_species_id)) + ThL_lbl, yscl='log')
-			fig_phi1S, ax_phi1S, _ = my.get_fig('$\#_{cl}$', r'$S = \phi_{%d} / \phi_{c,%d}$' % (dF_species_id, dF_species_id), title=(r'$S_{%d}(\#_{cl})$' % (dF_species_id)) + ThL_lbl)
+			fig_phi1_fraction, ax_phi1_fraction, _ = my.get_fig('$\#_{cl}$', r'$N_{%d} / N_{%d, \Sigma}$' % (dF_species_id, dF_species_id), title=(r'$n_{%d}(\#_{cl})$; ' % (dF_species_id)) + ThL_lbl, yscl='log')
+			fig_phi1RelClusts, ax_phi1RelClusts, _ = my.get_fig('$\#_{cl}$', r'$N_{%d,n} / N_{%d,max}$' % (dF_species_id, dF_species_id), title=(r'$n_{%d}(\#_{cl})$; ' % (dF_species_id)) + ThL_lbl, yscl='log')
+			fig_phi1S, ax_phi1S, _ = my.get_fig('$\#_{cl}$', r'$S = \phi_{%d} / \phi_{c,%d}$' % (dF_species_id, dF_species_id), title=(r'$S_{%d}(\#_{cl})$; ' % (dF_species_id)) + ThL_lbl)
 			if(phi_c is not None):
-				fig_phi1Seff, ax_phi1Seff, _ = my.get_fig('$N_{cl}$', r'$S = \phi_{%d} / \phi_{c,%d}$' % (dF_species_id, dF_species_id), title=(r'$S_{%d}(N_{cl})$' % (dF_species_id)) + ThL_lbl)
+				fig_phi1Seff, ax_phi1Seff, _ = my.get_fig('$N_{cl}$', r'$S = \phi_{%d} / \phi_{c,%d}$' % (dF_species_id, dF_species_id), title=(r'$S_{%d}(N_{cl})$; ' % (dF_species_id)) + ThL_lbl)
+			fig_dipchi2_Ncl_traj, ax_dipchi2_Ncl_traj, _ = my.get_fig('$N_{cl}$', r'$\langle ((\phi(r) - \phi_{\infty}) / \delta \phi(r))^{%d} \rangle^{1/%d}_{dip}$; ' % (rho_chi2_p, rho_chi2_p), title=(r'$\chi^2_{\phi_{%d}}(N_{cl})$' % (dF_species_id)) + ThL_lbl)
+			fig_dip_Ncl_traj, ax_dip_Ncl_traj, _ = my.get_fig('$N_{cl}$', r'$\phi_{extrem} - \phi_{\infty}$', title=(r'$dip_{%d}(N_{cl})$; ' % (dF_species_id)) + ThL_lbl)
 			
 			if(interfacesIDs_to_plot_dens == 'main'):
 				#interfacesIDs_to_plot_dens = np.array([0, np.argmin(np.abs(OP_interfaces_AB - OP0_erfinv_AB)), len(OP_interfaces_AB) - 1], dtype=int)
@@ -3403,6 +3431,13 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			
 			ax_rho_fourier.plot([0, N_fourier], [0] * 2, '--', label='F=0')
 			ax_phi1Seff.errorbar(OP_interfaces_AB, S_effective, yerr=d_S_effective, label='data')
+			
+			ax_dipchi2_Ncl_traj.errorbar(OP_interfaces_AB, rho_chi2[dF_species_id, :], label='data')
+			ax_dipchi2_Ncl_traj.plot([OP0_erfinv_AB] * 2, [min(rho_chi2[dF_species_id, :]), max(rho_chi2[dF_species_id, :])], label=r'$N^* = %s$' % (my.f2s(OP0_erfinv_AB)))
+			
+			ax_dip_Ncl_traj.errorbar(OP_interfaces_AB, rho_dip[dF_species_id, :], label='data')   # , yerr=d_rho_dip[dF_species_id, :]
+			ax_dip_Ncl_traj.plot([OP0_erfinv_AB] * 2, [min(rho_dip[dF_species_id, :]), max(rho_dip[dF_species_id, :])], label=r'$N^* = %s$' % (my.f2s(OP0_erfinv_AB)))
+			
 			for i, OPind in enumerate(interfacesIDs_to_plot_dens):
 				cluster_lbl = r'$OP[%d] = %d$; ' % (OPind, OP_interfaces_AB[OPind])
 				
@@ -3474,6 +3509,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			
 			my.add_legend(fig_rhoW, ax_rhoW)
 			my.add_legend(fig_rho_fourier, ax_rho_fourier)
+			my.add_legend(fig_dipchi2_Ncl_traj, ax_dipchi2_Ncl_traj)
+			my.add_legend(fig_dip_Ncl_traj, ax_dip_Ncl_traj)
 			my.add_legend(fig_phi1_fraction, ax_phi1_fraction)
 			my.add_legend(fig_phi1RelClusts, ax_phi1RelClusts)
 			if(phi_c is not None):
@@ -3481,10 +3518,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				my.add_legend(fig_phi1Seff, ax_phi1Seff)
 			
 			for k in range(N_species):
-				my.add_legend(fig_state_Rdens[k], ax_state_Rdens[k])
-				#print(state_centered_Rdens_total[OPind][k])
-				#print(d_state_centered_Rdens_total[OPind][k])
-				#plt.show()
+				#my.add_legend(fig_state_Rdens[k], ax_state_Rdens[k])
 				my.add_legend(fig_state_Rdens_log[k], ax_state_Rdens_log[k])
 		
 		if(to_plot_k_distr):
@@ -3545,6 +3579,7 @@ def rho_fit_sgmfnc_template(r, prm, rho_bulk, Ncl, L2, \
 						mode=0, A=0, \
 						verbose=False, learning=True):
 # 						capilar_correction_min=-4, \
+	L = np.sqrt(L2)
 	rho_inf = get_rho_inf(rho_bulk, prm[0], Ncl, L2)
 	if((rho_inf >= 1) or (rho_inf <= 0)):
 		if(not learning):
@@ -3574,7 +3609,8 @@ def rho_fit_sgmfnc_template(r, prm, rho_bulk, Ncl, L2, \
 		
 	if(mode in [0, 1]):
 		return prm[0] + (rho_inf - prm[0]) / (1 + (np.exp(-((r - prm[2]) / prm[1])))) + \
-				prm[3] / r / (1 + np.exp(-(r - capilar_correction_min) / capilar_correction_min_sgm)) / (1 + np.exp((r - capilar_correction_max) / capilar_correction_max_sgm))
+				prm[3] * (np.log(2*r/L) / np.log(2*prm[2]/L)) / (1 + np.exp(-(r - capilar_correction_min) / capilar_correction_min_sgm)) / (1 + np.exp((r - capilar_correction_max) / capilar_correction_max_sgm))
+				#prm[3] / r / (1 + np.exp(-(r - capilar_correction_min) / capilar_correction_min_sgm)) / (1 + np.exp((r - capilar_correction_max) / capilar_correction_max_sgm))
 	elif(mode in [2]):
 		return rho_bulk + A * np.exp(-(np.abs(r - prm[2]) / prm[1])**4) + \
 			prm[3] / r / (1 + np.exp(-(r - prm[0]) / capilar_correction_min_sgm)) / (1 + np.exp((r - capilar_correction_max) / capilar_correction_max_sgm))
@@ -3622,13 +3658,14 @@ def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl, L2, mode=0, \
 		opt_fnc_full = lambda prm: np.sum(((rho_fit_sgmfnc_template(R_centers[ok_inds], prm, rho_bulk, Ncl, L2, mode=mode) - Rdens[ok_inds]) / d_Rdens[ok_inds])**2)   # , capilar_correction_min=R_correction
 		#rho_fit_params[3] = 0
 		prm3_opt_options = {}
+		dip_max_mult = 1.05
 		if(strict_bounds):
 			rho_fit_params[3] = R_correction * \
 								((max(Rdens[ok_inds]) - rho_inf) if(rho_bulk > 0.5) \
 								else (min(Rdens[ok_inds]) - rho_inf))
 			#prm3_opt_options['bounds'] = (min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3]))
-			prm3_opt_options['bounds'] = (2 * min(rho_fit_params[3], rho_fit_params[3]/1000), \
-										2 * max(rho_fit_params[3], rho_fit_params[3]/1000))
+			prm3_opt_options['bounds'] = (dip_max_mult * min(rho_fit_params[3], rho_fit_params[3]/1000), \
+										dip_max_mult * max(rho_fit_params[3], rho_fit_params[3]/1000))
 			prm3_opt_options['method'] = 'bounded'
 		
 		rho_fit_params[3] = scipy.optimize.minimize_scalar(lambda x: opt_fnc_full(my.subst_x1d(rho_fit_params, x, 3)), **prm3_opt_options).x
@@ -3640,8 +3677,8 @@ def rho_fit_full(R_centers, Rdens, d_Rdens, rho_bulk, Ncl, L2, mode=0, \
 			opt_bounds = ((0, min(1, rho_fit_params[0] + d_rho_fit_params_0 * 10)) if(rho_bulk > 0.5) else (max(0, rho_fit_params[0] - d_rho_fit_params_0 * 10), 1), \
 						(rho_fit_params[1] / 2, rho_fit_params[1] * 2), \
 						(rho_fit_params[2] / 2, rho_fit_params[2] * 2), \
-						(min(2 * rho_fit_params[3], rho_fit_params[3] / 10), \
-						 max(2 * rho_fit_params[3], rho_fit_params[3] / 10)))
+						(min(dip_max_mult * rho_fit_params[3], rho_fit_params[3] / 10), \
+						 max(dip_max_mult * rho_fit_params[3], rho_fit_params[3] / 10)))
 						#(min(0, 2 * rho_fit_params[3]), max(0, 2 * rho_fit_params[3]))
 			
 			for i_b, bnd in enumerate(opt_bounds):
@@ -4542,6 +4579,9 @@ def main():
 	# python run.py -mode BF_AB -Nt 100000000 -L 32 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.99 0.01 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -timeevol_stride 2000 -R_clust_init 0 -to_recomp 10 -verbose 4
 	# python run.py -mode FFS_AB_many -L 128 -OP_interfaces_set_IDs mu18 -to_get_timeevol 0 -N_states_FFS 50 -N_init_states_FFS 100 -Temp 1.5 -h 0.05 -e -4 0 0 -MC_move_mode flip -to_recomp 0 -Dtop_Nruns 5000 -my_seeds 1000 1001 1002 1003
 	
+	# python run.py -mode FFS_AB_many -L 300 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.9896 0.0104 0.0 -OP_interfaces_set_IDs nvt25 -my_seeds 1008 1010 1011 1012 1013 1014 1015 1016 -to_post_proc 1 -Temp 1.0 -to_recomp 0 -Dtop_Nruns 300
+	# python run.py -mode FFS_AB_many -L 300 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.680103 -1.340051 -1.715266 -MC_move_mode long_swap -init_composition 0.9896 0.0104 0.0 -OP_interfaces_set_IDs nvt25 -my_seeds 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 -to_post_proc 1 -Temp 1.0 -to_recomp 0 -Dtop_Nruns 300
+	
 	# TODO: run failed IDs with longer times
 	
 	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,           init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier,     Temp_s,     phi1_s,      phi2,     OP0_constr_s,     N_ID_groups,       to_post_proc,     Dtop_Nruns,     n_emu_digits,        to_do_Dtop,     Tphi1_fit_ord,      Dtop_PBthr,            to_plot,     to_keep_composition,     to_equilibrate,        to_cluster], _ = \
@@ -5019,8 +5059,8 @@ def main():
 		print('rho_dip =', my.errorbar_str(rho_dip[rho_dip_specie_ind, OP_closets_to_OP0_ind], d_rho_dip[rho_dip_specie_ind, OP_closets_to_OP0_ind], nd0=5))
 		print('rho_chi2 =', my.f2s(chi2_rho[rho_dip_specie_ind, OP_closets_to_OP0_ind], n=5))
 		
-		print('rho_dip_full:\n', rho_dip, d_rho_dip)
-		print('rho_chi2_full:\n', chi2_rho)
+		#print('rho_dip_full:\n', rho_dip, d_rho_dip)
+		#print('rho_chi2_full:\n', chi2_rho)
 	
 	elif('mu' in mode):
 		get_mu_dependence(MC_move_mode, mu, Ls[0], e, N_runs, interface_mode, \
