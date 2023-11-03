@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=test2
+#SBATCH --job-name=test9
 #SBATCH --time=24:00:00          # total run time limit (HH:MM:SS)
 #SBATCH --nodes=1                # node count
 #SBATCH --ntasks=1               # total number of tasks across all nodes
@@ -20,5 +20,4 @@
 #python run_tmp2.py -mode FFS_AB -L 400 -OP_interfaces_set_IDs mu10 -to_get_timeevol 0 -N_states_FFS 30 -N_init_states_FFS 60 -init_composition 0.09789 0.0111 0.01 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -to_recomp 0 -Dtop_Nruns 300 -my_seeds 1001
 #python run_tmp2.py -mode BF_AB -Nt 100000000 -L 450 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.99 0.01 0.0 -e -2.68010292 -1.34005146 -1.71526587 -timeevol_stride 2000 -to_keep_composition 1 -to_recomp 10  -to_plot 0
 #python run_tmp.py -mode BF_AB -Nt 880000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 0 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.9896 0.0104 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -timeevol_stride 2000 -to_recomp 10 -verbose 1 -to_plot 0 -my_seeds 24
-#python run_tmp.py -mode BF_AB -Nt 225000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 0 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.0104 0.018412 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -OP_max 150 -timeevol_stride 2000 -to_recomp 0 -verbose 1 -to_plot 0
-python run_tmp.py -mode BF_AB -Nt 200000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.9896 0.0104 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -OP_max 150 -timeevol_stride 2000 -to_recomp 0 -verbose 1 -my_seeds 2
+python run_tmp.py -mode BF_AB -Nt 300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 0 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.0104 0.01 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -OP_max 150 -timeevol_stride 2000 -to_recomp 0 -verbose 1 -to_plot 0

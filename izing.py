@@ -14,6 +14,7 @@ sgm_th_izing = lambda e: (e/2 + np.log(np.tanh(e/4)) + np.sqrt(2) * np.log(np.si
 # ax.plot(4/e_draw, sgm_th(e_draw) / (e_draw/4))
 # plt.show()
 
+rho_c = 7.46e-3
 
 def find_finished_runs_logs(filename_mask, inds, verbose=False):
 	done_list = []
