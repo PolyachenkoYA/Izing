@@ -96,7 +96,7 @@ def main():
 	script_name = 'run.py'
 	script_name = 'run_tmp.py'
 	#script_name = 'run_tmp2.py'
-	#script_name = 'run_tmp3.py'
+	script_name = 'run_tmp3.py'
 	
 	phi_dgt = clargs.phi_dgt
 	phi_2 = clargs.phi_2
@@ -150,16 +150,16 @@ def main():
 									
 									if(mode == 'launch_run_FFS'):
 										name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name)
-										cmd = 'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s' \
-												% (script_name, L, n_FFS, n_init, e_T1[0]/Temp, e_T1[1]/Temp, e_T1[2]/Temp, MC_mode, phi0_str, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0')
+										cmd = 'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s -OP_interfaces_set_IDs %s -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s' \
+												% (script_name, L, n_FFS, n_init, e_T1[0]/Temp, e_T1[1]/Temp, e_T1[2]/Temp, MC_mode, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0')
 									elif(mode == 'launch_run_Dtop'):
 										name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s_DtopRuns%d' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name, Dtop_Nruns_use)
-										cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s  -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns %d' \
-												% (script_name, L, e_T1[0], e_T1[1], e_T1[2], MC_mode, phi0_str, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5), Dtop_Nruns_use)
+										cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s -OP_interfaces_set_IDs %s  -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns %d' \
+												% (script_name, L, e_T1[0], e_T1[1], e_T1[2], MC_mode, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5), Dtop_Nruns_use)
 									elif(mode == 'launch_run_FFSDtop'):
 										name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s_FFSDtopRuns%d' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name, Dtop_Nruns_use)
-										cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s %s -OP_interfaces_set_IDs %s  -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns %d' \
-												% (script_name, L, n_FFS, n_init, e_T1[0], e_T1[1], e_T1[2], MC_mode, phi0_str, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5), Dtop_Nruns_use)
+										cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s -OP_interfaces_set_IDs %s  -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns %d' \
+												% (script_name, L, n_FFS, n_init, e_T1[0], e_T1[1], e_T1[2], MC_mode, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5), Dtop_Nruns_use)
 									#  -timeevol_stride 2000
 									
 									cmd_comment = r'   # SLURM: time = %s; RAM = %s ' % (clargs.slurm_time, clargs.RAM_per_CPU)

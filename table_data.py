@@ -68,6 +68,7 @@ OP_interfaces_table['nvt25'] = np.array([15, 21, 27, 33, 40, 47, 55, 63, 71, 79,
 OP_interfaces_table['nvt26'] = np.array([15, 21, 27, 33, 40, 47, 55, 63, 71, 79, 87, 95, 105, 130], dtype=int)
 OP_interfaces_table['nvt27'] = np.array([12, 16, 21, 27, 33, 40, 47, 55, 63, 71, 79, 87, 95, 105, 130, 155], dtype=int)
 OP_interfaces_table['nvt28'] = np.array([12, 16, 21, 27, 33, 40, 47, 55, 63, 71, 79], dtype=int)
+OP_interfaces_table['nvt29'] = np.array([21, 27, 33, 40, 47, 55, 63, 71, 79, 87, 95, 105, 130, 155], dtype=int)
 
 OP_interfaces_table['nvtLoc2c'] = np.array([19, 23, 27, 31, 35, 39, 43, 48, 52, 56, 60, 65, 70, 75, 80], dtype=int)
 OP_interfaces_table['nvtLoc'] = np.array([21, 25, 29, 33, 37, 41, 45, 50, 54, 58, 62, 67, 72, 77, 82, 88, 94, 100, 107, 115, 125], dtype=int)

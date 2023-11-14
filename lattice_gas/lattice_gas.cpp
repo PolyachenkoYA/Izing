@@ -404,6 +404,11 @@ py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<doubl
 	assert(mu_info.shape[0] == N_species);
 
 	if(stab_step < 0) stab_step *= (-L2);
+	if(stab_step > L2*L2){
+		printf("WARNING: stab_step = %d > L^4 = %d\n", stab_step, L2*L2);
+	}
+	printf("%d\n", stab_step);
+	STP
 
 // -------------- check input ----------------
 	int verbose = (_verbose.has_value() ? _verbose.value() : lattice_gas::verbose_dafault);
@@ -1463,11 +1468,12 @@ namespace lattice_gas
 			// replace the "all down" init state with the "at OP_A_thr" state
 //			memcpy(init_states, &(init_states[L2]), sizeof(int) * L2);
 
-//		printf("N_states_done = %d", N_states_done);
-//		print_S(&(state[(N_states_done - 1) * L2]), L, 'w');
-//		getchar();
+//			printf("N_states_done = %d", N_states_done);
+//			print_S(&(state[(N_states_done - 1) * L2]), L, 'w');
+//			print_S(&(state[0]), L, 'w');
+//			STP
 
-//		long N_steps_to_equil = 2 * Nt_to_reach_OP_A + stab_step;   // * 2 because we already have Nt = Nt_reach, and we want to run Nt_reach+stab_step new steps
+//			long N_steps_to_equil = 2 * Nt_to_reach_OP_A + stab_step;   // * 2 because we already have Nt = Nt_reach, and we want to run Nt_reach+stab_step new steps
 			long N_steps_to_equil = Nt_to_reach_OP_A + stab_step;
 			long Nt;
 			int equil_end_CS = -1;
@@ -1484,7 +1490,6 @@ namespace lattice_gas
 						printf("Previous attempt results in %d reaches of state B (OP_B = %d), so restating from the initial ~OP_A\n", N_tries, OP_B);
 					}
 				}
-
 				// run it for the same amount of time it took to get to OP_A_thr the first time + 10 sweeps
 				run_bruteforce_C(move_mode, L, e, mu, &time_total, -1, state,
 								 nullptr, &Nt, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
