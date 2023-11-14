@@ -10,6 +10,9 @@
 
 namespace py = pybind11;
 
+//PYBIND11_MODULE(lattice_gas_tmp3, m)
+//PYBIND11_MODULE(lattice_gas_tmp2, m)
+//PYBIND11_MODULE(lattice_gas_tmp, m)
 PYBIND11_MODULE(lattice_gas, m)
 {
 // py::tuple run_FFS(int L, py::array_t<double> e, py::array_t<double> mu, pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
@@ -60,10 +63,13 @@ PYBIND11_MODULE(lattice_gas, m)
 		  py::arg("OP_min")=py::none(),
 		  py::arg("OP_max")=py::none(),
 		  py::arg("interface_mode")=py::none(),
+		  py::arg("save_state_mode")=save_state_mode_Inside,
 		  py::arg("init_state")=py::none(),
 		  py::arg("to_use_smart_swap")=0,
 		  py::arg("to_equilibrate")=1,
-		  py::arg("verbose")=py::none()
+		  py::arg("to_start_only_state0")=0,
+		  py::arg("verbose")=py::none(),
+		  py::arg("to_cluster")=py::none()
 	);
 
 // py::tuple cluster_state(py::array_t<int> state, int default_state)

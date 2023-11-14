@@ -32,6 +32,7 @@ using namespace py::literals;
 
 #define save_state_mode_Inside 1
 #define save_state_mode_Influx 2
+#define save_state_mode_Outside 3
 
 #define N_species 3
 #define main_specie_id 1
@@ -81,18 +82,19 @@ namespace lattice_gas
 	int state_is_valid(const int *s, int L, int k=0, char prefix=0);
 
 	int run_FFS_C(int move_mode, double *flux0, double *d_flux0, int L, const double *e, const double *mu, int *states,
-				  int *N_init_states, long *Nt, long *Nt_OP_saved, long stab_step,
+				  int *states_parent_inds, int *N_init_states, long *Nt, long *Nt_OP_saved, long stab_step,
 				  long *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
 				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode,
 				  const int *init_state, int to_use_smart_swap);
 	int run_bruteforce_C(int move_mode, int L, const double *e, const double *mu, long *time_total, int N_states, int *states,
 						 long *OP_arr_len, long *Nt, long *Nt_OP_saved, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
-						 int interface_mode, int OP_A, int OP_B, int to_cluster,
+						 int interface_mode, int OP_A, int OP_B, int to_cluster, int to_start_only_state0,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
 						 int N_spins_up_init, int verbose, long Nt_max, int *N_tries, int to_save_final_state,
 						 int to_regenerate_init_state, long save_states_stride, int to_use_smart_swap);
-	double process_step(int move_mode, int *init_states, int *next_states, double **E, int **M, int **biggest_cluster_sizes, int **time,
+	double process_step(int move_mode, int *init_states, int *states_parent_inds, int *next_states,
+						double **E, int **M, int **biggest_cluster_sizes, int **time,
 						long *Nt, long *Nt_OP_saved, long *OP_arr_len, int N_init_states, int N_next_states,
 						int L, const double *e, const double *mu, int OP_0, int OP_next,
 						int interfaces_mode, int to_use_smart_swap, int verbose);
@@ -100,7 +102,7 @@ namespace lattice_gas
 				  int OP_0, int OP_next, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 				  int *cluster_element_inds, int *cluster_sizes, int *cluster_types, int *is_checked, long *Nt, long *Nt_OP_saved,
 				  long *OP_arr_len, int interfaces_mode, int to_use_smart_swap, int verbose, int to_cluster=1, long Nt_max=-1,
-				  int* states_to_save=nullptr, int *N_states_saved=nullptr, int N_states_to_save=-1,
+				  int *states_to_save=nullptr, int *N_states_saved=nullptr, int N_states_to_save=-1,
 				  int OP_min_save_state=0, int OP_max_save_state=0,
 				  int save_state_mode=save_state_mode_Inside, int OP_A=0, int OP_B=0, long save_states_stride=1);
 	int get_init_states_C(int move_mode, int L, const double *e, const double *mu, long *time_total, int N_init_states,
@@ -115,7 +117,6 @@ namespace lattice_gas
 
 
 	int init_rand_C(int my_seed);
-	int get_max_CS(int *state, int L);
 	double comp_E(const int* state, int L, const double *e, const double *mu);
 	int comp_M(const int *s, int L);
 	int generate_state(int *s, int L, int mode, int interface_mode, int verbose);
@@ -144,6 +145,7 @@ namespace lattice_gas
 	void uncheck_state(int *is_checked, int N);
 	void clear_cluster(int* cluster, int *cluster_size);
 	void clear_clusters(int *clusters, int *cluster_sizes, int *N_clusters);
+	int get_max_CS_C(int *state, int L);
 }
 
 //py::tuple get_init_states(int L, double Temp, double h, int N0, int M_0, int to_get_EM, std::optional<int> _verbose);
@@ -158,10 +160,10 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 						 std::optional<int> _OP_A, std::optional<int> _OP_B,
 						 std::optional<int> _OP_min_save_state, std::optional<int> _OP_max_save_state,
 						 std::optional<int> _OP_min, std::optional<int> _OP_max,
-						 std::optional<int> _interface_mode,
+						 std::optional<int> _interface_mode, int save_state_mode,
 						 std::optional< pybind11::array_t<int> > _init_state,
-						 int to_use_smart_swap, int to_equilibrate,
-						 std::optional<int> _verbose);
+						 int to_use_smart_swap, int to_equilibrate, int to_start_only_state0,
+						 std::optional<int> _verbose, std::optional<int> _to_cluster);
 int compute_hA(py::array_t<int> *h_A, int *OP, long Nt, int OP_A, int OP_B);
 py::tuple cluster_state(py::array_t<int> state, std::optional<int> _verbose);
 void print_state(py::array_t<int> state);
@@ -170,7 +172,7 @@ py::int_ set_verbose(int new_verbose);
 py::int_ get_verbose();
 py::int_ get_seed();
 void print_possible_move_modes();
-py::dict get_move_modes();
+py::tuple get_move_modes();
 
 template <typename T> T cmpfunc_inrc (const void * a, const void * b) {	return ( *(T*)a - *(T*)b ); }
 template <typename T> T cmpfunc_decr (const void * a, const void * b) {	return -cmpfunc_inrc<T>(a, b); }
