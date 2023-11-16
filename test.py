@@ -354,8 +354,9 @@ def avg_times_Dtop(thr_std=6, slurm_time=144):
 	
 	
 def main():
-	mu1_phi1_interp()
+	#mu1_phi1_interp()
 	#supersat(verbose=0)
+	my.check_for_exe('cmake')
 
 if(__name__ == "__main__"):
 	main()

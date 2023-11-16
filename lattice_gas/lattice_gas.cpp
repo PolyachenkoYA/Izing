@@ -404,11 +404,14 @@ py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<doubl
 	assert(mu_info.shape[0] == N_species);
 
 	if(stab_step < 0) stab_step *= (-L2);
-	if(stab_step > L2*L2){
-		printf("WARNING: stab_step = %d > L^4 = %d\n", stab_step, L2*L2);
+	if(stab_step > L2 * 100){
+		printf("WARNING: stab_step / L^2 = %ld / %ld = %lf > 100\n", stab_step, L2, double(stab_step) / L2);
+		if(stab_step > (long)L2 * L2){
+			printf("!! WARNING: stab_step / L^4 = %ld / %ld = %lf > 1\n", stab_step, (long)L2 * L2, (double(stab_step) / L2) / L2);
+		}
 	}
-	printf("%d\n", stab_step);
-	STP
+//	printf("%d\n", stab_step);
+//	STP
 
 // -------------- check input ----------------
 	int verbose = (_verbose.has_value() ? _verbose.value() : lattice_gas::verbose_dafault);
@@ -1485,7 +1488,7 @@ namespace lattice_gas
 //				printf("Proc N_states_done = %d\n", N_states_done);
 					if(equil_end_CS >= 0)
 						printf("Last run resulted in a state with CS_max = %d; ", equil_end_CS);
-					printf("Attempting to simulate Nt = %ld MC steps towards the local optimum            \r", N_steps_to_equil);
+					printf("Attempting to simulate Nt = %ld MC steps towards the local optimum\n", N_steps_to_equil);
 					if(N_tries > 0){
 						printf("Previous attempt results in %d reaches of state B (OP_B = %d), so restating from the initial ~OP_A\n", N_tries, OP_B);
 					}

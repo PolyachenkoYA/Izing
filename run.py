@@ -56,14 +56,10 @@ feature_label['CS'] = 'Scl'
 # ========================== recompile ==================
 if(__name__ == "__main__"):
 	to_recompile = True
+	tmp_mode = 0
 	if(to_recompile):
-		# try:
-			# which_cmake_res = my.run_it('which cmake', check=True, verbose=False)
-			# cmake_exists = True
-		# except:
-			# cmake_exists = False
 		if(my.check_for_exe('cmake') is None):
-			print('cmake not found. Attempting to import existing library', file=sys.stderr)
+			print('cmake not found. Attempting to import existing library, tmp_mode = %d' % tmp_mode, file=sys.stderr)
 		else:
 			compile_modes = {'yp1065' : 'della', 'ypolyach' : 'local'}
 			username = my.get_username()
@@ -79,32 +75,32 @@ if(__name__ == "__main__"):
 			path_back = '/'.join(['..'] * N_dirs_down)
 			
 			os.chdir(path_to_so)
-			# my.run_it(r'echo | gcc -E -Wp,-v -')
-			# my.run_it(r'find /usr/include -name "*gsl_rng.h"', verbose=True)
-			# my.run_it(r'find /usr/include -name "*gsl_rng.h"', verbose=True)
-			# my.run_it('ls /usr/include', verbose=True)
-			# my.run_it('ls /usr/include/gsl | grep rng', verbose=True)
 			
 			if(compile_mode == 'della'):
-				compile_results = my.run_it('make %s.so -j 9' % (filebase), check=True).split('\n')
+				try:
+					compile_results = my.run_it('make %s.so -j 9' % (filebase), check=True).split('\n')
+					nothing_done_in_recompile = ((compile_results[0] == '[100%] Built target lattice_gas.so') and (len(compile_results) <= 2))
+				except Exception as raised_error:
+					print('WARNING:')
+					print(raised_error)
+					print('Complilation did not succeed, trying to import the existing lib, tmp_mode = %d' % tmp_mode)
+					compile_results = ['None']
+					nothing_done_in_recompile = True
+				
 			else:
 				compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True).split('\n')
+				nothing_done_in_recompile = np.any(np.array([('ninja: no work to do.' in s) for s in compile_results]))
 			
 			N_recompile_log_lines = len(compile_results)
-			
 			assert(N_recompile_log_lines > 0), 'ERROR: nothing printed by make'
-			if(compile_mode == 'della'):
-				nothing_done_in_recompile = (compile_results[0] == '[100%] Built target lattice_gas.so') and (N_recompile_log_lines <= 2)
-			else:
-				nothing_done_in_recompile = np.any(np.array([('ninja: no work to do.' in s) for s in compile_results]))
+			
 			os.chdir(path_back)
 			if(nothing_done_in_recompile):
 				print('Nothing done, keeping the old .so lib')
 			else:
 				py_suffix = my.run_it('python3-config --extension-suffix', check=True, verbose=False)[:-1]   # [:-1] to remove "\n"
 				src = '%s/%s.so%s' % (path_to_so, filebase, py_suffix)
-				dst_suff = '_tmp'
-				dst_suff = ''
+				dst_suff = '' if(tmp_mode == 0) else ('_tmp%d' % tmp_mode)
 				dst = './%s%s.so' % (filebase, dst_suff)
 				
 				to_copy = (not filecmp.cmp(src, dst, shallow=False)) if(os.path.isfile(dst)) else True
@@ -118,8 +114,14 @@ if(__name__ == "__main__"):
 				else:
 					print('"%s" and "%s" seem to be the same, not copying anything' % (src, dst))
 	
-	import lattice_gas
-	#import lattice_gas_tmp as lattice_gas
+	if(tmp_mode == 0):
+		import lattice_gas
+	elif(tmp_mode == 1):
+		import lattice_gas_tmp1 as lattice_gas
+	elif(tmp_mode == 2):
+		import lattice_gas_tmp2 as lattice_gas
+	elif(tmp_mode == 3):
+		import lattice_gas_tmp3 as lattice_gas
 	
 	#print(lattice_gas.get_move_modes())
 	move_modes, move_mode_names = lattice_gas.get_move_modes()
@@ -1061,16 +1063,6 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			
 			my.add_legend(fig_OP0_Nchildren, ax_OP0_Nchildren)
 		
-		plot_PB_AB(ThL_lbl, feature_label[interface_mode], title[interface_mode], \
-					interface_mode, OP_interfaces_scaled[:-1], P_B[:-1], d_PB=d_P_B[:-1], \
-					PB_sgm=P_B_sigmoid, d_PB_sgm=d_P_B_sigmoid, \
-					linfit_sgm=linfit_sigmoid, linfit_sgm_inds=linfit_sigmoid_inds, \
-					OP0_sgm=OP0_sigmoid, \
-					PB_erfinv=P_B_erfinv, d_PB_erfinv=d_P_B_erfinv, \
-					linfit_erfinv=linfit_erfinv, linfit_erfinv_inds=linfit_erfinv_inds, \
-					OP0_erfinv=OP0_erfinv, \
-					clr=my.get_my_color(1))
-	
 	if(to_do_hists):
 		state_Rdens_centers, state_centered_Rdens_total, d_state_centered_Rdens = \
 			tuple([None] * 3)
@@ -1643,7 +1635,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 			print('not found "%s", doing full simulation' % traj_filepath)
 			#input('ok')
 		
-		print('stab: ', stab_step)
+		print("FFS Timestamp BEGIN:", time.time())
 		# py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<double> mu,
 		#			  pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
 		#			  int to_remember_timeevol, int init_gen_mode, int interface_mode,
@@ -1659,6 +1651,7 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 								init_state=None if(init_state is None) else init_state.flatten())
 		# TODO: pass dF_species_id to C-code
 		#_states_parent_inds = None
+		print("FFS Timestamp END:", time.time())
 		
 		if(to_save_npz):
 			np.savez(traj_filepath, states=_states, probs=probs, \
@@ -2320,6 +2313,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 		#	print([np.sum(init_state == i) for i in range(N_species)])
 		#input('ok')
 		
+		print("BF Timestamp BEGIN:", time.time())
 		(states, E, M, CS, hA, times, k_AB_launches, time_total) = \
 			lattice_gas.run_bruteforce(MC_move_mode, L, e.flatten(), mu, Nt,
 				N_saved_states_max=N_saved_states_max, \
@@ -2337,6 +2331,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 				to_start_only_state0=to_start_only_state0, \
 				to_cluster=to_cluster, \
 				verbose=verbose)
+		print("BF Timestamp END:", time.time())
 		
 		if(to_save_npz):
 			print('writing', traj_filepath)
@@ -5163,9 +5158,10 @@ def main():
 	if(stab_step < 0):
 		#assert(np.all(Nt[0] == Nt) or L2 < min(Nt) / 2), 'ERROR: smart stab_step is not supported for different small (< L^2 / 2) Nt-s'
 		#stab_step = int(min(L2, Nt / 2) * (-stab_step))
-		stab_step = np.intc(np.minimum(L2, Nt/2) + 0.5) * (-stab_step)
+		stab_step = (np.intc(np.minimum(L2, Nt/2) + 0.5) if('BF' in mode) else np.ones(Nt.shape, dtype=int) * L2) * (-stab_step) 
 		if((N_L > 1) and (np.any(stab_step[0] != stab_step))):
 			print('WARNING: Changing L-s are not supported with changing stab_steps')
+	
 	if(timeevol_stride < 0):
 		assert(np.all(Nt[0] == Nt)), 'ERROR: smart timeevol_stride is not supported for different Nt-s'
 		timeevol_stride = np.int_(- Nt / timeevol_stride)
