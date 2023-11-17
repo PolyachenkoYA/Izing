@@ -37,6 +37,7 @@ OP_interfaces_table['mu18'] = np.array([20, 28, 36, 44, 52, 60, 68, 76, 84, 92, 
 OP_interfaces_table['mu19'] = np.array([19, 26, 33, 40, 48, 57, 67, 77, 87, 98, 200], dtype=int)
 OP_interfaces_table['mu20'] = np.array([15, 23, 31, 39, 48, 57, 66, 75, 84, 93], dtype=int)
 OP_interfaces_table['mu21'] = np.array([20, 28, 36, 44, 52, 60, 68, 76, 84, 92, 100, 108, 116, 124, 132, 140, 148, 156, 164, 172, 180, 188, 196, 204, 212, 220, 228, 236, 244, 252, 260, 268, 276, 284, 300])
+OP_interfaces_table['mu22'] = np.array([21, 29, 37, 45, 53, 61, 69, 77, 87, 98, 200], dtype=int)
 
 OP_interfaces_table['nvt-1'] = np.array([14, 140], dtype=int)
 OP_interfaces_table['nvt0'] = np.array([2, 70], dtype=int)

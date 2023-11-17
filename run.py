@@ -494,6 +494,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							Dtop_Nruns=0, dF_species_id=1, Dtop_Nruns_perState_min=10, \
 							t_CSrelax=-1.0, N_clusters_deplet_track=15, phi_c=0.746e-2, \
 							to_plot_interface_states=False, to_plot_legend=1, \
+							CStest_Nruns=0, CStest_interfaces_inds_to_test=['all'], \
 							verbose=None):
 	L2 = L**2
 	ln_k_AB = np.log(flux0 * 1) + np.sum(np.log(probs))   # [flux0 * 1] = 1, because [flux] = 1/time = 1/step
@@ -649,6 +650,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 					(len(OP0_parent_inds), len(OP_init_states_OP0exactly_inds[OP_closest_to_OP0_ind]), OP_interfaces[OP_closest_to_OP0_ind], str(OP_interfaces), my.f2s(OP0_erfinv)))
 		else:
 			OP0_parent_inds_OP0exactly_Nchildren = OP0_parent_Nchildren[OP0_parent_inds_OP0exactly_inds]
+	
 	# =========== estimate Dtop ==============
 	if(Dtop_Nruns > 0):
 		# ======= estimate D* at the top (P_B = 1/2) ======
@@ -663,6 +665,8 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		interface_has_OP0_exactly_states = (len(OP_init_states_OP0exactly_inds[OP_closest_to_OP0_ind]) > 0)
 		#Dtop_OPtop = OP_interfaces_scaled[OP_closest_to_OP0_ind] if(interface_has_OP0_exactly_states) else min(OP_init_states[OP_closest_to_OP0_ind])
 		Dtop_OPtop = min(OP_init_states[OP_closest_to_OP0_ind])
+		if(Dtop_OPtop != OP_interfaces[OP_closest_to_OP0_ind]):
+			print('WARNING: Dtop_OPtop = %d != OP_interface_top = %d' % (Dtop_OPtop, OP_interfaces[OP_closest_to_OP0_ind]))
 		if(t_CSrelax < 0):
 			t_CSrelax = -1 / Dtop_OPtop * t_CSrelax
 		
@@ -744,13 +748,13 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		
 		# ==== choise close to the reference paper ====
 		Dtop_OPmin = int(OP_interfaces_scaled[OP_closest_to_OP0_ind] - 4 + 0.1)
-		Dtop_OPmax = int(OP_interfaces_scaled[OP_closest_to_OP0_ind] + 4 + 0.1)
+		Dtop_OPmax = int(OP_interfaces_scaled[OP_closest_to_OP0_ind] + 4 + 1 + 0.1)   # the interval is [min; max), so +1 for max
 		
 		#print(Dtop_OPmin, Dtop_OPmax)
 		#input('ok')
 		
 		# The interval is [), so the exit will happen is the system goes to (...)U[...)
-		# TODO: make Drop_OPmin/max arrays for each initOP0 state
+		# TODO: make Dtop_OPmin/max arrays for each initOP0 state
 		# TODO: if there are no OP0-exactly states then we may be starting outside [Dtop_OPmin, Dtop_OPmax) - account for that
 		
 		npz_Dtop_filepath = os.path.join(npz_basename + ('_DtopOPs%d_%d_Nruns%d_Dtop.npz' % (Dtop_OPmin, Dtop_OPmax, Dtop_Nruns)))
@@ -780,6 +784,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			print('Did not find "%s"\nEstimating Dtop' % npz_Dtop_filepath)
 			#exit()
 			for i in range(N_parent_state_IDs_unique):
+				print('ind = ', parent_state_IDs_unique[i])
 				_, _, _, CS_Dtop_new, _, times_Dtop_new, _, _ = \
 					proc_T(MC_move_mode, L, e, mu, -1, interface_mode, \
 						timeevol_stride=Dtop_est_timestride, \
@@ -803,14 +808,16 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				times_Dtop.append(times_Dtop_new[1:] / L2)
 				if(verbose > 0):
 					print('Dtop done: %s %%                         \r' % (my.f2s(np.sum(parent_state_IDs_lens[:i+1]) / np.sum(parent_state_IDs_lens) * 100)), end='')
-			print('Dtop done                           ')
+			if(verbose > 0):
+				print('Dtop done                           ')
 			
-			print('writing', npz_Dtop_filepath)
-			np.savez(npz_Dtop_filepath, \
-					Dtop_OPmin=Dtop_OPmin, Dtop_OPmax=Dtop_OPmax,\
-					parent_state_IDs_unique=parent_state_IDs_unique, \
-					parent_state_IDs_lens=parent_state_IDs_lens, \
-					CS_Dtop=CS_Dtop, times_Dtop=times_Dtop)
+			if(to_save_npz):
+				print('writing', npz_Dtop_filepath)
+				np.savez(npz_Dtop_filepath, \
+						Dtop_OPmin=Dtop_OPmin, Dtop_OPmax=Dtop_OPmax,\
+						parent_state_IDs_unique=parent_state_IDs_unique, \
+						parent_state_IDs_lens=parent_state_IDs_lens, \
+						CS_Dtop=CS_Dtop, times_Dtop=times_Dtop)
 			
 		else:
 			print(npz_Dtop_filepath, 'loading')
@@ -1003,6 +1010,79 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		
 	else:
 		Dtop, d_Dtop = tuple([0] * 2)
+	
+	if(CStest_Nruns > 0):
+		if(isinstance(CStest_interfaces_inds_to_test[0], str)):
+			if(CStest_interfaces_inds_to_test[0] == 'all'):
+				CStest_interfaces_inds_to_test = np.arange(N_OP_interfaces - 1)   # intervals are [), so the last state is in state B by definition so P_B = 1
+			elif(CStest_interfaces_inds_to_test[0] == 'top'):
+				CStest_interfaces_inds_to_test = np.ones(1, dtype=int) * OP_closest_to_OP0_ind
+			else:
+				print('ERROR: wrong CStest_interfaces set:', CStest_interfaces_inds_to_test)
+		assert(np.all(CStest_interfaces_inds_to_test < N_OP_interfaces)), 'ERROR: invalid CStest_interfaces_to_test = %s (N_OP_interfaces = %d)' % (str(CStest_interfaces_inds_to_test), N_OP_interfaces)
+		
+		N_interfaces_to_test = len(CStest_interfaces_inds_to_test)
+		CStest_OPs_start = np.empty(N_interfaces_to_test, dtype=int)
+		N_states_to_test = np.empty(N_interfaces_to_test, dtype=int)
+		CStest_end_OPs = []
+		for i_interface in range(N_interfaces_to_test):
+			interface_ind = CStest_interfaces_inds_to_test[i_interface]
+			
+			CStest_OPs_start[i_interface] = min(OP_init_states[interface_ind])
+			if(CStest_OPs_start[i_interface] != OP_interfaces[interface_ind]):
+				print('WARNING: CStest_OPs_start[%d] = %d != OP_interface[%d] = %d' % \
+					(i_interface, CStest_OPs_start[i_interface], interface_ind, OP_interfaces[interface_ind]))
+			
+			states_to_check_inds = np.where(OP_init_states[interface_ind] == CStest_OPs_start[i_interface])[0]
+			N_states_to_test[i_interface] = len(states_to_check_inds)
+			
+			npz_CStest_filepath = os.path.join(npz_basename + ('_Interf%d_Nruns%d_CStest.npz' % (interface_ind, CStest_Nruns)))
+			if((not os.path.isfile(npz_CStest_filepath)) or (to_recomp > 0)):
+				CStest_end_OPs.append(np.empty((N_states_to_test[i_interface], CStest_Nruns), dtype=int))
+				for i in range(N_states_to_test[i_interface]):
+					CStest_states, _, _, _, _, _, k_AB_launches, time_total = \
+						proc_T(MC_move_mode, L, e, mu, -1, interface_mode, \
+							timeevol_stride=1, \
+							init_composition=init_composition, \
+							OP_min=OP_interfaces[0], OP_max=OP_interfaces[-1], \
+							OP_min_save_state=OP_interfaces[0], OP_max_save_state=OP_interfaces[-1], \
+							to_recomp=10, \
+							to_save_npz=False, \
+							to_equilibrate=False, to_post_process=False, \
+							to_gen_init_state=False, to_get_timeevol=True, \
+							init_state=states[interface_ind][states_to_check_inds[i], :, :].flatten(), \
+							N_saved_states_max=CStest_Nruns + 1, \
+							to_start_only_state0=1, \
+							save_state_mode=3, \
+							to_plot_legend=to_plot_legend, \
+							verbose=None if(verbose is None) else (verbose-1))
+					# N_saved_states_max = ... + 1 because the initial state is also saved as state[0, :, :]
+					# TODO: make seed work for reproducibility
+					
+					for i_run in range(CStest_Nruns):
+						(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(CStest_states[i_run + 1, :, :].flatten())
+						CStest_end_OPs[i_interface][i, i_run] = max(cluster_sizes)
+					
+					if(verbose > 0):
+						print('CS test, interface %d, done: %s %%                         \r' % (interface_ind, my.f2s((i + 1) / N_states_to_test[i_interface] * 100)), end='')
+				if(verbose > 0):
+					print('CS test, interface %d, done                           ' % (interface_ind))
+				
+				if(to_save_npz):
+					print('writing', npz_CStest_filepath)
+					np.savez(npz_CStest_filepath, CStest_end_OPs=CStest_end_OPs[i_interface])
+			else:
+				print(npz_CStest_filepath, 'loading')
+				npz_data = np.load(npz_CStest_filepath, allow_pickle=True)
+				
+				CStest_end_OPs.append(npz_data['CStest_end_OPs'])
+			
+		for i_interface in range(N_interfaces_to_test):
+			interface_ind = CStest_interfaces_inds_to_test[i_interface]
+			CStest_PB_per_state = np.mean(CStest_end_OPs[i_interface] > CStest_OPs_start[i_interface], axis=1)
+			
+			plt.hist(CStest_PB_per_state)
+			plt.show()
 	
 	if(OP_optim_minstep is None):
 		OP_optim_minstep = OP_step[interface_mode]
@@ -1608,6 +1688,8 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 				to_post_proc=True, Dtop_PBthr=[0.1, 0.1], \
 				N_clusters_deplet_track=15, phi_c=0.746e-2, \
 				Dtop_Nruns=0, dF_species_id=1, \
+				CStest_Nruns=0, \
+				CStest_interfaces_inds_to_test=['all'], \
 				n_emu_digits=6):
 	
 	if(verbose is None):
@@ -1725,7 +1807,8 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 							Dtop_PBthr=Dtop_PBthr, N_clusters_deplet_track=N_clusters_deplet_track, phi_c=phi_c, \
 							dF_species_id=dF_species_id, npz_basename=os.path.join(traj_basepath, traj_basename), \
 							to_save_npz=to_save_npz, to_recomp=to_recomp, to_plot_legend=to_plot_legend, verbose=verbose, \
-							init_composition=init_composition, to_do_hists=to_do_hists)
+							init_composition=init_composition, to_do_hists=to_do_hists, CStest_Nruns=CStest_Nruns, \
+							CStest_interfaces_inds_to_test=CStest_interfaces_inds_to_test)
 		
 		return probs, d_probs, ln_k_AB, d_ln_k_AB, flux0, d_flux0, rho, d_rho, \
 				OP_hist_centers, OP_hist_lens, P_B, d_P_B, \
@@ -2206,6 +2289,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 		save_state_mode
 			1 == lattice_gas.save_state_mode_Inside
 			2 == lattice_gas.save_state_mode_Influx
+			3 == lattice_gas.save_state_mode_Outside
 	'''
 	# TODO: pass main_component_ID to the C-code
 	L2 = L**2
@@ -2313,7 +2397,8 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 		#	print([np.sum(init_state == i) for i in range(N_species)])
 		#input('ok')
 		
-		print("BF Timestamp BEGIN:", time.time())
+		if(verbose > 0):
+			print("BF Timestamp BEGIN:", time.time())
 		(states, E, M, CS, hA, times, k_AB_launches, time_total) = \
 			lattice_gas.run_bruteforce(MC_move_mode, L, e.flatten(), mu, Nt,
 				N_saved_states_max=N_saved_states_max, \
@@ -2331,7 +2416,8 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 				to_start_only_state0=to_start_only_state0, \
 				to_cluster=to_cluster, \
 				verbose=verbose)
-		print("BF Timestamp END:", time.time())
+		if(verbose > 0):
+			print("BF Timestamp END:", time.time())
 		
 		if(to_save_npz):
 			print('writing', traj_filepath)
@@ -2732,7 +2818,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			N_clusters_deplet_track=15, phi_c=0.746e-2, rho_chi2_p=2, \
 			to_plot=True, n_emu_digits=6, Rdens_smooth_dr_base=12, \
 			Rdens_smooth_ord=2, Rdens_fit_rmax=80, to_plot_legend=0, \
-			to_plot_debug=0, to_bridge_glob_loc=None):
+			to_plot_debug=0, to_bridge_glob_loc=None, \
+			CStest_Nruns=0, CStest_interfaces_inds_to_test=['all']):
 	if(verbose is None):
 		verbose = lattice_gas.get_verbose()
 	L2 = L**2
@@ -4964,10 +5051,10 @@ def main():
 	
 	# TODO: run failed IDs with longer times
 	
-	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,     init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier,     Temp_s,     phi1_s,      phi2,     OP0_constr_s,     N_ID_groups,       to_post_proc,     Dtop_Nruns,     n_emu_digits,        to_do_Dtop,     Tphi1_fit_ord,      Dtop_PBthr,            to_plot,     to_keep_composition,     to_equilibrate,        to_cluster,      to_plot_legend], _ = \
-		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',  '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier',  '-Temp_s',  '-phi1_s',   '-phi2',  '-OP0_constr_s',  '-N_ID_groups',    '-to_post_proc',  '-Dtop_Nruns',  '-n_emu_digits',     '-to_do_Dtop',  '-Tphi1_fit_ord',   '-Dtop_PBthr',         '-to_plot',  '-to_keep_composition',  '-to_equilibrate',     '-to_cluster',   '-to_plot_legend'], \
-					  possible_arg_numbers=[['+'],                   None,       [1],         None,           [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                 None,                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1],       None,       None,    [0, 1],             None,          [0, 1],             [0, 1],         [0, 1],           [0, 1],            [0, 1],            [0, 1],          [0, 2],             [0, 1],                  [0, 1],             [0, 1],            [0, 1],              [0, 1]], \
-					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],          ['FFS_auto'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],     ['-1'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,           ['0', '0'],     [my.yes_flags[0]],   [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5'],    ['1.0'],  ['0.015'],  ['0.01'],           [None],          [None],  [my.yes_flags[0]],          ['0'],            ['6'],  [my.no_flags[0]],             ['2'],  ['0.1', '0.1'],  [my.yes_flags[0]],        [my.no_flags[0]],   [my.no_flags[0]],  [my.yes_flags[0]],  [my.yes_flags[0]]])
+	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,     init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier,     Temp_s,     phi1_s,      phi2,     OP0_constr_s,     N_ID_groups,       to_post_proc,     Dtop_Nruns,     n_emu_digits,        to_do_Dtop,     Tphi1_fit_ord,      Dtop_PBthr,            to_plot,     to_keep_composition,     to_equilibrate,        to_cluster,      to_plot_legend,     CStest_Nruns,     CStest_interfaces_inds_to_test], _ = \
+		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',  '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier',  '-Temp_s',  '-phi1_s',   '-phi2',  '-OP0_constr_s',  '-N_ID_groups',    '-to_post_proc',  '-Dtop_Nruns',  '-n_emu_digits',     '-to_do_Dtop',  '-Tphi1_fit_ord',   '-Dtop_PBthr',         '-to_plot',  '-to_keep_composition',  '-to_equilibrate',     '-to_cluster',   '-to_plot_legend',  '-CStest_Nruns',  '-CStest_interfaces_inds_to_test'], \
+					  possible_arg_numbers=[['+'],                   None,       [1],         None,           [0, 1],                [0, 1],            [0, 1],              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                 None,                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1],       None,       None,    [0, 1],             None,          [0, 1],             [0, 1],         [0, 1],           [0, 1],            [0, 1],            [0, 1],          [0, 2],             [0, 1],                  [0, 1],             [0, 1],            [0, 1],              [0, 1],           [0, 1],                               None], \
+					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],          ['FFS_auto'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],     ['-1'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,           ['0', '0'],     [my.yes_flags[0]],   [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5'],    ['1.0'],  ['0.015'],  ['0.01'],           [None],          [None],  [my.yes_flags[0]],          ['0'],            ['6'],  [my.no_flags[0]],             ['2'],  ['0.1', '0.1'],  [my.yes_flags[0]],        [my.no_flags[0]],   [my.no_flags[0]],  [my.yes_flags[0]],  [my.yes_flags[0]],            ['0'],                            ['top']])
 	
 	print("Timestamp BEGIN:", time.time())
 	
@@ -5118,6 +5205,9 @@ def main():
 	to_equilibrate = (to_equilibrate[0] in my.yes_flags)
 	to_cluster = (to_cluster[0] in my.yes_flags)
 	to_plot_legend = (to_plot_legend[0] in my.yes_flags)
+	CStest_Nruns = int(CStest_Nruns[0])
+	if(CStest_interfaces_inds_to_test[0] not in ['all', 'top']):
+		CStest_interfaces_inds_to_test = np.array([int(xx) for xx in CStest_interfaces_inds_to_test], dtype=int) 
 	
 	assert(interface_mode == 'CS'), 'ERROR: only CS (not M) mode is supported'
 	
@@ -5504,6 +5594,9 @@ def main():
 					init_gen_mode=init_gen_mode, \
 					init_composition=init_composition[0, :], \
 					Dtop_Nruns=Dtop_Nruns, \
+					Dtop_PBthr=Dtop_PBthr, \
+					CStest_Nruns=CStest_Nruns, \
+					CStest_interfaces_inds_to_test=CStest_interfaces_inds_to_test, \
 					to_recomp=to_recomp, \
 					to_save_npz=to_save_npz, \
 					to_plot_time_evol=to_plot_timeevol, \
@@ -5511,7 +5604,6 @@ def main():
 					to_plot=to_plot, \
 					verbose=verbose, \
 					N_fourier=N_fourier, \
-					Dtop_PBthr=Dtop_PBthr, \
 					to_post_proc=to_post_proc, \
 					to_plot_legend=to_plot_legend, \
 					n_emu_digits=n_emu_digits)
@@ -5548,6 +5640,8 @@ def main():
 					init_composition=init_composition[0, :], \
 					to_save_npz=to_save_npz, to_recomp=to_recomp, \
 					N_fourier=N_fourier, Dtop_Nruns=Dtop_Nruns, \
+					CStest_Nruns=CStest_Nruns, \
+					CStest_interfaces_inds_to_test=CStest_interfaces_inds_to_test, \
 					Dtop_PBthr=Dtop_PBthr, to_plot=to_plot, \
 					to_plot_legend=to_plot_legend, \
 					seeds=my_seeds, n_emu_digits=n_emu_digits)

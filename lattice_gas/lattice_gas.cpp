@@ -171,7 +171,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
  * @param _to_remember_timeevol - whether to record the time dependence of OPs
  * @param _OP_A, _OP_B - the boundaries of A and B to compute h_A
  * @param _OP_min_save_state, _OP_max_save_state - save states within this region of OP
- * @param _OP_min, _OP_max - the boundaries at which the simulation is restarted. Here I always use [most_left_possible - 1; most_gight + 1] so the system never restarts.
+ * @param _OP_min, _OP_max - the boundaries at which the simulation is restarted. Here I always use [most_left_possible - 1; most_right + 1] so the system never restarts.
  * @param _interface_mode - Magnetization or CS
  * @param _init_state - the state to start the run from
  * @param to_use_smart_swap - see run_state
@@ -958,8 +958,9 @@ namespace lattice_gas
 	 * @param N_states_to_save - int, default -1; If it's >0, the simulation is stopped when 'N_states_saved >= N_states_to_save'
 	 * @param OP_min_save_state, OP_max_save_state - int, default 0; If(N_states_to_save > 0), states are saved when M == M_thr_save_state
 	 * @param save_state_mode :
-	 * 1 ("inside region") = save states that have OP in (OP_min_save_state; OP_max_save_state];
+	 * 1 ("inside region") = save states that have OP in [OP_min_save_state; OP_max_save_state);
 	 * 2 ("outflux") = save states that have `OP_current >= OP_min_save_state` and `OP_prev < OP_min_save_state`
+	 * 3 ("outside region") = save states that have OP in [...; OP_min_save_state) U [OP_max_save_state; ...];
 	 * @param OP_A, OP_B - A dna B doundaries to compute h_A
 	 * @param save_states_stride - this many successful flips between saving the full system state
 	 *
@@ -1285,7 +1286,7 @@ namespace lattice_gas
 	 * @param interface_mode - see run_FFS
 	 * @param OP_A - see run_state
 	 * @param OP_B - see run_state
-	 * @param OP_min_stop_state, OP_max_stop_state - if OP goes outside of (OP_min_stop_state; OP_max_stop_state], then the run is restarted from a state randomly chosen from the already saved states
+	 * @param OP_min_stop_state, OP_max_stop_state - if OP goes outside of [OP_min_stop_state; OP_max_stop_state), then the run is restarted from a state randomly chosen from the already saved states
 	 * @param N_states_done - the number of saved states
 	 * @param OP_min_save_state - see run_state
 	 * @param OP_max_save_state - see run_state
