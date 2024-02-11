@@ -58,9 +58,11 @@ def main():
 	
 	# python slurm_test.py --mode launch_run_FFSDtop --MC_mode swap --OP_set_name nvt25 --seed_s -1 1005 1017 --n_s 15 20 30 --L_s 300 --phi1_s 0.0104 --phi_2 0.0 --Temp_s 1.0 --slurm_time 24:00:00 --RAM_per_CPU 4G --Dtop_Nruns 300 --to_run 0
 	
+	# python slurm_test.py --mode launch_run_FFSCStest --MC_mode long_swap --OP_set_name nvt29 --seed_s -1 1005 1015 --n_s 50 --L_s 300 --phi1_s 0.0126 --phi_2 0.0132 --Temp_s 1.0 --slurm_time 24:00:00 --RAM_per_CPU 4G --Dtop_Nruns 1000 --CStest_Nruns 10 --to_run 0
+	
 	parser = argparse.ArgumentParser()
 	
-	parser.add_argument('--mode', help='what to do', choices=['launch_run_FFS', 'launch_run_FFSDtop', 'launch_run_Dtop', 'search_logs', 'search_npzs'], required=True)
+	parser.add_argument('--mode', help='what to do', choices=['launch_run_FFS', 'launch_run_FFSDtop', 'launch_run_FFSCStest', 'launch_run_Dtop', 'search_logs', 'search_npzs'], required=True)
 	
 	parser.add_argument('--MC_mode', help='mode of MC moves', choices=['swap', 'long_swap', 'flip'], required=True)
 	parser.add_argument('--OP_set_name', help='string-ID of the set of OP-intarfaces', choices=table_data.OP_interfaces_table.keys(), required=True)
@@ -77,6 +79,7 @@ def main():
 	parser.add_argument('--seed_s', type=int, help='seeds for cycle', nargs='+')
 	parser.add_argument('--n_s', type=int, help='n-s for cycle', nargs='*', default=-1)
 	parser.add_argument('--Dtop_Nruns_s', type=int, help='Nruns for Dtop estimation', nargs='*', default=[-1])
+	parser.add_argument('--CStest_Nruns_s', type=int, help='Nruns for histogram test of the collective variable in use', nargs='*', default=[-1])
 	parser.add_argument('--L_s', type=int, help='L-s for cycle', nargs='+')
 	parser.add_argument('--phi1_s', type=float, help='phi1-s for cycle', nargs='+')
 	parser.add_argument('--Temp_s', type=float, help='Temp-s for cycle', nargs='*', default=1.0)
@@ -111,75 +114,80 @@ def main():
 		for seed in seed_s:
 			for n in clargs.n_s:
 				for Dtop_Nruns in clargs.Dtop_Nruns_s:
-					for L in clargs.L_s:
-						for phi in clargs.phi1_s:
-							for Temp in clargs.Temp_s:
-								if(n >= 0):
-									n_use = n
-								elif(n == -1):
-									#n_use = int(table_data.n144h_FFS_dict[MC_mode][my.f2s(Temp, n=2)][my.f2s(phi, n=5)] * my_server.slurm_time_to_seconds(clargs.slurm_time)/(144*3600) + 0.5)
-									n_use = table_data.nPlot_FFS_dict[MC_mode][my.f2s(Temp, n=2)][my.f2s(phi, n=5)]
-								
-								if('Dtop' in mode):
-									if(Dtop_Nruns >= 0):
-										Dtop_Nruns_use = Dtop_Nruns
-									elif(Dtop_Nruns == -1):
-										#Dtop_Nruns_use = int(table_data.n144h_Dtop_FFS_dict[MC_mode][my.f2s(Temp, n=2)][my.f2s(phi, n=5)] * my_server.slurm_time_to_seconds(clargs.slurm_time)/(144*3600) + 0.5)*50
-										Dtop_Nruns_use = table_data.Dtop_FFS_dict[MC_mode][my.f2s(Temp, n=2)][my.f2s(phi, n=5)]
-								else:
-									Dtop_Nruns_use = 0
-								
-								if((n_use != 0) and ((Dtop_Nruns_use != 0) or (mode != 'launch_run_Dtop'))):
-									if((n_use < 15) and (low_Nuse_choice != 'ALL')):
-										low_Nuse_choice = input('n = %d < 15 - too small, poor statistics possible.\nProceed? [ALL/ok/CtrlC]\n' % n_use)
+					for CStest_Nruns in clargs.CStest_Nruns_s:
+						for L in clargs.L_s:
+							for phi in clargs.phi1_s:
+								for Temp in clargs.Temp_s:
+									if(n >= 0):
+										n_use = n
+									elif(n == -1):
+										#n_use = int(table_data.n144h_FFS_dict[MC_mode][my.f2s(Temp, n=2)][my.f2s(phi, n=5)] * my_server.slurm_time_to_seconds(clargs.slurm_time)/(144*3600) + 0.5)
+										n_use = table_data.nPlot_FFS_dict[MC_mode][my.f2s(Temp, n=2)][my.f2s(phi, n=5)]
 									
-									RAM_in_GB = my_server.slurm_RAW_to_bytes(clargs.RAM_per_CPU) / 2**30
-									RAM_thr = 4 * n_use / 300 * (L / 128)**2   # for FFS simulations
-									to_post_proc = True
-									if('FFS' in mode):
-										to_post_proc = (RAM_in_GB >= RAM_thr)
-										if((not to_post_proc) and (low_RAW_choice != 'ALL')):
-											low_RAW_choice = input('RAM = %s G < 4G * (N_FFS=%d / 300) * (L=%d / 128)^2 - too small, post-proc will not be done.\nProceed? [ALL/ok/CtrlC]\n' % (my.f2s(RAM_in_GB), n_use, L))
-											print('low RAM, turning post-processing off to avoid OOM fail')
-									
-									n_init = n_use * 2
-									n_FFS = n_use
-									phi0_str = my.f2s(1.0 - phi - phi_2, n=phi_dgt)
-									phi1_str = my.f2s(phi, n=phi_dgt)
-									phi2_str = my.f2s(phi_2, n=phi_dgt)
-									
-									if(mode == 'launch_run_FFS'):
-										name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name)
-										cmd = 'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s -OP_interfaces_set_IDs %s -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s' \
-												% (script_name, L, n_FFS, n_init, e_T1[0]/Temp, e_T1[1]/Temp, e_T1[2]/Temp, MC_mode, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0')
-									elif(mode == 'launch_run_Dtop'):
-										name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s_DtopRuns%d' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name, Dtop_Nruns_use)
-										cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s -OP_interfaces_set_IDs %s  -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns %d' \
-												% (script_name, L, e_T1[0], e_T1[1], e_T1[2], MC_mode, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5), Dtop_Nruns_use)
-									elif(mode == 'launch_run_FFSDtop'):
-										name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s_FFSDtopRuns%d' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name, Dtop_Nruns_use)
-										cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s -OP_interfaces_set_IDs %s  -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns %d' \
-												% (script_name, L, n_FFS, n_init, e_T1[0], e_T1[1], e_T1[2], MC_mode, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5), Dtop_Nruns_use)
-									#  -timeevol_stride 2000
-									
-									cmd_comment = r'   # SLURM: time = %s; RAM = %s ' % (clargs.slurm_time, clargs.RAM_per_CPU)
-									cmd += cmd_comment
-									#print(name)
-									#input(name)
-									
-									if(to_run):
-										my_server.run_slurm(os.path.join('/scratch/gpfs/yp1065/Izing/slurm', name + '.slurm'), \
-											cmd, \
-											job_name=name, \
-											time=clargs.slurm_time, \
-											nodes=1, \
-											ntasks_per_core=1, \
-											ntasks_per_node=1, \
-											cpus_per_task=1, \
-											RAM_per_CPU_usage=clargs.RAM_per_CPU, \
-											slurm_output_filepath = '/scratch/gpfs/yp1065/Izing/logs/' + name + '.out')
+									if(('Dtop' in mode) or ('CStest' in mode)):
+										if(Dtop_Nruns >= 0):
+											Dtop_Nruns_use = Dtop_Nruns
+										elif(Dtop_Nruns == -1):
+											#Dtop_Nruns_use = int(table_data.n144h_Dtop_FFS_dict[MC_mode][my.f2s(Temp, n=2)][my.f2s(phi, n=5)] * my_server.slurm_time_to_seconds(clargs.slurm_time)/(144*3600) + 0.5)*50
+											Dtop_Nruns_use = table_data.Dtop_FFS_dict[MC_mode][my.f2s(Temp, n=2)][my.f2s(phi, n=5)]
 									else:
-										print(cmd)
+										Dtop_Nruns_use = 0
+									
+									if((n_use != 0) and ((Dtop_Nruns_use != 0) or (mode != 'launch_run_Dtop'))):
+										if((n_use < 15) and (low_Nuse_choice != 'ALL')):
+											low_Nuse_choice = input('n = %d < 15 - too small, poor statistics possible.\nProceed? [ALL/ok/CtrlC]\n' % n_use)
+										
+										RAM_in_GB = my_server.slurm_RAW_to_bytes(clargs.RAM_per_CPU) / 2**30
+										RAM_thr = 4 * n_use / 300 * (L / 128)**2   # for FFS simulations
+										to_post_proc = True
+										if('FFS' in mode):
+											to_post_proc = (RAM_in_GB >= RAM_thr)
+											if((not to_post_proc) and (low_RAW_choice != 'ALL')):
+												low_RAW_choice = input('RAM = %s G < 4G * (N_FFS=%d / 300) * (L=%d / 128)^2 - too small, post-proc will not be done.\nProceed? [ALL/ok/CtrlC]\n' % (my.f2s(RAM_in_GB), n_use, L))
+												print('low RAM, turning post-processing off to avoid OOM fail')
+										
+										n_init = n_use * 2
+										n_FFS = n_use
+										phi0_str = my.f2s(1.0 - phi - phi_2, n=phi_dgt)
+										phi1_str = my.f2s(phi, n=phi_dgt)
+										phi2_str = my.f2s(phi_2, n=phi_dgt)
+										
+										if(mode == 'launch_run_FFS'):
+											name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name)
+											cmd = 'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s -OP_interfaces_set_IDs %s -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s' \
+													% (script_name, L, n_FFS, n_init, e_T1[0]/Temp, e_T1[1]/Temp, e_T1[2]/Temp, MC_mode, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0')
+										elif(mode == 'launch_run_Dtop'):
+											name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s_DtopRuns%d' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name, Dtop_Nruns_use)
+											cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS FFS_auto -N_init_states_FFS FFS_auto -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s -OP_interfaces_set_IDs %s  -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns %d' \
+													% (script_name, L, e_T1[0], e_T1[1], e_T1[2], MC_mode, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5), Dtop_Nruns_use)
+										elif(mode == 'launch_run_FFSDtop'):
+											name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s_FFSDtopRuns%d' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name, Dtop_Nruns_use)
+											cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s -OP_interfaces_set_IDs %s  -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns %d' \
+													% (script_name, L, n_FFS, n_init, e_T1[0], e_T1[1], e_T1[2], MC_mode, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5), Dtop_Nruns_use)
+										elif(mode == 'launch_run_FFSCStest'):
+											name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s_Dtop%d_CStest%d' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name, Dtop_Nruns_use, CStest_Nruns)
+											cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s -OP_interfaces_set_IDs %s  -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns %d -CStest_Nruns %d' \
+													% (script_name, L, n_FFS, n_init, e_T1[0], e_T1[1], e_T1[2], MC_mode, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5), Dtop_Nruns_use, CStest_Nruns)
+										#  -timeevol_stride 2000
+										
+										cmd_comment = r'   # SLURM: time = %s; RAM = %s ' % (clargs.slurm_time, clargs.RAM_per_CPU)
+										cmd += cmd_comment
+										#print(name)
+										#input(name)
+										
+										if(to_run):
+											my_server.run_slurm(os.path.join('/scratch/gpfs/yp1065/Izing/slurm', name + '.slurm'), \
+												cmd, \
+												job_name=name, \
+												time=clargs.slurm_time, \
+												nodes=1, \
+												ntasks_per_core=1, \
+												ntasks_per_node=1, \
+												cpus_per_task=1, \
+												RAM_per_CPU_usage=clargs.RAM_per_CPU, \
+												slurm_output_filepath = '/scratch/gpfs/yp1065/Izing/logs/' + name + '.out')
+										else:
+											print(cmd)
 	elif(mode in ['search_logs', 'search_npzs']):
 		for L in clargs.L_s:
 			for Temp in clargs.Temp_s:

@@ -55,8 +55,8 @@ feature_label['CS'] = 'Scl'
 
 # ========================== recompile ==================
 if(__name__ == "__main__"):
-	to_recompile = True
-	tmp_mode = 2
+	to_recompile = False
+	tmp_mode = 1
 	if(to_recompile):
 		# try:
 			# which_cmake_res = my.run_it('which cmake', check=True, verbose=False)
@@ -64,7 +64,7 @@ if(__name__ == "__main__"):
 		# except:
 			# cmake_exists = False
 		if(my.check_for_exe('cmake') is None):
-			print('cmake not found. Attempting to import existing library, tmp_mode = %d' % tmp_mode, file=sys.stderr)
+			print('cmake not found. Attempting to import existing library', file=sys.stderr)
 		else:
 			compile_modes = {'yp1065' : 'della', 'ypolyach' : 'local'}
 			username = my.get_username()
@@ -87,23 +87,17 @@ if(__name__ == "__main__"):
 			# my.run_it('ls /usr/include/gsl | grep rng', verbose=True)
 			
 			if(compile_mode == 'della'):
-				try:
-					compile_results = my.run_it('make %s.so -j 9' % (filebase), check=True).split('\n')
-					nothing_done_in_recompile = ((compile_results[0] == '[100%] Built target lattice_gas.so') and (len(compile_results) <= 2))
-				except Exception as raised_error:
-					print('WARNING:')
-					print(raised_error)
-					print('Complilation did not succeed, trying to import the existing lib, tmp_mode = %d' % tmp_mode)
-					compile_results = ['None']
-					nothing_done_in_recompile = True
-				
+				compile_results = my.run_it('make %s.so -j 9' % (filebase), check=True).split('\n')
 			else:
 				compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True).split('\n')
-				nothing_done_in_recompile = np.any(np.array([('ninja: no work to do.' in s) for s in compile_results]))
 			
 			N_recompile_log_lines = len(compile_results)
-			assert(N_recompile_log_lines > 0), 'ERROR: nothing printed by make'
 			
+			assert(N_recompile_log_lines > 0), 'ERROR: nothing printed by make'
+			if(compile_mode == 'della'):
+				nothing_done_in_recompile = (compile_results[0] == '[100%] Built target lattice_gas.so') and (N_recompile_log_lines <= 2)
+			else:
+				nothing_done_in_recompile = np.any(np.array([('ninja: no work to do.' in s) for s in compile_results]))
 			os.chdir(path_back)
 			if(nothing_done_in_recompile):
 				print('Nothing done, keeping the old .so lib')
