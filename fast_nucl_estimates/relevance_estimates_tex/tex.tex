@@ -1,0 +1,106 @@
+% "Станет проще"
+
+\documentclass[a4paper,12pt]{article} % тип документа
+
+% report, book
+
+% Рисунки
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage{lscape}
+\usepackage{biblatex}
+\usepackage{bbold}
+\usepackage{physics}
+
+\usepackage{hyperref}
+\usepackage[rgb]{xcolor}
+\hypersetup{				% Гиперссылки
+    colorlinks=true,       	% false: ссылки в рамках
+	urlcolor=blue          % на URL
+}
+
+%  Русский язык
+
+%\usepackage[T2A]{fontenc}			% кодировка
+\usepackage[utf8]{inputenc}			% кодировка исходного текста
+%\usepackage[english,russian]{babel}	% локализация и переносы
+\usepackage[english]{babel}
+
+
+% Математика
+\usepackage{amsmath,amsfonts,amssymb,amsthm,mathtools} 
+
+\usepackage{wasysym}
+
+\addbibresource{forCopy.bib}
+
+%Заговолок
+\author{Polyachenko Yury \\ CHM, Jacob's lab}
+\title{CHM 5XX, task N}
+\date{\today}
+
+\begin{document} % начало документа
+
+\newpage
+
+I tried to reproduce what you did, but in 2D, and I think $N^*$ cancels.
+
+My thoughts:
+
+First, I think $\Gamma = \sqrt{-\eval{(F/T)''}_{N^*} / 2\pi}$, so the characteristic time $\tau$ is 
+
+\begin{equation}
+\tau \approx \frac{1}{D_N |\eval{(F/T)''}_{N^*}|} = \frac{1}{D_N 2 \pi \Gamma^2}
+\end{equation}
+
+Then, since 2D, we have $l \approx \rho^{-1/2}$, so
+
+\begin{equation}
+D_N \approx D / l^2 \approx D \rho
+\end{equation}
+
+Finally, $\pi R_d^2 \rho = N^*$, so
+
+\begin{equation}
+\tau_{nuc} \approx \frac{\ln(2 e^\gamma \beta \Delta F^*)}{D_N 2 \pi \Gamma^2} \ll \frac{R_d^2}{D}
+\end{equation}
+
+so
+
+\begin{equation}
+\frac{\ln(2 e^\gamma \beta \Delta F^*)}{D \rho 2 \pi \Gamma^2} \ll \frac{N^*}{\pi \rho D}
+\end{equation}
+
+so
+
+\begin{equation}
+\ln(2 e^\gamma \beta \Delta F^*) \ll 2 \Gamma^2 N^*
+\end{equation}
+
+Then, if we want to explicitly add CNT (we already assumed parabolic $\Delta F(N - N^*)$), then from 2D CNT
+
+\begin{equation}
+\Gamma \approx \sqrt{\frac{|\Delta \mu|}{4 \pi N^* T}} \Rightarrow 2 \Gamma^2 = \frac{|\Delta \mu|/T}{2 \pi N^*} = \frac{\ln S}{2 \pi N^*}
+\end{equation}
+
+so
+
+\begin{equation}
+\ln(2 e^\gamma \beta \Delta F^*) = \alpha \frac{\ln S}{2 \pi}, \hspace{10pt} \alpha = \frac{\tau_{nuc}}{\tau_{Diff}} \ll 1
+\end{equation}
+
+Then from 2D CNT 
+
+\begin{equation}
+\frac{\Delta F^*}{T} = \frac{\pi (\sigma/T)^2}{|\Delta \mu|/T} = \frac{\pi}{\ln S} (\sigma/T)^2
+\end{equation}
+
+which leads to
+
+\begin{equation}
+2 \pi e^\gamma \qty(\frac{\sigma}{T})^2 = S^{\alpha / 2 \pi} \ln S
+\end{equation}
+
+The conclusion for low surface tension $\sigma/T$ is the same. E.g. if $\alpha=0.1$ and $S=2$ then we need $\sigma/T < 0.25$ and if $S=1.3$ (I have someting like that for NVT-local according to my estimations) then $\sigma/T < 0.154$.
+
+\end{document} % конец документа
