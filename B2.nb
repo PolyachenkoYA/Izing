@@ -1,0 +1,137 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 13.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      4002,        127]
+NotebookOptionsPosition[      3305,        106]
+NotebookOutlinePosition[      3703,        122]
+CellTagsIndexPosition[      3660,        119]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ass", "=", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"p", ">", "3"}], ",", 
+     RowBox[{"a", ">", "0"}]}], "}"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"b2", "=", 
+  RowBox[{"FullSimplify", "[", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"Integrate", "[", 
+      RowBox[{
+       RowBox[{
+        RowBox[{"r", "^", "2"}], "*", 
+        RowBox[{"(", 
+         RowBox[{
+          RowBox[{"Exp", "[", 
+           RowBox[{
+            RowBox[{"-", "a"}], "/", 
+            RowBox[{"r", "^", "p"}]}], "]"}], "-", "1"}], ")"}]}], ",", 
+       RowBox[{"{", 
+        RowBox[{"r", ",", "1", ",", "Infinity"}], "}"}], ",", 
+       RowBox[{"Assumptions", "\[Rule]", "ass"}]}], "]"}], "-", 
+     RowBox[{"1", "/", "3"}]}], ",", 
+    RowBox[{"Assumptions", "\[Rule]", "ass"}]}], "]"}]}]}], "Input",
+ CellChangeTimes->{{3.896912596162956*^9, 3.896912633709816*^9}, {
+  3.8969126989216957`*^9, 3.896912701497402*^9}, {3.8969128103478003`*^9, 
+  3.8969128169027853`*^9}, {3.896913019704609*^9, 3.896913035576434*^9}},
+ CellLabel->"In[6]:=",ExpressionUUID->"2b0637f6-5851-4de3-9867-003f1e1d2cc9"],
+
+Cell[BoxData[
+ FractionBox[
+  RowBox[{
+   SuperscriptBox["a", 
+    RowBox[{"3", "/", "p"}]], " ", 
+   RowBox[{"(", 
+    RowBox[{
+     RowBox[{"Gamma", "[", 
+      RowBox[{"-", 
+       FractionBox["3", "p"]}], "]"}], "-", 
+     RowBox[{"Gamma", "[", 
+      RowBox[{
+       RowBox[{"-", 
+        FractionBox["3", "p"]}], ",", "a"}], "]"}]}], ")"}]}], "p"]], "Output",\
+
+ CellChangeTimes->{
+  3.896912639783353*^9, 3.8969127044542227`*^9, {3.8969130272174587`*^9, 
+   3.896913038528633*^9}},
+ CellLabel->"Out[7]=",ExpressionUUID->"a0e27034-d6ae-4cb1-b415-609773cbc2f2"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"Series", "[", 
+  RowBox[{"b2", ",", 
+   RowBox[{"{", 
+    RowBox[{"a", ",", "0", ",", "1"}], "}"}], ",", 
+   RowBox[{"Assumptions", "\[Rule]", "ass"}]}], "]"}]], "Input",
+ CellChangeTimes->{{3.896912802053211*^9, 3.896912833360744*^9}, {
+  3.8969130580218*^9, 3.896913058300529*^9}},
+ CellLabel->"In[8]:=",ExpressionUUID->"7448e4f6-3d14-496f-82bf-e685b7fb59c6"],
+
+Cell[BoxData[
+ InterpretationBox[
+  RowBox[{
+   RowBox[{"-", 
+    FractionBox["1", "3"]}], "-", 
+   FractionBox["a", 
+    RowBox[{
+     RowBox[{"-", "3"}], "+", "p"}]], "+", 
+   InterpretationBox[
+    SuperscriptBox[
+     RowBox[{"O", "[", "a", "]"}], "2"],
+    SeriesData[$CellContext`a, 0, {}, 0, 2, 1],
+    Editable->False]}],
+  SeriesData[$CellContext`a, 0, {
+    Rational[-1, 3], (-1)/(-3 + $CellContext`p)}, 0, 2, 1],
+  Editable->False]], "Output",
+ CellChangeTimes->{3.8969128371229753`*^9, 3.896913060970261*^9},
+ CellLabel->"Out[8]=",ExpressionUUID->"15391dc7-b3ff-4742-942c-15d7edab89c3"]
+}, Open  ]]
+},
+WindowSize->{606., 659.25},
+WindowMargins->{{363, Automatic}, {48, Automatic}},
+FrontEndVersion->"13.0 for Linux x86 (64-bit) (February 4, 2022)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"204ffbc4-8849-4b0f-8762-0df3b82907fc"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 1117, 29, 113, "Input",ExpressionUUID->"2b0637f6-5851-4de3-9867-003f1e1d2cc9"],
+Cell[1700, 53, 566, 18, 62, "Output",ExpressionUUID->"a0e27034-d6ae-4cb1-b415-609773cbc2f2"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[2303, 76, 385, 8, 29, "Input",ExpressionUUID->"7448e4f6-3d14-496f-82bf-e685b7fb59c6"],
+Cell[2691, 86, 598, 17, 73, "Output",ExpressionUUID->"15391dc7-b3ff-4742-942c-15d7edab89c3"]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)
+
