@@ -14,10 +14,16 @@ N_gauss_rands = 1000000
 D0_for_data = 0.53
 N0_for_data = 50
 
-def get_F_fnc(mode, F_scale=1, Ncl_scale=1):
+def get_F_fnc(mode, F_scale=1, Ncl_scale=1, \
+				D_fnc=lambda x: 1 if(isinstance(x, float)) else np.ones(x.shape), \
+				d_D_fnc=lambda x: 0 if(isinstance(x, float)) else np.zeros(x.shape)\
+			):
 	Ncl = np.array([1, 5, 13, 21, 29, 37, 45, 53, 61, 69, 77, 85, 93, 101, 109, 117, 125, 133, 141, 149, 157, 165, 173, 181, 189, 197, 205, 213, 221, 229, 237, 245, 253, 261, 269, 277, 285, 293, 301, 309, 317, 325, 333, 341, 349, 357, 365, 373, 381, 389, 397], dtype=int) * Ncl_scale
-	F_data = np.array([20, 0.00000000e+00, -2.67073772e+00, -2.10564012e+00, -1.25198896e+00, -6.79585889e-01, -2.71254170e-01, 8.75065242e-02, 7.15283205e-03, -1.00340632e-01, -2.97704696e-01, -4.30221936e-01, -5.99914870e-01, -8.57073279e-01, -1.07214088e+00, -1.29701102e+00, -1.54623396e+00, -1.74680853e+00, -1.94689559e+00, -2.20434883e+00, -2.38196263e+00, -2.51789735e+00, -2.69507291e+00, -2.83593969e+00, -2.92908237e+00, -2.95898174e+00, -2.99012348e+00, -3.00142606e+00, -3.00303263e+00, -2.96182397e+00, -2.83723393e+00, -2.68325558e+00, -2.49843071e+00, -2.23309525e+00, -1.91149376e+00, -1.51708915e+00, -1.08459350e+00, -6.36255620e-01, -2.46464207e-01, 2.94872607e-01, 9.95470058e-01, 1.51240623e+00, 2.38369195e+00, 4.27749039e+00, 7.04946359e+00, 1.36161360e+01, 1.36161360e+01, 1.36161360e+01, 1.36161360e+01, 1.36161360e+01, 1.36161360e+01]) * F_scale
-	d_F_data = np.array([0.1, 1.51801446e-02, 3.90773313e-03, 5.23658553e-03, 8.08525698e-03, 1.07904271e-02, 1.32483080e-02, 1.58611639e-02, 1.52347034e-02, 1.44349392e-02, 1.30735240e-02, 1.22316800e-02, 1.12316276e-02, 9.86812130e-03, 8.85409429e-03, 7.90326001e-03, 6.96582079e-03, 6.29064084e-03, 5.68017634e-03, 4.97755781e-03, 4.54158086e-03, 4.23226494e-03, 3.85821105e-03, 3.58251746e-03, 3.41004109e-03, 3.35625513e-03, 3.30102828e-03, 3.28118204e-03, 3.27836954e-03, 3.35118132e-03, 3.58006868e-03, 3.88218768e-03, 4.27533028e-03, 4.90442800e-03, 5.78387907e-03, 7.06959223e-03, 8.79862637e-03, 1.10282124e-02, 1.34142221e-02, 1.75987334e-02, 2.49960044e-02, 3.23760406e-02, 5.00620378e-02, 1.29061019e-01, 5.16095768e-01, 1.37614973e+01, 1.37614973e+01, 1.37614973e+01, 1.37614973e+01, 1.37614973e+01, 1.37614973e+01]) * F_scale
+	lnRhoeq_data = -np.array([20, 0.00000000e+00, -2.67073772e+00, -2.10564012e+00, -1.25198896e+00, -6.79585889e-01, -2.71254170e-01, 8.75065242e-02, 7.15283205e-03, -1.00340632e-01, -2.97704696e-01, -4.30221936e-01, -5.99914870e-01, -8.57073279e-01, -1.07214088e+00, -1.29701102e+00, -1.54623396e+00, -1.74680853e+00, -1.94689559e+00, -2.20434883e+00, -2.38196263e+00, -2.51789735e+00, -2.69507291e+00, -2.83593969e+00, -2.92908237e+00, -2.95898174e+00, -2.99012348e+00, -3.00142606e+00, -3.00303263e+00, -2.96182397e+00, -2.83723393e+00, -2.68325558e+00, -2.49843071e+00, -2.23309525e+00, -1.91149376e+00, -1.51708915e+00, -1.08459350e+00, -6.36255620e-01, -2.46464207e-01, 2.94872607e-01, 9.95470058e-01, 1.51240623e+00, 2.38369195e+00, 4.27749039e+00, 7.04946359e+00, 1.36161360e+01, 1.36161360e+01, 1.36161360e+01, 1.36161360e+01, 1.36161360e+01, 1.36161360e+01]) * F_scale
+	d_lnRhoeq_data = np.array([0.1, 1.51801446e-02, 3.90773313e-03, 5.23658553e-03, 8.08525698e-03, 1.07904271e-02, 1.32483080e-02, 1.58611639e-02, 1.52347034e-02, 1.44349392e-02, 1.30735240e-02, 1.22316800e-02, 1.12316276e-02, 9.86812130e-03, 8.85409429e-03, 7.90326001e-03, 6.96582079e-03, 6.29064084e-03, 5.68017634e-03, 4.97755781e-03, 4.54158086e-03, 4.23226494e-03, 3.85821105e-03, 3.58251746e-03, 3.41004109e-03, 3.35625513e-03, 3.30102828e-03, 3.28118204e-03, 3.27836954e-03, 3.35118132e-03, 3.58006868e-03, 3.88218768e-03, 4.27533028e-03, 4.90442800e-03, 5.78387907e-03, 7.06959223e-03, 8.79862637e-03, 1.10282124e-02, 1.34142221e-02, 1.75987334e-02, 2.49960044e-02, 3.23760406e-02, 5.00620378e-02, 1.29061019e-01, 5.16095768e-01, 1.37614973e+01, 1.37614973e+01, 1.37614973e+01, 1.37614973e+01, 1.37614973e+01, 1.37614973e+01]) * F_scale
+	
+	F_data = -lnRhoeq_data + np.log(D_fnc(Ncl) / D_fnc(Ncl[0]))
+	d_F_data = np.sqrt(d_lnRhoeq_data**2 + (d_D_fnc(Ncl) / D_fnc(Ncl))**2)
 	
 	ok_inds = d_F_data < F_scale
 	
@@ -32,7 +38,7 @@ def get_F_fnc(mode, F_scale=1, Ncl_scale=1):
 		F_fnc = scipy.interpolate.CubicSpline(Ncl, F_data)
 		F_grad_fnc = lambda n, f=F_fnc: f(n, 1)
 	
-	return F_fnc, F_grad_fnc, Ncl, F_data, d_F_data
+	return F_fnc, F_grad_fnc, Ncl, F_data, d_F_data, lnRhoeq_data, d_lnRhoeq_data
 	
 def get_D_fnc(D0, N0=1, mode='const'):
 	if(mode == 'const'):
@@ -91,7 +97,7 @@ def get_dNcl(Ncl, dt, F_fnc, dF_fnc, D_fnc, dD_fnc):
 
 def run_dynamics(Ncl_init, dt, Nt, F_fnc, F_grad_fnc, D_fnc, D_grad_fnc, \
 				OP_A, OP_B, D_mode='const', \
-				verbose=0, verbose_dt=1000):
+				verbose=0, verbose_dt=1000, min_Ncl=0.5 + 1e-10):
 	Ncl_evol = np.empty(Nt)
 	times = np.empty(Nt)
 	hA = np.empty(Nt)
@@ -114,7 +120,7 @@ def run_dynamics(Ncl_init, dt, Nt, F_fnc, F_grad_fnc, D_fnc, D_grad_fnc, \
 		hA[it] = (0 if(Ncl - OP_A > OP_B - Ncl) else 1) if (it == 0) \
 				else ((1 if(Ncl < OP_B) else 0) if(hA[it - 1] == 1) else (0 if(Ncl >= OP_A) else 1))
 		#Ncl = Ncl_new
-		Ncl += dNcl
+		Ncl = max(min_Ncl, Ncl + dNcl)   # this is not a physical way to put a wall at Ncl=1 but it ~works
 		time_passed += dt_use
 		
 		if(verbose > 0):
@@ -149,7 +155,7 @@ def main():
 	# python browian_1D.py --dt -0.05 --D_mode surf --Nt 1000000 --mode dynamics
 	# python browian_1D.py --dt 1.0 --D_mode surf --Nt 5000000 --mode dynamics
 	
-	# python browian_1D.py --D_mode const --mode FPE_rate_est
+	# python browian_1D.py --D_mode surf --mode FPE_rate_est --Ncl_min 13
 	# python browian_1D.py --D_mode const --mode FPE_rate_est --F_scale 1.333
 	
 	# =============== parse =================
@@ -166,6 +172,9 @@ def main():
 						help='scale F data')
 	parser.add_argument('--Ncl_scale', type=float, default=1, \
 						help='scale Ncl data')
+	parser.add_argument('--F_mode', default='data', \
+						choices = ['data', 'custom'], \
+						help='how to scale D(Ncl)')
 	parser.add_argument('--D_mode', default='const', \
 						choices = ['const', 'surf'], \
 						help='how to scale D(Ncl)')
@@ -190,6 +199,16 @@ def main():
 	parser.add_argument('--my_seed', type=int, default=0, \
 						help='init random seed')
 						
+	parser.add_argument('--Dcrit_est', default=[0.53, 0.17], \
+						nargs=2, \
+						help='Estimate for D* for the CNT rate estimate')
+	parser.add_argument('--rho_avg_est', default=[0.01, 0], \
+						nargs=2, \
+						help='Estimate for <rho> = N/V for the CNT rate estimate')
+	parser.add_argument('--Zfactor_est', default=[0.017, 0], \
+						nargs=2, \
+						help='Estimate for Zeldovich factor for the CNT rate estimate')
+	
 	parser.add_argument('--font_mode', default='work', \
 						help='Font sizes mode')
 	parser.add_argument('--to_plot', type=int, default=1, \
@@ -215,11 +234,27 @@ def main():
 	my.font_mode = clargs.font_mode
 	np.random.seed(my_seed)
 	
-	F_fnc, F_grad_fnc, Ncl_interp, F_data_interp, d_F_data_interp = \
-		get_F_fnc(F_interp_mode, F_scale=F_scale, Ncl_scale=Ncl_scale)
-	N_range = np.array([min(Ncl_interp), max(Ncl_interp)])
 	#F_fnc, F_grad_fnc, _, _, _ = get_F_fnc(F_interp_mode)
 	D_fnc, D_grad_fnc = get_D_fnc(clargs.D0, N0=clargs.Ncl0, mode=clargs.D_mode)
+	if(clargs.F_mode == 'data'):
+		F_fnc, F_grad_fnc, Ncl_interp, F_data_interp, d_F_data_interp, \
+			lnRhoeq_data_interp, d_lnRhoeq_data_interp = \
+				get_F_fnc(F_interp_mode, F_scale=F_scale, Ncl_scale=Ncl_scale, \
+						D_fnc=D_fnc)
+		
+	elif(clargs.F_mode == 'custom'):
+		Ncl_interp = np.arange(1, 150)
+		
+		F_fnc = np.vectorize(lambda x, xmin=min(Ncl_interp), xmax=max(Ncl_interp), wmin=2, wmax=2: \
+					(30 * ((x - (xmin + wmin))/wmin)**2 if(x < xmin + wmin) else (30*((x - (xmax - wmax))/wmax)**2 if(x > xmax - wmax) else 0))\
+				)
+		
+		F_grad_fnc = lambda x, dx=1e-2, f=F_fnc: (f(x + dx) - f(x - dx)) / (2 * dx)
+		
+		F_data_interp = F_fnc(Ncl_interp)
+		d_F_data_interp = np.zeros(Ncl_interp.shape)
+	
+	N_range = np.array([min(Ncl_interp), max(Ncl_interp)])
 	
 	Ncl_min_ind = np.argmin(np.abs(Ncl_min - Ncl_interp))
 	Ncl_min = Ncl_interp[Ncl_min_ind]
@@ -232,7 +267,12 @@ def main():
 		Ncl_init = clargs.Ncl_init
 	Ncl_init_ind = np.argmin(np.abs(Ncl_init - Ncl_interp))
 	
-	if(mode in ['FPE_rate_est', 'FPE_rate_est_exact']):
+	if(clargs.F_mode == 'custom'):
+		Ncl_top = int(np.mean(N_range) + 0.5)
+		Ncl_top_ind = np.argmax(Ncl_interp == Ncl_top)
+		
+		
+	else:
 		Ncl_TP_inds = (Ncl_interp >= Ncl_init) & (Ncl_interp < Ncl_B)
 		Ncl_barrier_inds = (Ncl_interp >= 13) & (Ncl_interp < Ncl_B)
 		
@@ -240,9 +280,21 @@ def main():
 		F_top_ind = np.argmax(F_data_interp[Ncl_barrier_inds])
 		Ncl_top = Ncl_interp[Ncl_barrier_inds][F_top_ind]
 		Ncl_top_ind = np.argmax(Ncl_interp == Ncl_top)
-		
+	
+	if(mode in ['FPE_rate_est', 'FPE_rate_est_exact']):
 		F_interp_a = (F_data_interp[1:] - F_data_interp[:-1]) / (Ncl_interp[1:] - Ncl_interp[:-1])
 		F_interp_b = (Ncl_interp[1:] * F_data_interp[:-1] - Ncl_interp[:-1] * F_data_interp[1:]) / (Ncl_interp[1:] - Ncl_interp[:-1])
+		
+		rho_precrit_Ncl = np.arange(1, Ncl_top)
+		#rho_precrit_Ncl = np.arange(1, max(Ncl_interp))
+		rho_crit_ratio = np.sum(rho_precrit_Ncl * np.exp(F_fnc(Ncl_top) - F_fnc(rho_precrit_Ncl)) * (D_fnc(rho_precrit_Ncl) / D_fnc(Ncl_top)))
+		#print(np.stack((rho_precrit_Ncl, rho_precrit_Ncl * np.exp(F_fnc(Ncl_top) - F_fnc(rho_precrit_Ncl)) * (D_fnc(rho_precrit_Ncl) / D_fnc(Ncl_top)))).T)
+		rho_crit = clargs.rho_avg_est[0] / rho_crit_ratio
+		ln_k_CNT = np.log(rho_crit * clargs.Dcrit_est[0] * clargs.Zfactor_est[0] / 300**2)
+		d_ln_k_CNT = np.sqrt((clargs.rho_avg_est[1] / clargs.rho_avg_est[0])**2 + (clargs.Dcrit_est[1] / clargs.Dcrit_est[0])**2 + (clargs.Zfactor_est[1] / clargs.Zfactor_est[0])**2)
+		print('rho_crit_ratio =', rho_crit_ratio, '; rho_crit =', rho_crit)
+		print('ln_k_CNT* =', my.errorbar_str(ln_k_CNT, d_ln_k_CNT))
+		#input('ok')
 		
 		Z2 = scipy.integrate.quad(lambda z, U_fnc=F_fnc: np.exp(-U_fnc(z)), min(Ncl_interp), max(Ncl_interp))[0]
 		Ncl_est = np.linspace(min(Ncl_interp), max(Ncl_interp), 1000)
@@ -252,6 +304,7 @@ def main():
 		
 		Ncl_est = np.linspace(Ncl_min, Ncl_top, 1000)
 		A_integr1 = np.trapz(np.exp(-F_fnc(Ncl_est))/D_fnc(Ncl_est), x=Ncl_est) / Z
+		#A_integr1 = np.trapz(np.exp(-F_fnc(Ncl_est)), x=Ncl_est) / Z\
 		if(D_mode == 'const'):
 			A_integr = np.sum(np.exp(-F_interp_b[Ncl_min_ind : Ncl_top_ind]) * (np.exp(-F_interp_a[Ncl_min_ind : Ncl_top_ind] * Ncl_interp[Ncl_min_ind+1 : Ncl_top_ind+1]) - np.exp(-F_interp_a[Ncl_min_ind : Ncl_top_ind] * Ncl_interp[Ncl_min_ind : Ncl_top_ind])) / (-F_interp_a[Ncl_min_ind : Ncl_top_ind])) / Z / D_fnc(1.0)
 		elif(D_mode == 'surf'):
@@ -267,10 +320,12 @@ def main():
 		TP_integr2 = scipy.integrate.quad(lambda y, U_fnc=F_fnc: np.exp(U_fnc(y)), Ncl_init, Ncl_B)[0] * Z
 		Ncl_est = np.linspace(Ncl_init, Ncl_B, 1000)
 		TP_integr1 = np.trapz(np.exp(F_fnc(Ncl_est)), x=Ncl_est) * Z
+		#TP_integr1 = np.trapz(np.exp(F_fnc(Ncl_est))*D_fnc(Ncl_est), x=Ncl_est) * Z
 		TP_integr = np.sum(np.exp(F_interp_b[Ncl_init_ind : Ncl_B_ind]) * (np.exp(F_interp_a[Ncl_init_ind : Ncl_B_ind] * Ncl_interp[Ncl_init_ind+1 : Ncl_B_ind+1]) - np.exp(F_interp_a[Ncl_init_ind : Ncl_B_ind] * Ncl_interp[Ncl_init_ind : Ncl_B_ind])) / (F_interp_a[Ncl_init_ind : Ncl_B_ind])) * Z
 		print('TP:', TP_integr, TP_integr1/TP_integr, TP_integr2/TP_integr)
 		
 		t_1stpass_approx = TP_integr * A_integr
+		#t_1stpass_approx = TP_integr1 * A_integr1
 		
 		print('Ncl_min =', Ncl_min, '; Ncl_init =', Ncl_init, '; Ncl_top =', Ncl_top, '; Ncl_B =', Ncl_B)
 		print('t_1stP_approx =', t_1stpass_approx)
@@ -318,11 +373,14 @@ def main():
 				if(dt > dt_F_thr):
 					print('WARNING: dt = %s = %s * dt_max (at alpha = %s), F_thr_ind = %d' % (my.f2s(dt), my.f2s(dt / dt_F_thr), dt_alpha, np.argmax(F_grad_data_interp) + 1))
 			else:
-				dt_thr, dt_F_thr_Ncl, dt_D_thr_Ncl = get_dt_thr(Ncl_interp[1:], dt_alpha, F_fnc, F_grad_fnc, D_fnc, D_grad_fnc)
+				dt_thr, dt_F_thr_Ncl, dt_D_thr_Ncl, dt_thr_Ncl = get_dt_thr(Ncl_interp[1:], dt_alpha, F_fnc, F_grad_fnc, D_fnc, D_grad_fnc)
 				if(dt > dt_thr):
-					print('WARNING: dt = %s = %s * dt_max (at alpha = %s); F_thr_Ncl = %d, D_thr_Ncl = %d' % (my.f2s(dt), my.f2s(dt / dt_thr), dt_alpha, dt_F_thr_Ncl, dt_D_thr_Ncl))
+					print('WARNING: dt = %s = %s * dt_max (at alpha = %s); F_thr_Ncl = %d, D_thr_Ncl = %d, thr_Ncl = %d' % (my.f2s(dt), my.f2s(dt / dt_thr), dt_alpha, dt_F_thr_Ncl, dt_D_thr_Ncl, dt_thr_Ncl))
 		
-		Ncl_evol, times = run_dynamics(Ncl_init, dt, Nt, F_fnc, F_grad_fnc, D_fnc, D_grad_fnc, verbose=1)
+		Ncl_evol, times, hA = \
+			run_dynamics(Ncl_init, dt, Nt, F_fnc, F_grad_fnc, D_fnc, D_grad_fnc, \
+							OP_A=Ncl_min, OP_B=Ncl_B, \
+							verbose=1)
 		time_evol = np.cumsum(times)
 		
 		# ===========

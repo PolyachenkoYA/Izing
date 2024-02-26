@@ -57,6 +57,7 @@ def main():
 	# python slurm_test.py --mode launch_run_FFSDtop --MC_mode swap --OP_set_name nvt25 --seed_s -1 1000 1004 --n_s 15 20 30 --L_s 300 350 400 450 --phi1_s 0.0104 --phi_2 0.0 --Temp_s 1.0 --slurm_time 144:00:00 --RAM_per_CPU 20G --Dtop_Nruns 300 --to_run 0
 	
 	# python slurm_test.py --mode launch_run_FFSDtop --MC_mode swap --OP_set_name nvt25 --seed_s -1 1005 1017 --n_s 15 20 30 --L_s 300 --phi1_s 0.0104 --phi_2 0.0 --Temp_s 1.0 --slurm_time 24:00:00 --RAM_per_CPU 4G --Dtop_Nruns 300 --to_run 0
+	# python slurm_test.py --mode launch_run_FFS --MC_mode long_swap --OP_set_name nvt25 --seed_s -1 1005 1025 --n_s 70 90 --L_s 300 --phi1_s 0.01 --phi_2 0.0 --Temp_s 1.0 --slurm_time 24:00:00 --RAM_per_CPU 4G --to_run 0
 	
 	# python slurm_test.py --mode launch_run_FFSCStest --MC_mode long_swap --OP_set_name nvt29 --seed_s -1 1005 1015 --n_s 50 --L_s 300 --phi1_s 0.0126 --phi_2 0.0132 --Temp_s 1.0 --slurm_time 24:00:00 --RAM_per_CPU 4G --Dtop_Nruns 1000 --CStest_Nruns 10 --to_run 0
 	
@@ -143,7 +144,7 @@ def main():
 										if('FFS' in mode):
 											to_post_proc = (RAM_in_GB >= RAM_thr)
 											if((not to_post_proc) and (low_RAW_choice != 'ALL')):
-												low_RAW_choice = input('RAM = %s G < 4G * (N_FFS=%d / 300) * (L=%d / 128)^2 - too small, post-proc will not be done.\nProceed? [ALL/ok/CtrlC]\n' % (my.f2s(RAM_in_GB), n_use, L))
+												low_RAW_choice = input('RAM = %s G < 4G * (N_FFS=%d / 300) * (L=%d / 128)^2 = %s GB - too small, post-proc will not be done.\nProceed? [ALL/ok/CtrlC]\n' % (my.f2s(RAM_in_GB), n_use, L, my.f2s(RAM_thr)))
 												print('low RAM, turning post-processing off to avoid OOM fail')
 										
 										n_init = n_use * 2

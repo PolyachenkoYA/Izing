@@ -16,6 +16,14 @@ sgm_th_izing = lambda e: (e/2 + np.log(np.tanh(e/4)) + np.sqrt(2) * np.log(np.si
 
 rho_c = 7.46e-3
 
+binflags = {'all' : 2**(4*8+1) - 1, \
+	'resimulate' : 2**1, \
+	'Dtop_est' : 2**2, \
+	'postproc_light' : 2**3, \
+	'postproc_hard' : 2**4 + 2**3, \
+	'0' : 0
+	}
+
 def find_finished_runs_logs(filename_mask, inds, verbose=False):
 	done_list = []
 	found_list = []
