@@ -98,9 +98,9 @@ def main():
 	
 	to_run = clargs.to_run
 	script_name = 'run.py'
-	script_name = 'run_tmp1.py'
+	#script_name = 'run_tmp1.py'
 	#script_name = 'run_tmp2.py'
-	#script_name = 'run_tmp3.py'
+	script_name = 'run_tmp3.py'
 	
 	phi_dgt = clargs.phi_dgt
 	phi_2 = clargs.phi_2
@@ -172,7 +172,7 @@ def main():
 										#  -timeevol_stride 2000
 										
 										cmd_comment = r'   # SLURM: time = %s; RAM = %s ' % (clargs.slurm_time, clargs.RAM_per_CPU)
-										cmd += cmd_comment
+										cmd = 'module load gsl/2.6\n' + cmd + cmd_comment
 										#print(name)
 										#input(name)
 										

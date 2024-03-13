@@ -10,6 +10,7 @@
 
 namespace py = pybind11;
 
+//PYBIND11_MODULE(lattice_gas_tmp4, m)
 //PYBIND11_MODULE(lattice_gas_tmp3, m)
 //PYBIND11_MODULE(lattice_gas_tmp2, m)
 //PYBIND11_MODULE(lattice_gas_tmp1, m)

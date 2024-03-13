@@ -336,7 +336,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 
 //	free(states);
 
-	return py::make_tuple(states, E, M, biggest_cluster_sizes, h_A, time, N_launches, time_total);
+	return py::make_tuple(states, N_states_saved, E, M, biggest_cluster_sizes, h_A, time, N_launches, time_total);
 }
 
 //int run_FFS_C(int move_mode, double *flux0, double *d_flux0, int L, const double *e, const double *mu, int *states,

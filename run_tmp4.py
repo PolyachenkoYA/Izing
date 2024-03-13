@@ -56,8 +56,8 @@ feature_label['CS'] = 'Scl'
 
 # ========================== recompile ==================
 if(__name__ == "__main__"):
-	to_recompile = False
-	tmp_mode = 3
+	to_recompile = True
+	tmp_mode = 4
 	if(to_recompile):
 		if(my.check_for_exe('cmake') is None):
 			print('cmake not found. Attempting to import existing library, tmp_mode = %d' % tmp_mode, file=sys.stderr)
@@ -123,6 +123,8 @@ if(__name__ == "__main__"):
 		import lattice_gas_tmp2 as lattice_gas
 	elif(tmp_mode == 3):
 		import lattice_gas_tmp3 as lattice_gas
+	elif(tmp_mode == 4):
+		import lattice_gas_tmp4 as lattice_gas
 	
 	#print(lattice_gas.get_move_modes())
 	move_modes, move_mode_names = lattice_gas.get_move_modes()
@@ -751,8 +753,8 @@ def get_D_at_interface(MC_move_mode, L, e, mu, interface_mode, states, Nruns, \
 		
 		# ==== choise close to the reference paper ====
 		OPmin = int(OP_interfaces_scaled[interface_ind] - OP_window + 0.1)
-		OPmax = int(OP_interfaces_scaled[interface_ind] + OP_window + 1 + 0.1)   # the interval is [min; max), so +1 for max
-		#OPmax = int(OP_interfaces_scaled[interface_ind] + OP_window + 0.1)   # for old data
+		#OPmax = int(OP_interfaces_scaled[interface_ind] + OP_window + 1 + 0.1)   # the interval is [min; max), so +1 for max
+		OPmax = int(OP_interfaces_scaled[interface_ind] + OP_window + 0.1)   # for old data
 		
 		#print(OPmin, OPmax)
 		#input('ok')
@@ -1286,7 +1288,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 						to_recomp=to_recomp, verbose=verbose)
 	
 	Dwell, d_Dwell, _, _ = \
-		get_D_at_interface(MC_move_mode, L, e, mu, interface_mode, states, Dtop_Nruns, \
+		get_D_at_interface(MC_move_mode, L, e, mu, interface_mode, states, 100, \
 						OP_init_states, OP_interfaces, well_interface_ind, \
 						Dtop_est_timestride, init_composition, \
 						OPwell_parent_inds_OPexactly, OP_init_states_OPexactly_inds, \
