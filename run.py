@@ -1153,19 +1153,6 @@ def get_states_map_densities(cluster_centered_crds, \
 		get_state_maps_hist_edges(L, cluster_centered_crds_all, \
 					cluster_map_dx, cluster_map_dr)
 	
-	# cluster_centered_map_total = [[]] * N_OP_interfaces
-	# cluster_centered_maps = [[]] * N_OP_interfaces
-	# cluster_centered_Rdens_total = [[]] * N_OP_interfaces
-	# cluster_centered_Rdens_s = [[]] * N_OP_interfaces
-	# d_cluster_centered_map_total = [[]] * N_OP_interfaces
-	# d_cluster_centered_Rdens_total = [[]] * N_OP_interfaces
-	# state_centered_map_total = [[]] * N_OP_interfaces
-	# state_centered_Rdens_total = [[]] * N_OP_interfaces
-	# state_centered_maps = [[]] * N_OP_interfaces
-	# state_centered_Rdens_s = [[]] * N_OP_interfaces
-	# d_state_centered_map = [[]] * N_OP_interfaces
-	# d_state_centered_Rdens = [[]] * N_OP_interfaces
-	
 	cluster_centered_map_total, cluster_centered_maps, \
 		cluster_centered_Rdens_total, cluster_centered_Rdens_s, \
 		d_cluster_centered_map_total, d_cluster_centered_Rdens_total, \
@@ -1174,8 +1161,6 @@ def get_states_map_densities(cluster_centered_crds, \
 		d_state_centered_map, d_state_centered_Rdens = \
 			tuple([[[]] * N_OP_interfaces for i in range(12)])
 	
-	# rho_avg = np.zeros((N_OP_interfaces, N_species))
-	# d_rho_avg = np.zeros((N_OP_interfaces, N_species))
 	rho_avg, d_rho_avg = \
 		tuple([np.zeros((N_OP_interfaces, N_species)) for i in range(2)])
 	
@@ -1217,12 +1202,6 @@ def get_states_map_densities(cluster_centered_crds, \
 		d_cluster_centered_Rdens_total[i] = d_cluster_centered_Rdens_total[i] / cluster_centered_Rdens_norm * np.sqrt(N_init_states_local)
 		
 		# ==== state ====
-		# state_centered_map_total[i] = [[]] * N_species
-		# state_centered_Rdens_total[i] = [[]] * N_species
-		# state_centered_maps[i] = [[]] * N_species
-		# state_centered_Rdens_s[i] = [[]] * N_species
-		# d_state_centered_map[i] = [[]] * N_species
-		# d_state_centered_Rdens[i] = [[]] * N_species
 		state_centered_map_total[i], state_centered_Rdens_total[i], \
 			state_centered_maps[i], state_centered_Rdens_s[i], \
 			d_state_centered_map[i], d_state_centered_Rdens[i] = \
@@ -1304,35 +1283,82 @@ def get_states_map_densities(cluster_centered_crds, \
 			d_state_centered_map, d_state_centered_Rdens, \
 			rho_avg, d_rho_avg
 
-def center_and_average_states(states, interface_mode, \
-							to_comp_max_cluster_inds=False, \
-							to_pick_states=False, \
-							max_cluster_site_inds=None):
-	
+def get_states_cluster_stats(states, interface_mode, OP_interfaces=None, \
+							to_replace_bad_states=True):
 	N_OP_interfaces = len(states)
 	
-	if(to_comp_maxclust_inds or (max_cluster_site_inds is None)):
-		if(max_cluster_site_inds is not None):
-			print('WARNING: overwriting provided max_cluster_site_inds')
-		
-		for i in range(N_OP_interfaces):
-			max_cluster_site_inds[i], cluster_sizes[i], max_cluster_1st_ind_id[i], maxclust_ind[i] = \
-				cluster_states(states[i], interface_mode)
+	OP_init_states = []
+	OP_init_states_OPexactly_inds = []
+	
+	# maxclust_ind = [[]] * N_OP_interfaces
+	# max_cluster_1st_ind_id = [[]] * N_OP_interfaces
+	# max_cluster_site_inds = [[]] * N_OP_interfaces
+	# cluster_sizes = [[]] * N_OP_interfaces
+	maxclust_ind, max_cluster_1st_ind_id, max_cluster_site_inds, cluster_sizes = \
+		tuple([[[]] * N_OP_interfaces for i in range(4)])
 	
 	for i in range(N_OP_interfaces):
+		N_init_states_local = states[i].shape[0]
+		
 		max_cluster_site_inds[i], cluster_sizes[i], max_cluster_1st_ind_id[i], maxclust_ind[i] = \
 			cluster_states(states[i], interface_mode)
 		
-		OP_init_states.append(np.empty(N_init_states[i], dtype=int))
-		phi1_fraction_data.append(np.empty((N_init_states[i], N_clusters_deplet_track)))
-		if(phi_c is not None):
-			S_phi1_excess_data.append(np.empty((N_init_states[i], N_clusters_deplet_track)))
-			S_effective_data.append(np.empty(N_init_states[i]))
-		for j in range(N_init_states[i]):
+		OP_init_states.append(np.empty(N_init_states_local, dtype=int))
+		for j in range(N_init_states_local):
 			if(interface_mode == 'M'):
 				OP_init_states[i][j] = np.sum(states[i][j, :, :])
 			elif(interface_mode == 'CS'):
 				OP_init_states[i][j] = cluster_sizes[i][j][maxclust_ind[i][j]]
+				
+		if(OP_interfaces is not None):
+			if(to_replace_bad_states):
+				# TODO: fix; In principle, all the simulations have to be redone. This is not feasible so we just fill the voids with normal states to not break further pipeline. 
+				bad_OPinit_states_inds = (OP_init_states[i] < OP_interfaces[i])
+				N_bad_states = np.sum(bad_OPinit_states_inds)
+				if(N_bad_states > 0):
+					replacement_states_inds = np.random.choice(np.where(~bad_OPinit_states_inds)[0], N_bad_states)
+					bad_OPinit_states_inds = np.where(bad_OPinit_states_inds)[0]
+					print('WARNING: states %s of interface %d have OP-s = %s < OP_interface = %d. Replacing with states %s with OP-s %s' % \
+						(str(bad_OPinit_states_inds), i, str(OP_init_states[i][bad_OPinit_states_inds]), OP_interfaces[i], str(replacement_states_inds), str(OP_init_states[i][replacement_states_inds])))
+					for j in range(N_bad_states):
+						j_bad = bad_OPinit_states_inds[j]
+						j_repl = replacement_states_inds[j]
+						
+						states[i][j_bad, :, :] = states[i][j_repl, :, :]
+						maxclust_ind[i][j_bad] = maxclust_ind[i][j_repl]
+						OP_init_states[i][j_bad] = OP_init_states[i][j_repl]
+						max_cluster_1st_ind_id[i][j_bad] = max_cluster_1st_ind_id[i][j_repl]
+						max_cluster_site_inds[i][j_bad] = np.copy(max_cluster_site_inds[i][j_repl])
+					
+					#N_init_states[i] -= N_bad_states
+			
+			OP_init_states_OPexactly_inds.append(np.array([j for j in range(N_init_states_local) if(OP_init_states[i][j] == OP_interfaces[i])], dtype=int))
+		
+	return OP_init_states, maxclust_ind, max_cluster_1st_ind_id, \
+			max_cluster_site_inds, cluster_sizes, OP_init_states_OPexactly_inds
+
+
+def center_and_average_states(L, cluster_map_dx, cluster_map_dr, \
+							states, interface_mode, \
+							to_comp_max_cluster_inds=False, \
+							to_pick_states=False, \
+							max_cluster_site_inds=None, \
+							OP_init_states_OPexactly_inds=None, \
+							OP_interfaces=None, \
+							to_replace_bad_states=True):
+	
+	if(to_comp_max_cluster_inds or (max_cluster_site_inds is None) or (OP_init_states_OPexactly_inds is None)):
+		if((max_cluster_site_inds is not None) or (OP_init_states_OPexactly_inds is not None)):
+			print('WARNING: overwriting provided max_cluster_site_inds and/or OP_init_states_OPexactly_inds')
+		
+		OP_init_states, maxclust_ind, max_cluster_1st_ind_id, \
+			max_cluster_site_inds, cluster_sizes, OP_init_states_OPexactly_inds, = \
+				get_states_cluster_stats(states, interface_mode, \
+										OP_interfaces=OP_interfaces, \
+										to_replace_bad_states=to_replace_bad_states)
+	else:
+		OP_init_states, maxclust_ind, max_cluster_1st_ind_id, cluster_sizes = \
+			tuple([None] * 4)
 	
 	# === state/cluster centered coordinates ===
 	cluster_centered_crds, state_centered_crds, \
@@ -1341,7 +1367,7 @@ def center_and_average_states(states, interface_mode, \
 		cluster_centered_crds_all = \
 			get_centered_state_maps(states, max_cluster_site_inds, \
 				OP_init_states_OPexactly_inds, \
-				interface_mode, to_pick_states=True)
+				interface_mode, to_pick_states=to_pick_states)
 	
 	# === state/cluster densities ===
 	cluster_map_edges, cluster_Rdens_edges, \
@@ -1365,7 +1391,9 @@ def center_and_average_states(states, interface_mode, \
 						L, cluster_centered_crds_all, \
 						cluster_map_dx, cluster_map_dr)
 	
-	return cluster_centered_crds, state_centered_crds, \
+	return OP_init_states, maxclust_ind, max_cluster_1st_ind_id, \
+			max_cluster_site_inds, cluster_sizes, OP_init_states_OPexactly_inds, \
+			cluster_centered_crds, state_centered_crds, \
 			cluster_centered_crds_per_interface, \
 			state_centered_crds_per_interface, \
 			cluster_centered_crds_all, \
@@ -1456,65 +1484,9 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	# A resolution might be to make sure each individual run is accurate enough so it gives the same OP0-interface.
 	
 	# =========== cluster init_states ==============
-	OP_init_states = []
-	maxclust_ind = [[]] * N_OP_interfaces
-	max_cluster_1st_ind_id = [[]] * N_OP_interfaces
-	max_cluster_site_inds = [[]] * N_OP_interfaces
-	cluster_sizes = [[]] * N_OP_interfaces
-	OP_init_states_OPexactly_inds = []
-	for i in range(N_OP_interfaces):
-		max_cluster_site_inds[i], cluster_sizes[i], max_cluster_1st_ind_id[i], maxclust_ind[i] = \
-			cluster_states(states[i], interface_mode)
-		
-		OP_init_states.append(np.empty(N_init_states[i], dtype=int))
-		#phi1_fraction_data.append(np.empty((N_init_states[i], N_clusters_deplet_track)))
-		# if(phi_c is not None):
-			# S_phi1_excess_data.append(np.empty((N_init_states[i], N_clusters_deplet_track)))
-			# S_effective_data.append(np.empty(N_init_states[i]))
-		for j in range(N_init_states[i]):
-			if(interface_mode == 'M'):
-				OP_init_states[i][j] = np.sum(states[i][j, :, :])
-			elif(interface_mode == 'CS'):
-				OP_init_states[i][j] = cluster_sizes[i][j][maxclust_ind[i][j]]
-				
-				# cluster_sizes_sorted = np.flip(np.sort(cluster_sizes[i][j]))
-				# phi1_fraction_new = np.cumsum(cluster_sizes_sorted)
-				# if(len(phi1_fraction_new) < N_clusters_deplet_track):
-					# phi1_fraction_new = np.append(phi1_fraction_new, [0]*(N_clusters_deplet_track - len(phi1_fraction_new)))
-				# else:
-					# phi1_fraction_new = phi1_fraction_new[:N_clusters_deplet_track]
-				# N_phi1 = np.sum(states[i][j, :, :].flatten() == dF_species_id)
-				# phi1_fraction_data[i][j, :] = phi1_fraction_new / N_phi1
-				# if(phi_c is not None):
-					# S_phi1_excess_data[i][j, :] = N_phi1 * (1 - phi1_fraction_data[i][j, :]) / L2 / phi_c
-					# S_effective_data[i][j] = (N_phi1 - np.sum(cluster_sizes[i][j][cluster_sizes[i][j] > 1])) / L2 / phi_c
-			
-		# phi1_fraction[i, :], d_phi1_fraction[i, :] = my.get_average(phi1_fraction_data[i], axis=0)
-		# if(phi_c is not None):
-			# S_effective[i], d_S_effective[i] = my.get_average(S_effective_data[i])
-			S_phi1_excess[i, :], d_S_phi1_excess[i, :] = my.get_average(S_phi1_excess_data[i], axis=0)
-		
-		# TODO: fix; In principle, all the simulations have to be redone. This is not feasible so we just fill the voids with normal states to not break further pipeline. 
-		bad_OPinit_states_inds = (OP_init_states[i] < OP_interfaces[i])
-		N_bad_states = np.sum(bad_OPinit_states_inds)
-		if(N_bad_states > 0):
-			replacement_states_inds = np.random.choice(np.where(~bad_OPinit_states_inds)[0], N_bad_states)
-			bad_OPinit_states_inds = np.where(bad_OPinit_states_inds)[0]
-			print('WARNING: states %s of interface %d have OP-s = %s < OP_interface = %d. Replacing with states %s with OP-s %s' % \
-				(str(bad_OPinit_states_inds), i, str(OP_init_states[i][bad_OPinit_states_inds]), OP_interfaces[i], str(replacement_states_inds), str(OP_init_states[i][replacement_states_inds])))
-			for j in range(N_bad_states):
-				j_bad = bad_OPinit_states_inds[j]
-				j_repl = replacement_states_inds[j]
-				
-				states[i][j_bad, :, :] = states[i][j_repl, :, :]
-				maxclust_ind[i][j_bad] = maxclust_ind[i][j_repl]
-				OP_init_states[i][j_bad] = OP_init_states[i][j_repl]
-				max_cluster_1st_ind_id[i][j_bad] = max_cluster_1st_ind_id[i][j_repl]
-				max_cluster_site_inds[i][j_bad] = np.copy(max_cluster_site_inds[i][j_repl])
-			
-			#N_init_states[i] -= N_bad_states
-		
-		OP_init_states_OPexactly_inds.append(np.array([j for j in range(N_init_states[i]) if(OP_init_states[i][j] == OP_interfaces[i])], dtype=int))
+	OP_init_states, maxclust_ind, max_cluster_1st_ind_id, \
+			max_cluster_site_inds, cluster_sizes, OP_init_states_OPexactly_inds, = \
+				get_states_cluster_stats(states, interface_mode, OP_interfaces=OP_interfaces)
 	
 	# ==== effective deplition analysis =======
 	phi1_fraction_data = []
@@ -1534,7 +1506,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			S_phi1_excess_data.append(np.empty((N_init_states[i], N_clusters_deplet_track)))
 			S_effective_data.append(np.empty(N_init_states[i]))
 		for j in range(N_init_states[i]):
-			elif(interface_mode == 'CS'):
+			if(interface_mode == 'CS'):
 				cluster_sizes_sorted = np.flip(np.sort(cluster_sizes[i][j]))
 				phi1_fraction_new = np.cumsum(cluster_sizes_sorted)
 				if(len(phi1_fraction_new) < N_clusters_deplet_track):
@@ -1551,9 +1523,9 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 		if(phi_c is not None):
 			S_effective[i], d_S_effective[i] = my.get_average(S_effective_data[i])
 			S_phi1_excess[i, :], d_S_phi1_excess[i, :] = my.get_average(S_phi1_excess_data[i], axis=0)
-		
+	
+	# ======= back-track end-states to OP0-states ======
 	if(states_parent_inds is not None):
-		# ======= back-track end-states to OP0-states ======
 		OP_children_inds = [{} for ii in range(N_OP_interfaces)]
 		# OP_children_inds[j] = a dict of lists of all indices of end-state parented by the j-th interface
 		# OP_children_inds[j][k] = a list of indices of end-states that are parented by the k-th state at the j-th interface
@@ -1627,7 +1599,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 						to_plot_legend=to_plot_legend, \
 						to_recomp=to_recomp, verbose=verbose)  #  | izing.binflags['Dtop_est']
 	
-	
+	# ==== test order parameter with histogram test ====
 	if(CStest_Nruns > 0):
 		CStest_PB_per_state, CStest_interfaces_inds_to_test, \
 			CStest_PBhist_probs, CStest_PBhist_centers, CStest_PBhist_lens, \
@@ -1639,6 +1611,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 					to_recomp=to_recomp, to_save_npz=to_save_npz, \
 					verbose=verbose, npz_basename=npz_basename)
 	
+	# ==== find new estimate for optimal interface placement ====
 	if(OP_optim_minstep is None):
 		OP_optim_minstep = OP_step[interface_mode]
 	
@@ -1654,7 +1627,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 									  OP_optimize_f_interp_interp1d(OP0_erfinv + dOP_near_OP0), \
 									  1])
 	
-	# ===== numerical inverse ======
+	# == numerical inverse ==
 	OP_optimize_new_OP_interfaces = np.zeros(N_OP_interfaces, dtype=np.intc)
 	OP_optimize_new_OP_guess = min(OP_interfaces_scaled) + (max(OP_interfaces_scaled) - min(OP_interfaces_scaled)) * (np.arange(N_OP_interfaces) / N_OP_interfaces)
 	for i in range(N_OP_interfaces - 2):
@@ -1735,7 +1708,9 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 					OP_init_hist[:, i] = OP_init_hist[:, i] / N_init_states[i]
 					d_OP_init_hist[:, i] = np.sqrt(OP_init_hist[:, i] * (1 - OP_init_hist[:, i]) / N_init_states[i])
 				
-				cluster_centered_crds, state_centered_crds, \
+				# === center and get gensity ===
+				_, _, _, _, _, _, \
+					cluster_centered_crds, state_centered_crds, \
 					cluster_centered_crds_per_interface, \
 					state_centered_crds_per_interface, \
 					cluster_centered_crds_all, \
@@ -1749,7 +1724,12 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 					state_centered_map_total, state_centered_Rdens_total, \
 					state_centered_maps, state_centered_Rdens_s, \
 					d_state_centered_map, d_state_centered_Rdens, \
-					rho_avg, d_rho_avg = 
+					rho_avg, d_rho_avg = \
+						center_and_average_states(L, cluster_map_dx, cluster_map_dr, \
+							states, interface_mode, \
+							to_pick_states=True, \
+							max_cluster_site_inds=max_cluster_site_inds, \
+							OP_init_states_OPexactly_inds=OP_init_states_OPexactly_inds)
 				
 				# === 2D fourier ===
 				rho_fourier2D = np.empty((N_OP_interfaces, 2, N_fourier))
