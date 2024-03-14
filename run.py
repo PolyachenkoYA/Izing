@@ -184,7 +184,7 @@ def get_OP_hist_edges(interface_mode, OP_min=None, OP_max=None):
 #		2. OP_min/max_default = x_min/max -+ 1; '-+1' is independent of 'interface_mode' because we consider only integer OPs, and 1 is the minimal difference, so it's actually ~ '-+eps'
 #		3. OP_min = x_min - 1 ; -1 ~ -eps, which reprensenes '(...' interval end
 #		4. OP_max = x_max; which reprensenes '...]' interval end
-#		5. 1e-3 * step is to include the last value since python (and numpy) do the ranges in the '(...]' way
+#		5. 1e-3 * step is to include the last value since python (and numpy) do the ranges in the '[...)' way
 
 def get_log_errors(l, dl, lbl=None, err0=0.3, units='1/step', print_scale=1):
 	"""Returns the confidence interval of a log-norm distributed value
@@ -1049,6 +1049,26 @@ def get_D_at_interface(MC_move_mode, L, e, mu, interface_mode, states, Nruns, \
 	
 	return Dest, d_Dest, Dest_data, d_Dest_data
 
+def cluster_states(states, interface_mode):
+	N_states = states.shape[0]
+	maxclust_ind = np.empty(N_states, dtype=int)
+	max_cluster_1st_ind_id = np.empty(N_states, dtype=int)
+	max_cluster_inds = []
+	cluster_sizes = [[]] * N_states
+	for j in range(N_states):
+		(cluster_element_inds, cluster_sizes[j], cluster_types) = lattice_gas.cluster_state(states[j, :, :].flatten())
+		cluster_sizes[j] = cluster_sizes[j][cluster_sizes[j] > 0] 
+		
+		#print(states.shape)
+		#print(cluster_sizes[j])
+		
+		maxclust_ind[j] = np.argmax(cluster_sizes[j])
+		#OP_init_states[i][j] = cluster_sizes[maxclust_ind[i][j]]
+		max_cluster_1st_ind_id[j] = np.sum(cluster_sizes[j][:maxclust_ind[j]])
+		max_cluster_inds.append(cluster_element_inds[max_cluster_1st_ind_id[j] : max_cluster_1st_ind_id[j] + cluster_sizes[j][maxclust_ind[j]]])
+	
+	return max_cluster_inds, cluster_sizes, max_cluster_1st_ind_id, maxclust_ind
+
 def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							d_probs, OP_interfaces, N_init_states, \
 							interface_mode, states_parent_inds=None, \
@@ -1125,9 +1145,10 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	
 	# =========== cluster init_states ==============
 	OP_init_states = []
-	maxclust_ind = []
-	max_cluster_1st_ind_id = []
-	max_cluster_inds = []
+	maxclust_ind = [[]] * N_OP_interfaces
+	max_cluster_1st_ind_id = [[]] * N_OP_interfaces
+	max_cluster_inds = [[]] * N_OP_interfaces
+	cluster_sizes = [[]] * N_OP_interfaces
 	OP_init_states_OPexactly_inds = []
 	phi1_fraction_data = []
 	S_phi1_excess_data = []
@@ -1138,13 +1159,17 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	S_effective_data = []
 	S_effective = np.empty(N_OP_interfaces)
 	d_S_effective = np.empty(N_OP_interfaces)
+	
 	if(phi_c is not None):
 		S_phi1_excess = np.empty((N_OP_interfaces, N_clusters_deplet_track))
 	for i in range(N_OP_interfaces):
+		#maxclust_ind.append(np.empty(N_init_states[i], dtype=int))
+		#max_cluster_1st_ind_id.append(np.empty(N_init_states[i], dtype=int))
+		#max_cluster_inds.append([])
+		max_cluster_inds[i], cluster_sizes[i], max_cluster_1st_ind_id[i], maxclust_ind[i] = \
+			cluster_states(states[i], interface_mode)
+		
 		OP_init_states.append(np.empty(N_init_states[i], dtype=int))
-		maxclust_ind.append(np.empty(N_init_states[i], dtype=int))
-		max_cluster_1st_ind_id.append(np.empty(N_init_states[i], dtype=int))
-		max_cluster_inds.append([])
 		phi1_fraction_data.append(np.empty((N_init_states[i], N_clusters_deplet_track)))
 		if(phi_c is not None):
 			S_phi1_excess_data.append(np.empty((N_init_states[i], N_clusters_deplet_track)))
@@ -1153,14 +1178,14 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			if(interface_mode == 'M'):
 				OP_init_states[i][j] = np.sum(states[i][j, :, :])
 			elif(interface_mode == 'CS'):
-				(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j, :, :].flatten())
+				#(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j, :, :].flatten())
 				
-				maxclust_ind[i][j] = np.argmax(cluster_sizes)
-				OP_init_states[i][j] = cluster_sizes[maxclust_ind[i][j]]
-				max_cluster_1st_ind_id[i][j] = np.sum(cluster_sizes[:maxclust_ind[i][j]])
-				max_cluster_inds[i].append(cluster_element_inds[max_cluster_1st_ind_id[i][j] : max_cluster_1st_ind_id[i][j] + cluster_sizes[maxclust_ind[i][j]]])
+				#maxclust_ind[i][j] = np.argmax(cluster_sizes)
+				OP_init_states[i][j] = cluster_sizes[i][j][maxclust_ind[i][j]]
+				#max_cluster_1st_ind_id[i][j] = np.sum(cluster_sizes[:maxclust_ind[i][j]])
+				#max_cluster_inds[i].append(cluster_element_inds[max_cluster_1st_ind_id[i][j] : max_cluster_1st_ind_id[i][j] + cluster_sizes[i][maxclust_ind[i][j]]])
 				
-				cluster_sizes_sorted = np.flip(np.sort(cluster_sizes))
+				cluster_sizes_sorted = np.flip(np.sort(cluster_sizes[i][j]))
 				phi1_fraction_new = np.cumsum(cluster_sizes_sorted)
 				if(len(phi1_fraction_new) < N_clusters_deplet_track):
 					phi1_fraction_new = np.append(phi1_fraction_new, [0]*(N_clusters_deplet_track - len(phi1_fraction_new)))
@@ -1170,7 +1195,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				phi1_fraction_data[i][j, :] = phi1_fraction_new / N_phi1
 				if(phi_c is not None):
 					S_phi1_excess_data[i][j, :] = N_phi1 * (1 - phi1_fraction_data[i][j, :]) / L2 / phi_c
-					S_effective_data[i][j] = (N_phi1 - np.sum(cluster_sizes[cluster_sizes > 1])) / L2 / phi_c
+					S_effective_data[i][j] = (N_phi1 - np.sum(cluster_sizes[i][j][cluster_sizes[i][j] > 1])) / L2 / phi_c
 			
 		phi1_fraction[i, :], d_phi1_fraction[i, :] = my.get_average(phi1_fraction_data[i], axis=0)
 		if(phi_c is not None):
@@ -1190,11 +1215,10 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				j_repl = replacement_states_inds[j]
 				
 				states[i][j_bad, :, :] = states[i][j_repl, :, :]
-				#(cluster_element_inds, cluster_sizes, cluster_types) = lattice_gas.cluster_state(states[i][j_bad, :, :].flatten())
 				maxclust_ind[i][j_bad] = maxclust_ind[i][j_repl]
 				OP_init_states[i][j_bad] = OP_init_states[i][j_repl]
 				max_cluster_1st_ind_id[i][j_bad] = max_cluster_1st_ind_id[i][j_repl]
-				max_cluster_inds[i][j_bad] = np.copy(max_cluster_inds[i][j_repl])# .append(cluster_element_inds[max_cluster_1st_ind_id[i][j] : max_cluster_1st_ind_id[i][j] + cluster_sizes[maxclust_ind[i][j]]])
+				max_cluster_inds[i][j_bad] = np.copy(max_cluster_inds[i][j_repl])
 			
 			#N_init_states[i] -= N_bad_states
 		
@@ -1374,21 +1398,30 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			
 			if((not os.path.isfile(npz_states_filepath)) or (to_recomp & izing.binflags['postproc_hard'])):
 				# ============ process ===========
+				# === hist of OP-s of states at each interface ===
 				OP_init_hist = np.empty((N_OP_hist, N_OP_interfaces))
 				d_OP_init_hist = np.empty((N_OP_hist, N_OP_interfaces))
+				for i in range(N_OP_interfaces):
+					assert(OP_hist_edges is not None), 'ERROR: no "OP_hist_edges" provided but "OP_init_states" is asked to be analyzed (_states != None)'
+					OP_init_hist[:, i], _ = np.histogram(OP_init_states[i], bins=OP_hist_edges * OP_scale[interface_mode])
+					OP_init_hist[:, i] = OP_init_hist[:, i] / N_init_states[i]
+					d_OP_init_hist[:, i] = np.sqrt(OP_init_hist[:, i] * (1 - OP_init_hist[:, i]) / N_init_states[i])
+				
+				# === state/cluster centered coordinates ===
 				cluster_centered_crds = []
 				state_centered_crds = []
 				cluster_centered_crds_per_interface = [[]] * N_OP_interfaces
 				state_centered_crds_per_interface = [[]] * N_OP_interfaces
 				for i in range(N_OP_interfaces):
-					cluster_centered_crds.append([[]] * N_init_states[i])
-					state_centered_crds.append([[]] * N_init_states[i])
-					for j in range(N_init_states[i]):
+					N_init_states_local = N_init_states[i]
+					cluster_centered_crds.append([[]] * N_init_states_local)
+					state_centered_crds.append([[]] * N_init_states_local)
+					for j in range(N_init_states_local):
 						if(interface_mode == 'CS'):
 							state_centered_crds[i][j], cluster_centered_crds[i][j] = \
 								center_state_by_cluster(states[i][j, :, :], max_cluster_inds[i][j])
 					
-					#cluster_centered_crds_per_interface_local = tuple([cluster_centered_crds[i][j] for j in range(N_init_states[i]) if(OP_init_states[i][j] == OP_interfaces[i])])
+					#cluster_centered_crds_per_interface_local = tuple([cluster_centered_crds[i][j] for j in range(N_init_states_local) if(OP_init_states[i][j] == OP_interfaces[i])])
 					cluster_centered_crds_per_interface_local = tuple([cluster_centered_crds[i][j] for j in OP_init_states_OPexactly_inds[i]])
 					#if(len(cluster_centered_crds_per_interface_local) < len(cluster_centered_crds[i]) * 0.5):
 					if(len(cluster_centered_crds_per_interface_local) < 2):
@@ -1402,12 +1435,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 					state_centered_crds_per_interface[i] = [[]] * N_species
 					for k in range(N_species):
 						state_centered_crds_per_interface[i][k] = \
-							np.concatenate(tuple([state_centered_crds[i][j][k] for j in range(N_init_states[i])]), axis=0)
-					
-					assert(OP_hist_edges is not None), 'ERROR: no "OP_hist_edges" provided but "OP_init_states" is asked to be analyzed (_states != None)'
-					OP_init_hist[:, i], _ = np.histogram(OP_init_states[i], bins=OP_hist_edges * OP_scale[interface_mode])
-					OP_init_hist[:, i] = OP_init_hist[:, i] / N_init_states[i]
-					d_OP_init_hist[:, i] = np.sqrt(OP_init_hist[:, i] * (1 - OP_init_hist[:, i]) / N_init_states[i])
+							np.concatenate(tuple([state_centered_crds[i][j][k] for j in range(N_init_states_local)]), axis=0)
 				
 				cluster_centered_crds_all = np.concatenate(tuple(cluster_centered_crds_per_interface), axis=0)
 				def stepped_linspace(x, dx, margin=1e-3):
@@ -1431,6 +1459,19 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 										(state_map_edges[1][1:] + state_map_edges[1][:-1]) / 2]
 				state_Rdens_centers = (state_Rdens_edges[1:] + state_Rdens_edges[:-1]) / 2
 				
+				# === cluster 2D fourier ===
+				rho_fourier2D = np.empty((N_OP_interfaces, 2, N_fourier))
+				for i in range(N_OP_interfaces):
+					N_init_states_local = N_init_states[i]
+					rho_fourier2D_local = np.empty((2, N_init_states_local))
+					for k in range(N_fourier):
+						for j in range(N_init_states_local):
+							theta_local = (k + 1) * np.arctan2(cluster_centered_crds[i][j][:, 1], cluster_centered_crds[i][j][:, 0])
+							rho_fourier2D_local[0, j] = np.mean(np.cos(theta_local))
+							rho_fourier2D_local[1, j] = np.mean(np.sin(theta_local))
+						rho_fourier2D[i, :, k] = np.mean(np.abs(rho_fourier2D_local), axis=1)
+				
+				# === state/cluster densities ===
 				cluster_centered_map_total = [[]] * N_OP_interfaces
 				cluster_centered_maps = [[]] * N_OP_interfaces
 				cluster_centered_Rdens_total = [[]] * N_OP_interfaces
@@ -1443,10 +1484,12 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				state_centered_Rdens_s = [[]] * N_OP_interfaces
 				d_state_centered_map = [[]] * N_OP_interfaces
 				d_state_centered_Rdens = [[]] * N_OP_interfaces
-				rho_fourier2D = np.empty((N_OP_interfaces, 2, N_fourier))
 				rho_avg = np.zeros((N_OP_interfaces, N_species))
 				d_rho_avg = np.zeros((N_OP_interfaces, N_species))
+				
 				for i in range(N_OP_interfaces):
+					N_init_states_local = N_init_states[i]
+					
 					# ==== cluster ====
 					Rs_local = np.linalg.norm(cluster_centered_crds_per_interface[i], axis=1)
 					
@@ -1458,17 +1501,9 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 						np.histogram(Rs_local, \
 									bins=cluster_Rdens_edges)
 					
-					rho_fourier2D_local = np.empty((2, N_init_states[i]))
-					for k in range(N_fourier):
-						for j in range(N_init_states[i]):
-							theta_local = (k + 1) * np.arctan2(cluster_centered_crds[i][j][:, 1], cluster_centered_crds[i][j][:, 0])
-							rho_fourier2D_local[0, j] = np.mean(np.cos(theta_local))
-							rho_fourier2D_local[1, j] = np.mean(np.sin(theta_local))
-						rho_fourier2D[i, :, k] = np.mean(np.abs(rho_fourier2D_local), axis=1)
-					
-					cluster_centered_maps[i] = np.empty((cluster_centered_map_total[i].shape[0], cluster_centered_map_total[i].shape[1], N_init_states[i]))
-					cluster_centered_Rdens_s[i] = np.empty((cluster_centered_Rdens_total[i].shape[0], N_init_states[i]))
-					for j in range(N_init_states[i]):
+					cluster_centered_maps[i] = np.empty((cluster_centered_map_total[i].shape[0], cluster_centered_map_total[i].shape[1], N_init_states_local))
+					cluster_centered_Rdens_s[i] = np.empty((cluster_centered_Rdens_total[i].shape[0], N_init_states_local))
+					for j in range(N_init_states_local):
 						cluster_centered_maps[i][:, :, j], _, _ = \
 							np.histogram2d(cluster_centered_crds[i][j][:, 0], \
 										cluster_centered_crds[i][j][:, 1], \
@@ -1481,13 +1516,13 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 					d_cluster_centered_map_total[i] = np.std(cluster_centered_maps[i], axis=2)
 					d_cluster_centered_Rdens_total[i] = np.std(cluster_centered_Rdens_s[i], axis=1)
 					
-					cluster_centered_map_norm = N_init_states[i] * cluster_map_dx**2
+					cluster_centered_map_norm = N_init_states_local * cluster_map_dx**2
 					cluster_centered_map_total[i] = cluster_centered_map_total[i] / cluster_centered_map_norm
-					d_cluster_centered_map_total[i] = d_cluster_centered_map_total[i] / cluster_centered_map_norm * np.sqrt(N_init_states[i])
+					d_cluster_centered_map_total[i] = d_cluster_centered_map_total[i] / cluster_centered_map_norm * np.sqrt(N_init_states_local)
 					
-					cluster_centered_Rdens_norm = N_init_states[i] * (np.pi * (cluster_Rdens_edges[1:]**2 - cluster_Rdens_edges[:-1]**2))
+					cluster_centered_Rdens_norm = N_init_states_local * (np.pi * (cluster_Rdens_edges[1:]**2 - cluster_Rdens_edges[:-1]**2))
 					cluster_centered_Rdens_total[i] = cluster_centered_Rdens_total[i] / cluster_centered_Rdens_norm
-					d_cluster_centered_Rdens_total[i] = d_cluster_centered_Rdens_total[i] / cluster_centered_Rdens_norm * np.sqrt(N_init_states[i])
+					d_cluster_centered_Rdens_total[i] = d_cluster_centered_Rdens_total[i] / cluster_centered_Rdens_norm * np.sqrt(N_init_states_local)
 					
 					# ==== state ====
 					state_centered_map_total[i] = [[]] * N_species
@@ -1506,9 +1541,9 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							np.histogram(np.linalg.norm(state_centered_crds_per_interface[i][k] - L/2, axis=1), \
 										 bins=state_Rdens_edges)
 						
-						state_centered_maps[i][k] = np.empty((state_centered_map_total[i][k].shape[0], state_centered_map_total[i][k].shape[1], N_init_states[i]))
-						state_centered_Rdens_s[i][k] = np.empty((state_centered_Rdens_total[i][k].shape[0], N_init_states[i]))
-						for j in range(N_init_states[i]):
+						state_centered_maps[i][k] = np.empty((state_centered_map_total[i][k].shape[0], state_centered_map_total[i][k].shape[1], N_init_states_local))
+						state_centered_Rdens_s[i][k] = np.empty((state_centered_Rdens_total[i][k].shape[0], N_init_states_local))
+						for j in range(N_init_states_local):
 							state_centered_maps[i][k][:, :, j], _, _ = \
 								np.histogram2d(state_centered_crds[i][j][k][:, 0], \
 											state_centered_crds[i][j][k][:, 1], \
@@ -1523,13 +1558,13 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 						d_state_centered_Rdens[i][k] = np.std(state_centered_Rdens_s[i][k], axis=1)
 						#print(np.std(state_centered_Rdens_s[i][k], axis=1).shape)
 						
-						state_centered_map_norm = N_init_states[i] * cluster_map_dx**2
+						state_centered_map_norm = N_init_states_local * cluster_map_dx**2
 						state_centered_map_total[i][k] = state_centered_map_total[i][k] / state_centered_map_norm
-						d_state_centered_map[i][k] = d_state_centered_map[i][k] / state_centered_map_norm * np.sqrt(N_init_states[i])
+						d_state_centered_map[i][k] = d_state_centered_map[i][k] / state_centered_map_norm * np.sqrt(N_init_states_local)
 						
-						state_centered_Rdens_norm = N_init_states[i] * (np.pi * (state_Rdens_edges[1:]**2 - state_Rdens_edges[:-1]**2))
+						state_centered_Rdens_norm = N_init_states_local * (np.pi * (state_Rdens_edges[1:]**2 - state_Rdens_edges[:-1]**2))
 						state_centered_Rdens_total[i][k] = state_centered_Rdens_total[i][k] / state_centered_Rdens_norm
-						d_state_centered_Rdens[i][k] = d_state_centered_Rdens[i][k] / state_centered_Rdens_norm * np.sqrt(N_init_states[i])
+						d_state_centered_Rdens[i][k] = d_state_centered_Rdens[i][k] / state_centered_Rdens_norm * np.sqrt(N_init_states_local)
 						
 						# if(k in species_to_fit_rho_inds):
 							# rho_fit_params[k, :, j], d_rho_fit_params[k, :, j] = \
@@ -5850,8 +5885,7 @@ def main():
 		if((N_param_points > 1) and (len(OP_interfaces_set_IDs) == 1)):
 			OP_interfaces_set_IDs = [OP_interfaces_set_IDs[0]] * N_param_points
 	
-	BF_hist_edges_ID = None if(BF_hist_edges_ID[0] is None) else BF_hist_edges_ID[0]
-	BF_hist_edges = izing.OP_BF_hist_edges_table[BF_hist_edges_ID]
+	BF_hist_edges = None if(BF_hist_edges_ID[0] is None) else table_data.OP_BF_hist_edges_table[BF_hist_edges_ID[0]]
 		
 	# ================ other params ==============
 	set_OP_defaults(L2)
