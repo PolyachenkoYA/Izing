@@ -9,6 +9,8 @@ import filecmp
 import shutil
 import glob
 import time
+import pickle
+
 import browian_1D
 
 import mylib as my
@@ -46,9 +48,9 @@ title['CS'] = r'cluster size'
 
 OP_peak_guess = {}
 
-OP_fit2_width = {}
-OP_fit2_width['M'] = 0.2
-OP_fit2_width['CS'] = 12
+OP_fit2_width_default = {}
+OP_fit2_width_default['M'] = 0.2
+OP_fit2_width_default['CS'] = 12
 
 feature_label = {}
 feature_label['M'] = 'm'
@@ -1409,6 +1411,77 @@ def center_and_average_states(L, cluster_map_dx, cluster_map_dr, \
 			d_state_centered_map, d_state_centered_Rdens, \
 			rho_avg, d_rho_avg
 
+def plot_states_maps(base_lbl, x_lbl, y_lbl, \
+						cluster_Rdens_centers, \
+						cluster_centered_Rdens_total, \
+						d_cluster_centered_Rdens_total, \
+						cluster_centered_map_total, \
+						cluster_map_centers, \
+						state_Rdens_centers, \
+						state_centered_Rdens_total, \
+						d_state_centered_Rdens, \
+						OP_init_hist=None, \
+						d_OP_init_hist=None, \
+						OP_hist_lens=None, \
+						to_plot_interface_states=False, \
+						to_plot_legend=1, \
+						cluster_lbl_fnc=lambda iii: str(iii)):
+	
+	N_OP_interfaces = len(state_centered_Rdens_total)
+	
+	# ==== cluster ====
+	if(OP_init_hist is not None):
+		fig_OPinit_hists, ax_OPinit_hists, _ = my.get_fig(y_lbl, r'$p_i(' + x_lbl + ')$', title=r'$p(' + x_lbl + ')$; ' + base_lbl, yscl='log')
+	fig_cluster_Rdens, ax_cluster_Rdens, _ = my.get_fig('r', r'$\rho$', title=r'$\rho(r)$; ' + base_lbl)
+	fig_cluster_Rdens_log, ax_cluster_Rdens_log, _ = my.get_fig('r', r'$\rho$', title=r'$\rho(r)$; ' + base_lbl, yscl='logit')
+	
+	# ==== state ====
+	fig_state_map, ax_state_map, fig_state_Rdens, ax_state_Rdens, \
+		fig_state_Rdens_log, ax_state_Rdens_log = \
+			tuple([[[]] * N_species for i in range(6)])
+	
+	for k in range(N_species):
+		fig_state_Rdens[k], ax_state_Rdens[k], _ = my.get_fig('r', r'$\rho_%d$' % k, title=(r'$\rho_%d(r)$; ' % k) + base_lbl)
+		fig_state_Rdens_log[k], ax_state_Rdens_log[k], _ = my.get_fig('r', r'$\rho_%d$' % k, title=(r'$\rho_%d(r)$; ' % k) + base_lbl, yscl='logit')
+		fig_state_map[k] = [[]] * N_OP_interfaces
+		ax_state_map[k] = [[]] * N_OP_interfaces
+	
+	fig_cluster_map = [[]] * N_OP_interfaces
+	ax_cluster_map = [[]] * N_OP_interfaces
+	for i in range(N_OP_interfaces):
+		#cluster_lbl = r'$OP[%d] = %d$; ' % (i, OP_interfaces[i])
+		cluster_lbl = cluster_lbl_fnc(i)
+		if(OP_init_hist is not None):
+			ax_OPinit_hists.bar(OP_hist_centers, OP_init_hist[:, i], yerr=d_OP_init_hist[:, i], width=OP_hist_lens, align='center', label=cluster_lbl, alpha=Ms_alpha)
+			#ax_OPinit_hists.bar(OP_hist_centers, OP_init_hist[:, i], yerr=d_OP_init_hist[:, i], width=OP_hist_lens, align='center', label='OP = ' + str(OP_interfaces[i]), alpha=Ms_alpha)
+		
+		# ==== cluster ====
+		ax_cluster_Rdens.errorbar(cluster_Rdens_centers, cluster_centered_Rdens_total[i], yerr=d_cluster_centered_Rdens_total[i], label=cluster_lbl)
+		ax_cluster_Rdens_log.errorbar(cluster_Rdens_centers, cluster_centered_Rdens_total[i], yerr=d_cluster_centered_Rdens_total[i], label=cluster_lbl)
+		
+		if(to_plot_interface_states):
+			fig_cluster_map[i], ax_cluster_map[i], fig_id = my.get_fig('x', 'y', title=cluster_lbl + base_lbl)
+			im = ax_cluster_map[i].imshow(cluster_centered_map_total[i], \
+									extent = [min(cluster_map_centers[1]), max(cluster_map_centers[1]), \
+											  min(cluster_map_centers[0]), max(cluster_map_centers[0])], \
+									interpolation ='bilinear', origin ='lower', aspect='auto')
+			plt.figure(fig_id)
+			cbar = plt.colorbar(im)
+		
+		# ==== state ====
+		for k in range(N_species):
+			ax_state_Rdens[k].errorbar(state_Rdens_centers, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens[i][k], label=cluster_lbl)
+			ax_state_Rdens_log[k].errorbar(state_Rdens_centers, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens[i][k], label=cluster_lbl)
+	
+	if(OP_init_hist is not None):
+		my.add_legend(fig_OPinit_hists, ax_OPinit_hists, do_legend=to_plot_legend)
+	my.add_legend(fig_cluster_Rdens, ax_cluster_Rdens, do_legend=to_plot_legend)
+	my.add_legend(fig_cluster_Rdens_log, ax_cluster_Rdens_log, do_legend=to_plot_legend)
+	for k in range(N_species):
+		my.add_legend(fig_state_Rdens[k], ax_state_Rdens[k], do_legend=to_plot_legend)
+		my.add_legend(fig_state_Rdens_log[k], ax_state_Rdens_log[k], do_legend=to_plot_legend)
+	
+
 def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 							d_probs, OP_interfaces, N_init_states, \
 							interface_mode, states_parent_inds=None, \
@@ -1792,57 +1865,20 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 				dF, d_dF = tuple([None]*2)
 			
 			if(to_plot_hists):
-				# ============ plot ===========
-				ThL_lbl = get_ThL_lbl(e, mu, init_composition, L, MC_move_mode)
-				
-				# ==== cluster ====
-				fig_OPinit_hists, ax_OPinit_hists, _ = my.get_fig(y_lbl, r'$p_i(' + x_lbl + ')$', title=r'$p(' + x_lbl + ')$; ' + ThL_lbl, yscl='log')
-				fig_cluster_Rdens, ax_cluster_Rdens, _ = my.get_fig('r', r'$\rho$', title=r'$\rho(r)$; ' + ThL_lbl)
-				fig_cluster_Rdens_log, ax_cluster_Rdens_log, _ = my.get_fig('r', r'$\rho$', title=r'$\rho(r)$; ' + ThL_lbl, yscl='logit')
-				
-				# ==== state ====
-				fig_state_map = [[]] * N_species
-				ax_state_map = [[]] * N_species
-				fig_state_Rdens = [[]] * N_species
-				ax_state_Rdens = [[]] * N_species
-				fig_state_Rdens_log = [[]] * N_species
-				ax_state_Rdens_log = [[]] * N_species
-				for k in range(N_species):
-					fig_state_Rdens[k], ax_state_Rdens[k], _ = my.get_fig('r', r'$\rho_%d$' % k, title=(r'$\rho_%d(r)$; ' % k) + ThL_lbl)
-					fig_state_Rdens_log[k], ax_state_Rdens_log[k], _ = my.get_fig('r', r'$\rho_%d$' % k, title=(r'$\rho_%d(r)$; ' % k) + ThL_lbl, yscl='logit')
-					fig_state_map[k] = [[]] * N_OP_interfaces
-					ax_state_map[k] = [[]] * N_OP_interfaces
-				
-				fig_cluster_map = [[]] * N_OP_interfaces
-				ax_cluster_map = [[]] * N_OP_interfaces
-				for i in range(N_OP_interfaces):
-					ax_OPinit_hists.bar(OP_hist_centers, OP_init_hist[:, i], yerr=d_OP_init_hist[:, i], width=OP_hist_lens, align='center', label='OP = ' + str(OP_interfaces[i]), alpha=Ms_alpha)
-					
-					# ==== cluster ====
-					cluster_lbl = r'$OP[%d] = %d$; ' % (i, OP_interfaces[i])
-					ax_cluster_Rdens.errorbar(cluster_Rdens_centers, cluster_centered_Rdens_total[i], yerr=d_cluster_centered_Rdens_total[i], label=cluster_lbl)
-					ax_cluster_Rdens_log.errorbar(cluster_Rdens_centers, cluster_centered_Rdens_total[i], yerr=d_cluster_centered_Rdens_total[i], label=cluster_lbl)
-					
-					if(to_plot_interface_states):
-						fig_cluster_map[i], ax_cluster_map[i], fig_id = my.get_fig('x', 'y', title=cluster_lbl + ThL_lbl)
-						im = ax_cluster_map[i].imshow(cluster_centered_map_total[i], \
-												extent = [min(cluster_map_centers[1]), max(cluster_map_centers[1]), \
-														  min(cluster_map_centers[0]), max(cluster_map_centers[0])], \
-												interpolation ='bilinear', origin ='lower', aspect='auto')
-						plt.figure(fig_id)
-						cbar = plt.colorbar(im)
-					
-					# ==== state ====
-					for k in range(N_species):
-						ax_state_Rdens[k].errorbar(state_Rdens_centers, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens[i][k], label=cluster_lbl)
-						ax_state_Rdens_log[k].errorbar(state_Rdens_centers, state_centered_Rdens_total[i][k], yerr=d_state_centered_Rdens[i][k], label=cluster_lbl)
-				
-				my.add_legend(fig_OPinit_hists, ax_OPinit_hists, do_legend=to_plot_legend)
-				my.add_legend(fig_cluster_Rdens, ax_cluster_Rdens, do_legend=to_plot_legend)
-				my.add_legend(fig_cluster_Rdens_log, ax_cluster_Rdens_log, do_legend=to_plot_legend)
-				for k in range(N_species):
-					my.add_legend(fig_state_Rdens[k], ax_state_Rdens[k], do_legend=to_plot_legend)
-					my.add_legend(fig_state_Rdens_log[k], ax_state_Rdens_log[k], do_legend=to_plot_legend)
+				plot_states_maps(get_ThL_lbl(e, mu, init_composition, L, MC_move_mode), \
+						x_lbl, y_lbl, \
+						cluster_Rdens_centers, \
+						cluster_centered_Rdens_total, \
+						d_cluster_centered_Rdens_total, \
+						cluster_centered_map_total, \
+						cluster_map_centers, \
+						state_Rdens_centers, \
+						state_centered_Rdens_total, \
+						d_state_centered_Rdens, \
+						OP_init_hist=OP_init_hist, \
+						d_OP_init_hist=d_OP_init_hist, \
+						OP_hist_lens=OP_hist_lens, \
+						cluster_lbl_fnc=lambda iii, ops=OP_interfaces: r'$OP[%d] = %d$; ' % (iii, ops[iii]))
 	
 	rho = None
 	d_rho = None
@@ -2257,19 +2293,22 @@ def exp2_integrate(fit2, x1):
 
 	return np.exp(c) / 2 * np.sqrt(np.pi / np.abs(a)) * (scipy.special.erfi(dx) if(a > 0) else scipy.special.erf(dx))
 
-def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, stab_step, \
-							dOP_step, OP_hist_edges, OP_peak_guess, OP_OP_fit2_width, \
+def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
+							stab_step, dOP_step, OP_hist_edges, \
+							OP_peak_guess, OP_fit2_width, interface_mode, \
 							x_lbl=None, y_lbl=None, verbose=None, to_estimate_k=False, \
 							hA=None, OP_A=None, OP_B=None, to_save_npz=False, \
 							to_plot_time_evol=True, to_plot_F=True, to_plot_ETS=False, \
 							stride=1, OP_jumps_hist_edges=None, init_composition=None, \
 							possible_jumps=None, means_only=False, to_recomp=0, \
 							main_component_ID=1, to_plot_legend=1, phi_filt_sgm=3, \
+							cluster_map_dx=1.41, cluster_map_dr=0.5, \
 							npz_basename=None, to_animate=False, to_plot=True, \
 							OP_A_byas=None, OP_B_byas=None, \
 							OP_min_save_state=None, \
 							OP_max_save_state=None, \
 							rho_profile_OP_hist_edges=None, \
+							to_plot_states_densities=False, \
 							D_fnc=lambda Ncl: np.sqrt(Ncl)):
 	
 	to_plot_time_evol = to_plot_time_evol and to_plot
@@ -2299,6 +2338,8 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, stab
 	assert(Nt_stab > 1), 'ERROR: the system may not have reached equlibrium, stab_step = %d, max-present-step = %d' % (stab_step, max(steps))
 	
 	Nt_states = states.shape[0]
+	#print(Nt_states)
+	#input('ok2')
 	if(Nt_states == 0):
 		phi_Lmeans, phi_LTmeans, d_phi_LTmeans = \
 			tuple([None] * 3)
@@ -2340,13 +2381,203 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, stab
 			phi_LTmeans_metastab[i], d_phi_LTmeans_metastab[i] = \
 				my.get_average(my.avg_filter(phi_Lmeans_stab[i, :], sgm=phi_filt_sgm))
 		
+		#print(rho_profile_OP_hist_edges)
+		#input('ok')
 		if(rho_profile_OP_hist_edges is not None):
-			N_rho_profile_bins = rho_profile_OP_hist_edges.shape[1] - 1
+			N_rho_profile_bins = rho_profile_OP_hist_edges.shape[1]
 			
-			for i in range(N_rho_profile_bins):
-				states_timeinds = np.where((m >= rho_profile_OP_hist_edges[0, i]) & (m < rho_profile_OP_hist_edges[1, i]))[0]
-				states_local = states[states_timeinds, :, :]
+			npz_states_filepath = \
+				os.path.join(npz_basename + '_OPedges_%d_%d_%d_BFab_states.pkl' % \
+					(rho_profile_OP_hist_edges.shape[1], min(rho_profile_OP_hist_edges[0, :]), max(rho_profile_OP_hist_edges[1, :])))
 			
+			if((not os.path.isfile(npz_states_filepath)) or (to_recomp & izing.binflags['postproc_hard'])):
+				state_groups = []
+				state_groups_timeinds = []
+				print(rho_profile_OP_hist_edges.shape)
+				for i in range(N_rho_profile_bins):
+					state_groups_timeinds.append(np.where((m[states_timeinds] >= rho_profile_OP_hist_edges[0, i]) & (m[states_timeinds] < rho_profile_OP_hist_edges[1, i]))[0])
+					state_groups.append(states[state_groups_timeinds[i], :, :])
+				
+				OP_grouped_states, maxclust_ind, max_cluster_1st_ind_id, \
+					max_cluster_site_inds, cluster_sizes, OP_init_states_OPexactly_inds, \
+					cluster_centered_crds, state_centered_crds, \
+					cluster_centered_crds_per_interface, \
+					state_centered_crds_per_interface, \
+					cluster_centered_crds_all, \
+					cluster_map_edges, cluster_Rdens_edges, \
+					cluster_map_centers, cluster_Rdens_centers, \
+					state_map_edges, state_Rdens_edges, \
+					state_map_centers, state_Rdens_centers, \
+					cluster_centered_map_total, cluster_centered_maps, \
+					cluster_centered_Rdens_total, cluster_centered_Rdens_s, \
+					d_cluster_centered_map_total, d_cluster_centered_Rdens_total, \
+					state_centered_map_total, state_centered_Rdens_total, \
+					state_centered_maps, state_centered_Rdens_s, \
+					d_state_centered_map, d_state_centered_Rdens, \
+					rho_avg, d_rho_avg = \
+						center_and_average_states(L, cluster_map_dx, cluster_map_dr, \
+							state_groups, interface_mode)
+				
+				if(to_save_npz):
+					print('writing', npz_states_filepath)
+					
+					#print(len(state_centered_Rdens_s))
+					#input('ok')
+					
+					pickle.dump({'OP_grouped_states' : OP_grouped_states, \
+							'maxclust_ind' : maxclust_ind, \
+							'max_cluster_1st_ind_id' : max_cluster_1st_ind_id, \
+							'max_cluster_site_inds' : max_cluster_site_inds, \
+							'cluster_sizes' : cluster_sizes, \
+							'cluster_centered_crds' : cluster_centered_crds, \
+							'state_centered_crds' : state_centered_crds, \
+							'cluster_centered_crds_per_interface' : cluster_centered_crds_per_interface, \
+							'state_centered_crds_per_interface' : state_centered_crds_per_interface, \
+							'cluster_centered_crds_all' : cluster_centered_crds_all, \
+							'cluster_map_edges' : cluster_map_edges, \
+							'cluster_Rdens_edges' : cluster_Rdens_edges, \
+							'state_map_edges' : state_map_edges, \
+							'state_Rdens_edges' : state_Rdens_edges, \
+							'state_map_centers' : state_map_centers, \
+							'cluster_centered_maps' : cluster_centered_maps, \
+							'cluster_centered_Rdens_s' : cluster_centered_Rdens_s, \
+							'd_cluster_centered_map_total' : d_cluster_centered_map_total, \
+							'state_centered_map_total' : state_centered_map_total, \
+							'state_centered_maps' : state_centered_maps, \
+							'state_centered_Rdens_s' : state_centered_Rdens_s, \
+							'd_state_centered_map' : d_state_centered_map, \
+							'cluster_Rdens_centers' : cluster_Rdens_centers, \
+							'cluster_centered_Rdens_total' : cluster_centered_Rdens_total, \
+							'd_cluster_centered_Rdens_total' : d_cluster_centered_Rdens_total, \
+							'cluster_centered_map_total' : cluster_centered_map_total, \
+							'cluster_map_centers' : cluster_map_centers, \
+							'state_Rdens_centers' : state_Rdens_centers, \
+							'state_centered_Rdens_total' : state_centered_Rdens_total, \
+							'd_state_centered_Rdens' : d_state_centered_Rdens, \
+							'rho_inf' : rho_avg, \
+							'd_rho_inf' : d_rho_avg}, \
+						open(npz_states_filepath,'wb'))
+					
+					# np.savez(npz_states_filepath, \
+							# OP_grouped_states=OP_grouped_states, \
+							# maxclust_ind=maxclust_ind, \
+							# max_cluster_1st_ind_id=max_cluster_1st_ind_id, \
+							# max_cluster_site_inds=max_cluster_site_inds, \
+							# cluster_sizes=cluster_sizes, \
+							# cluster_centered_crds=cluster_centered_crds, \
+							# state_centered_crds=state_centered_crds, \
+							# cluster_centered_crds_per_interface=cluster_centered_crds_per_interface, \
+							# state_centered_crds_per_interface=state_centered_crds_per_interface, \
+							# cluster_centered_crds_all=cluster_centered_crds_all, \
+							# cluster_map_edges=cluster_map_edges, \
+							# cluster_Rdens_edges=cluster_Rdens_edges, \
+							# state_map_edges=state_map_edges, \
+							# state_Rdens_edges=state_Rdens_edges, \
+							# state_map_centers=state_map_centers, \
+							# cluster_centered_maps=cluster_centered_maps, \
+							# cluster_centered_Rdens_s=cluster_centered_Rdens_s, \
+							# d_cluster_centered_map_total=d_cluster_centered_map_total, \
+							# state_centered_map_total=state_centered_map_total, \
+							# state_centered_maps=state_centered_maps, \
+							# state_centered_Rdens_s=state_centered_Rdens_s, \
+							# d_state_centered_map=d_state_centered_map, \
+							# cluster_Rdens_centers=cluster_Rdens_centers, \
+							# cluster_centered_Rdens_total=cluster_centered_Rdens_total, \
+							# d_cluster_centered_Rdens_total=d_cluster_centered_Rdens_total, \
+							# cluster_centered_map_total=cluster_centered_map_total, \
+							# cluster_map_centers=cluster_map_centers, \
+							# state_Rdens_centers=state_Rdens_centers, \
+							# state_centered_Rdens_total=state_centered_Rdens_total, \
+							# d_state_centered_Rdens=d_state_centered_Rdens, \
+							# rho_inf=rho_avg, d_rho_inf=d_rho_avg)
+			
+			else:
+				print(npz_states_filepath, 'loading')
+				#npz_data = np.load(npz_states_filepath, allow_pickle=True)
+				pickle_data = pickle.load(open(npz_states_filepath, 'rb'))
+				
+				OP_grouped_states = pickle_data['OP_grouped_states']
+				maxclust_ind = pickle_data['maxclust_ind']
+				max_cluster_1st_ind_id = pickle_data['max_cluster_1st_ind_id']
+				max_cluster_site_inds = pickle_data['max_cluster_site_inds']
+				cluster_sizes = pickle_data['cluster_sizes']
+				cluster_centered_crds = pickle_data['cluster_centered_crds']
+				state_centered_crds = pickle_data['state_centered_crds']
+				cluster_centered_crds_per_interface = pickle_data['cluster_centered_crds_per_interface']
+				state_centered_crds_per_interface = pickle_data['state_centered_crds_per_interface']
+				cluster_centered_crds_all = pickle_data['cluster_centered_crds_all']
+				cluster_map_edges = pickle_data['cluster_map_edges']
+				cluster_Rdens_edges = pickle_data['cluster_Rdens_edges']
+				cluster_map_centers = pickle_data['cluster_map_centers']
+				state_map_edges = pickle_data['state_map_edges']
+				state_Rdens_edges = pickle_data['state_Rdens_edges']
+				state_map_centers = pickle_data['state_map_centers']
+				cluster_centered_maps = pickle_data['cluster_centered_maps']
+				cluster_centered_Rdens_s = pickle_data['cluster_centered_Rdens_s']
+				d_cluster_centered_map_total = pickle_data['d_cluster_centered_map_total']
+				state_centered_map_total = pickle_data['state_centered_map_total']
+				state_centered_maps = pickle_data['state_centered_maps']
+				state_centered_Rdens_s = pickle_data['state_centered_Rdens_s']
+				d_state_centered_map = pickle_data['d_state_centered_map']
+				cluster_Rdens_centers = pickle_data['cluster_Rdens_centers']
+				cluster_centered_Rdens_total = pickle_data['cluster_centered_Rdens_total']
+				d_cluster_centered_Rdens_total = pickle_data['d_cluster_centered_Rdens_total']
+				cluster_centered_map_total = pickle_data['cluster_centered_map_total']
+				cluster_map_centers = pickle_data['cluster_map_centers']
+				state_Rdens_centers = pickle_data['state_Rdens_centers']
+				state_centered_Rdens_total = pickle_data['state_centered_Rdens_total']
+				d_state_centered_Rdens = pickle_data['d_state_centered_Rdens']
+				rho_avg = pickle_data['rho_inf']
+				d_rho_avg = pickle_data['d_rho_inf']
+				
+				# OP_grouped_states = npz_data['OP_grouped_states']
+				# maxclust_ind = npz_data['maxclust_ind']
+				# max_cluster_1st_ind_id = npz_data['max_cluster_1st_ind_id']
+				# max_cluster_site_inds = npz_data['max_cluster_site_inds']
+				# cluster_sizes = npz_data['cluster_sizes']
+				# cluster_centered_crds = npz_data['cluster_centered_crds']
+				# state_centered_crds = npz_data['state_centered_crds']
+				# cluster_centered_crds_per_interface = npz_data['cluster_centered_crds_per_interface']
+				# state_centered_crds_per_interface = npz_data['state_centered_crds_per_interface']
+				# cluster_centered_crds_all = npz_data['cluster_centered_crds_all']
+				# cluster_map_edges = npz_data['cluster_map_edges']
+				# cluster_Rdens_edges = npz_data['cluster_Rdens_edges']
+				# cluster_map_centers = npz_data['cluster_map_centers']
+				# state_map_edges = npz_data['state_map_edges']
+				# state_Rdens_edges = npz_data['state_Rdens_edges']
+				# state_map_centers = npz_data['state_map_centers']
+				# cluster_centered_maps = npz_data['cluster_centered_maps']
+				# cluster_centered_Rdens_s = npz_data['cluster_centered_Rdens_s']
+				# d_cluster_centered_map_total = npz_data['d_cluster_centered_map_total']
+				# state_centered_map_total = npz_data['state_centered_map_total']
+				# state_centered_maps = npz_data['state_centered_maps']
+				# state_centered_Rdens_s = npz_data['state_centered_Rdens_s']
+				# d_state_centered_map = npz_data['d_state_centered_map']
+				# cluster_Rdens_centers = npz_data['cluster_Rdens_centers']
+				# cluster_centered_Rdens_total = npz_data['cluster_centered_Rdens_total']
+				# d_cluster_centered_Rdens_total = npz_data['d_cluster_centered_Rdens_total']
+				# cluster_centered_map_total = npz_data['cluster_centered_map_total']
+				# cluster_map_centers = npz_data['cluster_map_centers']
+				# state_Rdens_centers = npz_data['state_Rdens_centers']
+				# state_centered_Rdens_total = npz_data['state_centered_Rdens_total']
+				# d_state_centered_Rdens = npz_data['d_state_centered_Rdens']
+				# rho_avg = npz_data['rho_inf']
+				# d_rho_avg = npz_data['d_rho_inf']
+			
+			if(to_plot_states_densities):
+				plot_states_maps(get_ThL_lbl(e, mu, init_composition, L, MC_move_mode), \
+						x_lbl, y_lbl, \
+						cluster_Rdens_centers, \
+						cluster_centered_Rdens_total, \
+						d_cluster_centered_Rdens_total, \
+						cluster_centered_map_total, \
+						cluster_map_centers, \
+						state_Rdens_centers, \
+						state_centered_Rdens_total, \
+						d_state_centered_Rdens, \
+						to_plot_interface_states=to_plot_states_densities, \
+						to_plot_legend=to_plot_legend, \
+						cluster_lbl_fnc=lambda iii, ops=rho_profile_OP_hist_edges: r'$%d: \in [%d; %d)$; ' % (iii, ops[0, iii], ops[1, iii]))
 		
 		if(to_animate):
 			my.animate_2D(states, 'x', 'y', 's(x, y)', yx_lims = [0, L-1, 0, L-1], fps=100)
@@ -2658,12 +2889,12 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, stab
 			
 			if(OP_peak_guess < 0):
 				OP_peak_guess = OP_top
-			OP_fit2_OPmin_ind = np.argmax(OP_hist_centers > OP_peak_guess - OP_OP_fit2_width)
-			OP_fit2_OPmax_ind = np.argmax(OP_hist_centers > OP_peak_guess + OP_OP_fit2_width)
+			OP_fit2_OPmin_ind = np.argmax(OP_hist_centers > OP_peak_guess - OP_fit2_width)
+			OP_fit2_OPmax_ind = np.argmax(OP_hist_centers > OP_peak_guess + OP_fit2_width)
 			if(0 in [OP_fit2_OPmin_ind, OP_fit2_OPmax_ind]):
-				OP_peak_guess = np.argmin(F) * 3 + OP_OP_fit2_width
-				OP_fit2_OPmin_ind = np.argmax(OP_hist_centers > OP_peak_guess - OP_OP_fit2_width)
-				OP_fit2_OPmax_ind = np.argmax(OP_hist_centers > OP_peak_guess + OP_OP_fit2_width)
+				OP_peak_guess = np.argmin(F) * 3 + OP_fit2_width
+				OP_fit2_OPmin_ind = np.argmax(OP_hist_centers > OP_peak_guess - OP_fit2_width)
+				OP_fit2_OPmax_ind = np.argmax(OP_hist_centers > OP_peak_guess + OP_fit2_width)
 			
 			if(0 in [OP_fit2_OPmin_ind, OP_fit2_OPmax_ind]):
 				N_good_points_near_OPpeak = 0
@@ -2940,6 +3171,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 			to_cluster=True, N_CS_bins=50, to_plot_legend=1, \
 			to_plot=True, save_state_mode=1, \
 			rho_profile_OP_hist_edges=None, \
+			to_plot_states_densities=False, \
 			to_start_only_state0=0, n_emu_digits=6):
 	'''
 		save_state_mode
@@ -2965,6 +3197,9 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 		OP_min = OP_min_default[interface_mode]
 	if(OP_max is None):
 		OP_max = OP_max_default[interface_mode]
+	
+	if(((OP_min_save_state is not None) or (OP_max_save_state is not None)) and (N_saved_states_max == 0)):
+		print('WARNING: N_saved_states_max = 0 but [OP_min_save_state; OP_max_save_state) is set to non-None [%s; %s)' % (str(OP_min_save_state), str(OP_max_save_state)))
 	
 	if(N_spins_up_init is None):
 		if(interface_mode == 'M'):
@@ -2998,7 +3233,6 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 						OP_min_save_state, OP_max_save_state, \
 						timeevol_stride, to_equilibrate, to_get_timeevol, \
 						lattice_gas.get_seed())
-			
 	
 	BFtraj_suff = '_BFtraj.npz'
 	traj_filepath_olds = [os.path.join(traj_basepath, tb + BFtraj_suff) for tb in traj_basename_olds]
@@ -3046,6 +3280,8 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 		'''
 		
 		#print('input:')
+		#print(OP_min_save_state)
+		#print(OP_max_save_state)
 		#print(e)
 		#print(mu)
 		#print('N_saved_states_max =', N_saved_states_max)
@@ -3055,7 +3291,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 		
 		if(verbose > 0):
 			print("BF Timestamp BEGIN:", time.time())
-			
+		
 		(states, N_states_saved, E, M, CS, hA, times, k_AB_launches, time_total) = \
 			lattice_gas.run_bruteforce(MC_move_mode, L, e.flatten(), mu, Nt,
 				N_saved_states_max=N_saved_states_max, \
@@ -3076,6 +3312,9 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 		if(verbose > 0):
 			print("BF Timestamp END:", time.time())
 		
+		#print(N_saved_states_max)
+		#print(states.shape)
+		#input('ok3')
 		if(N_saved_states_max > 0):
 			states = states[ : min(len(states), L2 * N_states_saved)]
 		
@@ -3154,14 +3393,15 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 					ax_time, ax_hist, ax_F0, ax_F, \
 					fig_time, fig_hist, fig_F0, fig_F = \
 						proc_order_parameter_BF(MC_move_mode, L, e, mu, states, data[interface_mode] / OP_scale[interface_mode], M / L2, E / L2, times / L2, stab_step, \
-										dOP_step[interface_mode], hist_edges, -1, OP_fit2_width[interface_mode], \
+										dOP_step[interface_mode], hist_edges, -1, OP_fit2_width_default[interface_mode], interface_mode, \
 										x_lbl=feature_label[interface_mode], y_lbl=title[interface_mode], verbose=verbose, to_estimate_k=to_estimate_k, hA=hA, \
 										to_plot_time_evol=to_plot_timeevol, to_plot_F=to_plot_F, to_plot_ETS=to_plot_ETS, stride=timeevol_stride, \
 										OP_A=int(OP_A / OP_scale[interface_mode] + 0.1), OP_B=int(OP_B / OP_scale[interface_mode] + 0.1), OP_jumps_hist_edges=OP_jumps_hist_edges, \
 										OP_A_byas=OP_A_byas, OP_B_byas=OP_B_byas, \
 										OP_min_save_state=OP_min_save_state, \
 										OP_max_save_state=OP_max_save_state, \
-										rho_profile_OP_hist_edges=BF_hist_edges, \
+										rho_profile_OP_hist_edges=rho_profile_OP_hist_edges, \
+										to_plot_states_densities=to_plot_states_densities, \
 										possible_jumps=OP_possible_jumps[interface_mode], means_only=means_only, to_save_npz=to_save_npz, \
 										init_composition=init_composition, to_recomp=to_recomp, npz_basename=os.path.join(traj_basepath, traj_basename), \
 										main_component_ID=main_component_ID, to_animate=to_animate, to_plot=to_plot, to_plot_legend=to_plot_legend)
@@ -3326,7 +3566,7 @@ def proc_T_1D(MC_move_mode, L, e, mu, Nt, interface_mode,
 					ax_time, ax_hist, ax_F0, ax_F, \
 					fig_time, fig_hist, fig_F0, fig_F = \
 						proc_order_parameter_BF(MC_move_mode, L, e, mu, states, CS, M / L2, E / L2, times / L2, stab_step, \
-										dOP_step[interface_mode], hist_edges, -1, OP_fit2_width[interface_mode], \
+										dOP_step[interface_mode], hist_edges, -1, OP_fit2_width_default[interface_mode], \
 										x_lbl=feature_label[interface_mode], y_lbl=title[interface_mode], verbose=verbose, to_estimate_k=to_estimate_k, hA=hA, \
 										to_plot_time_evol=to_plot_timeevol, to_plot_F=to_plot_F, to_plot_ETS=to_plot_ETS, stride=1, \
 										OP_A=int(OP_A / OP_scale[interface_mode] + 0.1), OP_B=int(OP_B / OP_scale[interface_mode] + 0.1), OP_jumps_hist_edges=OP_jumps_hist_edges, \
@@ -5901,7 +6141,7 @@ def main():
 	# python run.py -mode BF_1 -Nt 150000 -L 450 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.99 0.01 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -timeevol_stride 2000 -R_clust_init 0 -to_recomp 0
 	
 	# python run.py -mode BF_AB -Nt 100000000 -L 32 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max -1 -MC_move_mode long_swap -init_composition 0.99 0.01 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -timeevol_stride 2000 -R_clust_init 0 -to_recomp 10 -verbose 4
-	# python run.py -mode BF_AB -Nt 1500000 -L 32 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode flip  -Temp 1.5 -h 0.19 -e -4 0 0 -OP_0 2 -OP_max 150 -timeevol_stride 1000 -R_clust_init 0 -to_recomp 0
+	# python run.py -mode BF_AB -Nt 1500000 -L 32 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode flip  -Temp 1.5 -h 0.19 -e -4 0 0 -OP_0 15 -OP_max 150 -timeevol_stride 1000 -R_clust_init 0 -to_recomp all
 	# python run.py -mode BF_1 -Nt 5500000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.01 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 25 -OP_max 150 -timeevol_stride 2000 -to_recomp 0 -verbose 1 -to_plot 1
 	# python run.py -mode FFS_AB -L 128 -OP_interfaces_set_IDs mu18 -to_get_timeevol 0 -N_states_FFS 50 -N_init_states_FFS 100 -Temp 1.5 -h 0.05 -e -4 0 0 -MC_move_mode flip -to_recomp 0 -Dtop_Nruns 5000 -my_seeds 1000
 	# python run.py -mode FFS_AB_many -L 128 -OP_interfaces_set_IDs mu18 -to_get_timeevol 0 -N_states_FFS 50 -N_init_states_FFS 100 -Temp 1.5 -h 0.05 -e -4 0 0 -MC_move_mode flip -to_recomp 0 -Dtop_Nruns 5000 -my_seeds 1000 1001 1002 1003
@@ -6030,11 +6270,8 @@ def main():
 		if((N_param_points > 1) and (len(OP_interfaces_set_IDs) == 1)):
 			OP_interfaces_set_IDs = [OP_interfaces_set_IDs[0]] * N_param_points
 	
-	BF_hist_edges = None if(BF_hist_edges_ID[0] is None) else table_data.OP_BF_hist_edges_table[BF_hist_edges_ID[0]]
-		
 	# ================ other params ==============
 	set_OP_defaults(L2)
-	
 	
 	to_recomp_flags = 0
 	for k in to_recomp:
@@ -6097,8 +6334,9 @@ def main():
 	
 	OP_min_BF = OP_min_default[interface_mode] if(OP_min_BF[0] is None) else int(OP_min_BF[0])
 	OP_max_BF = OP_max_default[interface_mode] if(OP_max_BF[0] is None) else int(OP_max_BF[0])
-	OP_min_save_state = None if(OP_min_save_state[0] is None) else int(OP_min_save_state[0])
-	OP_max_save_state = None if(OP_max_save_state[0] is None) else int(OP_max_save_state[0])
+	BF_hist_edges = None if(BF_hist_edges_ID[0] is None) else table_data.OP_BF_hist_edges_table[BF_hist_edges_ID[0]]
+	OP_min_save_state = (None if(BF_hist_edges is None) else min(BF_hist_edges[0, :])) if(OP_min_save_state[0] is None) else int(OP_min_save_state[0])
+	OP_max_save_state = (None if(BF_hist_edges is None) else max(BF_hist_edges[1, :])) if(OP_max_save_state[0] is None) else int(OP_max_save_state[0])
 	
 	if(OP_interfaces_set_IDs[0] is None):
 		if(OP_0[0] is None):
@@ -6393,6 +6631,7 @@ def main():
 				to_equilibrate=to_equilibrate, to_save_npz=to_save_npz, \
 				to_plot_legend=to_plot_legend, to_animate=to_animate, \
 				rho_profile_OP_hist_edges=BF_hist_edges, \
+				to_plot_states_densities=True, \
 				to_recomp=to_recomp, to_cluster=to_cluster, to_plot=to_plot)
 	
 	elif(mode == 'BF_many'):
