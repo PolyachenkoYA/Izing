@@ -33,6 +33,7 @@ PYBIND11_MODULE(lattice_gas, m)
 		  py::arg("stab_step")=-5,
 		  py::arg("init_state")=py::none(),
 		  py::arg("to_use_smart_swap")=0,
+		  py::arg("progress_print_stride")=-1,
 		  py::arg("verbose")=py::none()
     );
 
@@ -69,6 +70,7 @@ PYBIND11_MODULE(lattice_gas, m)
 		  py::arg("to_use_smart_swap")=0,
 		  py::arg("to_equilibrate")=1,
 		  py::arg("to_start_only_state0")=0,
+		  py::arg("progress_print_stride")=-1,
 		  py::arg("verbose")=py::none(),
 		  py::arg("to_cluster")=py::none()
 	);

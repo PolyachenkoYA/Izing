@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=test7
-#SBATCH --time=24:00:00          # total run time limit (HH:MM:SS)
+#SBATCH --time=72:00:00          # total run time limit (HH:MM:SS)
 #SBATCH --nodes=1                # node count
 #SBATCH --ntasks=1               # total number of tasks across all nodes
 #SBATCH --cpus-per-task=1        # cpu-cores per task (>1 if multi-threaded tasks)
@@ -25,4 +25,5 @@ module load gsl/2.6
 #python run_tmp.py -mode BF_AB -Nt 100000000 -L 450 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.99 0.01 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -timeevol_stride 2000 -R_clust_init 8.17 -to_keep_composition 1 -to_recomp 10
 #python run_tmp.py -mode BF_AB -Nt 880000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 0 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.9896 0.0104 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -timeevol_stride 2000 -to_recomp 10 -verbose 1 -to_plot 0
 #python run_tmp.py -mode BF_AB -Nt 300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 0 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.0104 0.00010 -e -2.68010292 -2.68010292 -2.68010292 -OP_0 2 -OP_max 150 -timeevol_stride 2000 -to_recomp 0 -verbose 1 -to_plot 0
-python run_tmp2.py -mode BF_AB -Nt 420000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0  -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 2 -OP_max 150 -timeevol_stride 1000 -R_clust_init 0 -to_recomp 0 -verbose 1 -to_plot 0
+#python run_tmp2.py -mode BF_AB -Nt 420000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0  -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 2 -OP_max 150 -timeevol_stride 1000 -R_clust_init 0 -to_recomp 0 -verbose 1 -to_plot 0
+python run_tmp3.py -mode BF_AB -Nt 2100000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 21010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.010 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu2  -progress_print_stride -10000

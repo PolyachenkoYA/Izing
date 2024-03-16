@@ -47,6 +47,8 @@ using namespace py::literals;
 #define move_mode_swap 2
 #define move_mode_long_swap 3
 
+#define progress_print_stride_default 81920000
+
 namespace lattice_gas
 {
 	extern std::mt19937 *gen_mt19937;
@@ -84,24 +86,26 @@ namespace lattice_gas
 	int run_FFS_C(int move_mode, double *flux0, double *d_flux0, int L, const double *e, const double *mu, int *states,
 				  int *states_parent_inds, int *N_init_states, long *Nt, long *Nt_OP_saved, long stab_step,
 				  long *OP_arr_len, int *OP_interfaces, int N_OP_interfaces, double *probs, double *d_probs, double **E, int **M,
-				  int **biggest_cluster_sizes, int **time, int verbose, int init_gen_mode, int interface_mode,
-				  const int *init_state, int to_use_smart_swap);
+				  int **biggest_cluster_sizes, int **time, int verbose, long progress_print_stride, int init_gen_mode,
+				  int interface_mode, const int *init_state, int to_use_smart_swap);
 	int run_bruteforce_C(int move_mode, int L, const double *e, const double *mu, long *time_total, int N_states, int *states,
 						 long *OP_arr_len, long *Nt, long *Nt_OP_saved, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 						 int interface_mode, int OP_A, int OP_B, int to_cluster, int to_start_only_state0,
 						 int OP_min_stop_state, int OP_max_stop_state, int *N_states_done,
 						 int OP_min_save_state, int OP_max_save_state, int save_state_mode,
-						 int N_spins_up_init, int verbose, long Nt_max, int *N_tries, int to_save_final_state,
+						 int N_spins_up_init, int verbose, long progress_print_stride,
+						 long Nt_max, int *N_tries, int to_save_final_state,
 						 int to_regenerate_init_state, long save_states_stride, int to_use_smart_swap);
 	double process_step(int move_mode, int *init_states, int *states_parent_inds, int *next_states,
 						double **E, int **M, int **biggest_cluster_sizes, int **time,
 						long *Nt, long *Nt_OP_saved, long *OP_arr_len, int N_init_states, int N_next_states,
 						int L, const double *e, const double *mu, int OP_0, int OP_next,
-						int interfaces_mode, int to_use_smart_swap, int verbose);
+						int interfaces_mode, int to_use_smart_swap, int verbose, long progress_print_stride);
 	int run_state(int move_mode, int *s, int *OP_current, int L, const double *e, const double *mu, long *time_total,
 				  int OP_0, int OP_next, double **E, int **M, int **biggest_cluster_sizes, int **h_A, int **time,
 				  int *cluster_element_inds, int *cluster_sizes, int *cluster_types, int *is_checked, long *Nt, long *Nt_OP_saved,
-				  long *OP_arr_len, int interfaces_mode, int to_use_smart_swap, int verbose, int to_cluster=1, long Nt_max=-1,
+				  long *OP_arr_len, int interfaces_mode, int to_use_smart_swap, int verbose,
+				  long progress_print_stride=progress_print_stride_default, int to_cluster=1, long Nt_max=-1,
 				  int *states_to_save=nullptr, int *N_states_saved=nullptr, int N_states_to_save=-1,
 				  int OP_min_save_state=0, int OP_max_save_state=0,
 				  int save_state_mode=save_state_mode_Inside, int OP_A=0, int OP_B=0, long save_states_stride=1);
@@ -110,10 +114,10 @@ namespace lattice_gas
 						  int interface_mode, int OP_A, int OP_B,
 						  double **E, int **M, int **biggest_cluster_size, int **h_A, int **time,
 						  long *Nt, long *Nt_OP_saved, long *OP_arr_len, const int *init_state, int to_use_smart_swap,
-						  int verbose);
+						  int verbose, long progress_print_stride);
 	int get_equilibrated_state(int move_mode, int L, const double *e, const double *mu, int *state, int *N_states_done,
 							   int interface_mode, int OP_A, int OP_B, long stab_step, const int *init_state,
-							   int to_use_smart_swap, int to_equilibrate, int verbose);
+							   int to_use_smart_swap, int to_equilibrate, int verbose, long progress_print_stride);
 
 
 	int init_rand_C(int my_seed);
@@ -153,6 +157,7 @@ py::tuple run_FFS(int move_mode, int L, py::array_t<double> e, py::array_t<doubl
 				  pybind11::array_t<int> N_init_states, pybind11::array_t<int> OP_interfaces,
 				  int to_remember_timeevol, int init_gen_mode, int interface_mode, long stab_step,
 				  std::optional< pybind11::array_t<int> > _init_state, int to_use_smart_swap,
+				  double _progress_print_stride,
 				  std::optional<int> _verbose);
 py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_t<double> mu, long Nt_max,
 						 long N_saved_states_max, long save_states_stride, long stab_step,
@@ -163,6 +168,7 @@ py::tuple run_bruteforce(int move_mode, int L, py::array_t<double> e, py::array_
 						 std::optional<int> _interface_mode, int save_state_mode,
 						 std::optional< pybind11::array_t<int> > _init_state,
 						 int to_use_smart_swap, int to_equilibrate, int to_start_only_state0,
+						 double _progress_print_stride,
 						 std::optional<int> _verbose, std::optional<int> _to_cluster);
 int compute_hA(py::array_t<int> *h_A, int *OP, long Nt, int OP_A, int OP_B);
 py::tuple cluster_state(py::array_t<int> state, std::optional<int> _verbose);
