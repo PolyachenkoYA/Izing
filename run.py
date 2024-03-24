@@ -44,7 +44,7 @@ OP_step['CS'] = 1
 
 title = {}
 title['M'] = r'$m = M / L^2$'
-title['CS'] = r'cluster size'
+title['CS'] = r'biggest Clst Sz'
 
 OP_peak_guess = {}
 
@@ -2312,7 +2312,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 							stride=1, OP_jumps_hist_edges=None, init_composition=None, \
 							possible_jumps=None, means_only=False, to_recomp=0, \
 							main_component_ID=1, to_plot_legend=1, phi_filt_sgm=3, \
-							cluster_map_dx=1.41, cluster_map_dr=0.5, \
+							cluster_map_dx=1.41, cluster_map_dr=2.0, \
 							npz_basename=None, to_animate=False, to_plot=True, \
 							OP_A_byas=None, OP_B_byas=None, \
 							OP_min_save_state=None, \
@@ -2355,14 +2355,16 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 		phi_Lmeans, phi_LTmeans, d_phi_LTmeans = \
 			tuple([None] * 3)
 	else:
-		_, cluster_sizes_1st_state, _ = lattice_gas.cluster_state(states[0, :, :].flatten())
-		if((max(cluster_sizes_1st_state) < OP_min_save_state) or (max(cluster_sizes_1st_state) >= OP_max_save_state)):
-			states = states[1:, :, :]
-			Nt_states -= 1
-		
 		#states_timeinds = np.arange(Nt_states)
 		states_timeinds = np.where((m >= OP_min_save_state) & (m < OP_max_save_state))[0]
 		states_times = OP_times[states_timeinds]
+		N_states_times = len(states_times)
+		
+		_, cluster_sizes_1st_state, _ = lattice_gas.cluster_state(states[0, :, :].flatten())
+		#if((max(cluster_sizes_1st_state) < OP_min_save_state) or (max(cluster_sizes_1st_state) >= OP_max_save_state)):
+		if(Nt_states - 1 == N_states_times):   # the initial start-comp state might be recorded as state[0, :, :]
+			states = states[1:, :, :]
+			Nt_states -= 1
 		
 		phi_filepath = os.path.join(npz_basename + '_phi.npz')
 		if((not os.path.isfile(phi_filepath)) or (to_recomp & izing.binflags['postproc_hard'])):
@@ -2383,7 +2385,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 			phi_Lmeans = npz_data['phi_Lmeans']
 			stab_step = npz_data['stab_step']
 		
-		assert(len(states_times) == Nt_states), 'ERROR: number of states = %d != number of state times = %d' % (Nt_states, len(states_times))
+		assert(N_states_times == Nt_states), 'ERROR: number of states = %d != number of state times = %d' % (Nt_states, N_states_times)
 		stab_states_inds = np.where(states_times > stab_step)[0]    # indexing ~ states_times
 		#stab_states_inds = states_timeinds[states_times > stab_step]   # index in global indexing ~ m
 		N_stab_states = len(stab_states_inds)
@@ -4447,7 +4449,12 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				for k in range(N_species):
 					state_centered_Rdens_total[j][k], d_state_centered_Rdens_total[j][k] = \
 						my.get_average(state_centered_Rdens_total_data[j][k], axis=1)
-					
+			
+			
+			#species_to_fit_rho_inds = np.array([0, 1], dtype=int)   # , 2
+			#rho_fit_params, d_rho_fit_params, rho_fit_fncs, rho_splines, \
+			#	rho_chi2, N_rhofit_points, R_peak, R_fit_minmax, \
+			#	rho_inf, d_rho_inf, rho_dip, d_rho_dip, rho_bulk_init
 			
 			#rho_fit_params = np.empty((N_species, 4, N_OP_interfaces_AB))
 			#d_rho_fit_params = np.empty((N_species, rho_fit_params.shape[1], N_OP_interfaces_AB))
@@ -4465,6 +4472,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			rho_dip = np.empty((N_species, N_OP_interfaces_AB))
 			d_rho_dip = np.empty((N_species, N_OP_interfaces_AB))
 			rho_bulk_init = np.empty(N_species)
+			
 			for k in range(N_species):
 				rho_fit_fncs.append([])
 				if(swap_type_move):

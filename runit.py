@@ -1,4 +1,4 @@
 #import os
 import subprocess
-l = range(7, 10 + 1)
+l = range(6, 13 + 1)
 subprocess.run(''.join([('sbatch runit%d.slurm; ' % i) for i in l]), shell=True)

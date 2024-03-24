@@ -977,7 +977,7 @@ namespace lattice_gas
 		int state_size_in_bytes = sizeof(int) * L2;
 		int h_A_current = 0;   // TODO pass this as an argument to make it transferable between runs
 		int OP_prev;
-		int M_current = comp_M(s, L); // remember the 1st M;
+		int M_current = comp_M(s, L2); // remember the 1st M;
 		double E_current = comp_E(s, L, e, mu); // remember the 1st energy;
 		int N_clusters_current = L2;   // so that all uninitialized cluster_sizes are set to 0
 		int biggest_cluster_sizes_current = 0;
@@ -1089,7 +1089,7 @@ namespace lattice_gas
 					if(biggest_cluster_sizes) (*biggest_cluster_sizes)[*Nt_OP_saved] = biggest_cluster_sizes_current;
 					if(h_A) (*h_A)[*Nt_OP_saved] = h_A_current;
 					++ (*Nt_OP_saved);
-					if(verbose >= 4){ printf("Nt_OP_saved = %d\n", *Nt_OP_saved); }
+					if(verbose >= 4){ printf("Nt_OP_saved = %ld\n", *Nt_OP_saved); }
 				}
 
 			}
