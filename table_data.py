@@ -91,6 +91,12 @@ OP_BF_hist_edges_table['mu3'] = np.array([list(range(40, 80, 2)), \
 OP_BF_hist_edges_table['mu4'] = np.array([[40, 50, 60, 70], \
 										  [50, 60, 70, 80]], \
 										dtype=int)
+OP_BF_hist_edges_table['mu5'] = np.array([[51, 53, 55, 59, 61], \
+										  [53, 55, 57, 61, 63]], \
+										dtype=int)
+OP_BF_hist_edges_table['mu6'] = np.array([[40, 42, 44, 46, 48], \
+										  [42, 44, 46, 48, 50]], \
+										dtype=int)
 
 n144h_FFS_dict = {'swap' : {'0.8': {'0.014': 21*6, '0.0145': 19*6, '0.015' : 19*6, '0.0155': 24*6, '0.016': 22*6}, \
 		  '0.85': {'0.014': 214, '0.0145': 266, '0.015': 274, '0.0155': 297, '0.016': 309}, \
