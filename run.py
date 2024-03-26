@@ -2338,6 +2338,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 							possible_jumps=None, means_only=False, to_recomp=0, \
 							main_component_ID=1, to_plot_legend=1, phi_filt_sgm=3, \
 							cluster_map_dx=1.41, cluster_map_dr=2.0, \
+							N_fourier=5, \
 							npz_basename=None, to_animate=False, to_plot=True, \
 							OP_A_byas=None, OP_B_byas=None, \
 							OP_min_save_state=None, \
@@ -2464,6 +2465,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 						center_and_average_states(L, cluster_map_dx, cluster_map_dr, \
 							state_groups, interface_mode)
 				
+				#print()
 				rho_fourier2D = get_states_fourier(N_fourier, cluster_centered_crds)
 				
 				if(to_save_npz):
@@ -3157,6 +3159,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 			to_animate=False, to_equilibrate=None, to_post_process=True, \
 			init_state=None, to_gen_init_state=None, stab_step_BF_run=-1, \
 			to_cluster=True, N_CS_bins=50, to_plot_legend=1, \
+			N_fourier=5, \
 			to_plot=True, save_state_mode=1, \
 			rho_profile_OP_hist_edges=None, \
 			to_plot_states_densities=False, \
@@ -3396,6 +3399,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 									x_lbl=feature_label[interface_mode], y_lbl=title[interface_mode], verbose=verbose, to_estimate_k=to_estimate_k, hA=hA, \
 									to_plot_time_evol=to_plot_timeevol, to_plot_F=to_plot_F, to_plot_ETS=to_plot_ETS, stride=timeevol_stride, \
 									OP_A=int(OP_A / OP_scale[interface_mode] + 0.1), OP_B=int(OP_B / OP_scale[interface_mode] + 0.1), OP_jumps_hist_edges=OP_jumps_hist_edges, \
+									N_fourier=N_fourier, \
 									OP_A_byas=OP_A_byas, OP_B_byas=OP_B_byas, \
 									OP_min_save_state=OP_min_save_state, \
 									OP_max_save_state=OP_max_save_state, \
@@ -5068,18 +5072,18 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								'_ID' + str(lattice_gas.get_seed()) + '_manyBF'
 			npz_BF_filepath = os.path.join(npz_basepath, npz_BF_filename + '.npz')
 			
-			if((not os.path.isfile(npz_BF_filepath)) or (to_recomp & izing.binflags['postproc_hard'])):
+			if((not os.path.isfile(npz_BF_filepath)) or (to_recomp & izing.binflags['postproc_hard'] == izing.binflags['postproc_hard'])):
 					# cluster_Rdens_Rcenters_data[i], cluster_centered_Rdens_data[i], \
 					# cluster_map_centers_data[i], cluster_centered_maps_data[i], \
 					# state_Rdens_centers_data[i], state_centered_Rdens_data[i], \
 					# state_map_centers_data[i], state_centered_maps_data[i], \
 				F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
-					rho_fncs[i], d_rho_fncs[i], k_bc_AB_BF, k_bc_BA_BF, \
 					_, _, \
 					cluster_map_centers_new, cluster_centered_map_total_new, \
 					state_Rdens_centers_new, state_centered_Rdens_total_new, \
-					rho_fourier2D_new, \
 					_, _, \
+					rho_fourier2D_new, \
+					rho_fncs[i], d_rho_fncs[i], k_bc_AB_BF, k_bc_BA_BF, \
 					k_AB_BF, _, k_BA_BF, _, _, _, _, _, _, _, k_AB_BFcount, _, _ = \
 						proc_T(MC_move_mode, L, e, mu, Nt_per_BF_run, interface_mode, \
 								OP_A=OP_A, OP_B=OP_B, N_spins_up_init=N_spins_up_init, \
@@ -5088,7 +5092,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								timeevol_stride=timeevol_stride, to_estimate_k=True,
 								to_get_timeevol=True, N_saved_states_max=N_saved_states_max,
 								stab_step=stab_step, init_composition=init_composition, \
-								R_clust_init=R_clust_init, \
+								R_clust_init=R_clust_init, N_fourier=N_fourier, \
 								OP_min_save_state=OP_min_save_state, \
 								OP_max_save_state=OP_max_save_state, \
 								rho_profile_OP_hist_edges=rho_profile_OP_hist_edges, \
@@ -5200,13 +5204,16 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								'_BFAB'
 			npz_BFAB_filepath = os.path.join(npz_basepath, npz_BFAB_filename + '.npz')
 			
-			if((not os.path.isfile(npz_BFAB_filepath)) or (to_recomp & izing.binflags['postproc_hard'])):
+# 			print(npz_BFAB_filepath)
+# 			print(to_recomp & izing.binflags['postproc_hard'] == izing.binflags['postproc_hard'], to_recomp, izing.binflags['postproc_hard'])
+# 			input(to_save_npz)
+			if((not os.path.isfile(npz_BFAB_filepath)) or (to_recomp & izing.binflags['postproc_hard'] == izing.binflags['postproc_hard'])):
 				F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
 					_, _, \
 					cluster_map_centers_new, cluster_centered_map_total_new, \
 					state_Rdens_centers_new, state_centered_Rdens_total_new, \
-					rho_fourier2D_new, \
 					_, _, \
+					rho_fourier2D_new, \
 					rho_fncs[i], d_rho_fncs[i], _, _, _, _, _, _, _, _, _, _, _, \
 						_, k_AB_BFcount, _, k_AB_BFcount_N_data[i] = \
 							proc_T(MC_move_mode, L, e, mu, Nt_per_BF_run, interface_mode, \
@@ -5217,7 +5224,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								N_saved_states_max=N_saved_states_max, \
 								stab_step=stab_step, init_composition=init_composition, \
 								to_plot_legend=to_plot_legend, \
-								R_clust_init=R_clust_init, \
+								R_clust_init=R_clust_init, N_fourier=N_fourier, \
 								OP_min_save_state=OP_min_save_state, \
 								OP_max_save_state=OP_max_save_state, \
 								rho_profile_OP_hist_edges=rho_profile_OP_hist_edges, \
@@ -5470,9 +5477,9 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				F_new = F_new - F_new[0]
 		
 		if(state_Rdens_centers_new is not None):
-			if('BF' in mode):
-					N_runs = len(cluster_centered_map_total_interps)
-					N_OP_interfaces_AB = len(cluster_centered_map_total_interps[0])
+# 			if('BF' in mode):
+# 				N_runs = len(cluster_centered_map_total_interps)
+# 				N_OP_interfaces_AB = len(cluster_centered_map_total_interps[0])
 			
 			if(i == 0):
 				state_centered_Rdens_total_data = [[]] * N_OP_interfaces_AB
@@ -5627,7 +5634,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			rho_fourier2D_Abs = np.linalg.norm(rho_fourier2D, axis=1)
 			d_rho_fourier2D_Abs = np.sqrt(np.sum((d_rho_fourier2D * rho_fourier2D)**2, axis=1)) / rho_fourier2D_Abs
 		
-		OP0_estimate = 50
+		OP0_estimate = 48
 		OP_closest_to_OP0_ind = np.argmin(np.abs(OP_interfaces_AB - OP0_estimate))
 		
 		rho_dip_crit, d_rho_dip_crit, dip_A_arr, \
@@ -5643,9 +5650,9 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								   rho_dip, d_rho_dip, \
 								   rho_fit_params, d_rho_fit_params, \
 								   dF_species_id, OP_closest_to_OP0_ind, \
-								   phi_c=0.746e-2, \
-								   to_plot_legend=False, \
-								   to_bridge_glob_loc=False)
+								   phi_c=phi_c, \
+								   to_plot_legend=to_plot_legend, \
+								   to_bridge_glob_loc=to_bridge_glob_loc)
 		
 		sgmfit_species_id, sgm_logfit, sgm_logfit_cov, sgm_logfit_Nmin = \
 			fit_Rdens_sgmfit(OP_interfaces_AB, OP0_estimate, \
@@ -5748,7 +5755,36 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			elif(interfacesIDs_to_plot_dens == 'all'):
 				interfacesIDs_to_plot_dens = np.arange(len(OP_interfaces_AB))
 		
-		if('FFS' in mode):
+		if('BF' in mode):
+			if(state_Rdens_centers_new is not None):
+				prot_FFS_states_analysis(OP_interfaces_AB, \
+					 rho_fourier2D_Abs, d_rho_fourier2D_Abs, \
+					 rho_fit_fncs, state_Rdens_centers_new, \
+					 cluster_centered_map_total, \
+					 cluster_map_x, cluster_map_y, \
+					 state_centered_Rdens_total, d_state_centered_Rdens_total, \
+					 state_centered_Rdens_smoothed, d_state_centered_Rdens_smoothed, \
+					 ThL_lbl, dF_species_id, \
+					 OP_closest_to_OP0_ind, \
+					 rho_dip, d_rho_dip, \
+					 rho_chi2_inds, rho_bulk_init, \
+					 rho_chi2, OP0_estimate, \
+					 Rdens_smooth_dr, Rdens_smooth_w, \
+					 sgmfit_species_id, N_rhofit_points, \
+					 rho_fit_params, d_rho_fit_params, \
+					 sgm_logfit, sgm_logfit_cov, sgm_logfit_Nmin, \
+					 n_shift_arr=n_shift_arr, \
+					 rho_dip_crit=rho_dip_crit, \
+					 dip_A_arr=dip_A_arr, \
+					 dF_CH_grid=dF_CH_grid, \
+					 Ncrit_dFCH=Ncrit_dFCH, \
+					 to_bridge_glob_loc=to_bridge_glob_loc, \
+					 interfacesIDs_to_plot_dens=interfacesIDs_to_plot_dens, \
+					 rho_chi2_p=rho_chi2_p, phi_c=phi_c, \
+					 to_plot_legend=to_plot_legend)
+			
+			
+		elif('FFS' in mode):
 			if(state_Rdens_centers_new is not None):
 				prot_FFS_states_analysis(OP_interfaces_AB, \
 					 rho_fourier2D_Abs, d_rho_fourier2D_Abs, \
