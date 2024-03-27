@@ -169,6 +169,8 @@ def main():
 											name = 'FFS_MC%d_%d_%d_L%d_Temp%s_ID%d_phi%s_%s_OPs%s_Dtop%d_CStest%d' % (move_modes[MC_mode], n_init, n_FFS, L, my.f2s(Temp), seed, phi1_str, phi2_str, OP_set_name, Dtop_Nruns_use, CStest_Nruns)
 											cmd =  'python %s -mode FFS_AB -L %d -to_get_timeevol 0 -N_states_FFS %d -N_init_states_FFS %d -e %lf %lf %lf -MC_move_mode %s -init_composition %s %s -OP_interfaces_set_IDs %s  -to_plot 0 -to_show_on_screen 0 -my_seeds %d -to_post_proc %s -Temp %s -to_recomp 0 -Dtop_Nruns %d -CStest_Nruns %d' \
 													% (script_name, L, n_FFS, n_init, e_T1[0], e_T1[1], e_T1[2], MC_mode, phi1_str, phi2_str, OP_set_name, seed, '1' if(to_post_proc) else '0', my.f2s(Temp, n=5), Dtop_Nruns_use, CStest_Nruns)
+										elif(mode == 'launch_run_BF_AB_states'):
+											cmd =  'python %s -mode BF_AB -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu2  -progress_print_stride -10000 -font_mode present -my_seeds 24'
 										#  -timeevol_stride 2000
 										
 										cmd_comment = r'   # SLURM: time = %s; RAM = %s ' % (clargs.slurm_time, clargs.RAM_per_CPU)
