@@ -79,20 +79,45 @@ if(__name__ == "__main__"):
 			
 			os.chdir(path_to_so)
 			
-			if(compile_mode == 'della'):
-				try:
-					compile_results = my.run_it('make %s.so -j 9' % (filebase), check=True).split('\n')
-					nothing_done_in_recompile = ((compile_results[0] == '[100%] Built target lattice_gas.so') and (len(compile_results) <= 2))
-				except Exception as raised_error:
-					print('WARNING:')
-					print(raised_error)
-					print('Complilation did not succeed, trying to import the existing lib, tmp_mode = %d' % tmp_mode)
-					compile_results = ['None']
-					nothing_done_in_recompile = True
+			# #compile_results = my.run_it('make %s.so -j 9' % (filebase), check=True).split('\n')
+			# #nothing_done_in_recompile = ((compile_results[0] == '[100%] Built target lattice_gas.so') and (len(compile_results) <= 2))
+			
+			my.run_it('cmake ..')
+			compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True)
+			nothing_done_in_recompile = False
+			# nothing_done_in_recompile = ('[100%] Built target lattice_gas.so' in compile_results)
+			# # if(compile_results[-1] == '\n'):
+				# # compile_results = compile_results[:-1]
+			# # compile_results = compile_results.split('\n')
+			# print(compile_results)
+			# print(nothing_done_in_recompile)
+			# input('ok')
+			# # nothing_done_in_recompile = (('[100%] Built target lattice_gas.so' in [compile_results[i] for i in [-1, -2]]) and (len(compile_results) <= 2))
+			# if(compile_mode == 'della'):
+				# try:
+					# #compile_results = my.run_it('make %s.so -j 9' % (filebase), check=True).split('\n')
+					# #nothing_done_in_recompile = ((compile_results[0] == '[100%] Built target lattice_gas.so') and (len(compile_results) <= 2))
+					
+					# my.run_it('cmake ..')
+					# compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True)
+					# nothing_done_in_recompile = ('[100%] Built target lattice_gas.so' in compile_results)
+					# # if(compile_results[-1] == '\n'):
+						# # compile_results = compile_results[:-1]
+					# # compile_results = compile_results.split('\n')
+					# print(compile_results)
+					# print(nothing_done_in_recompile)
+					# input('ok')
+					# # nothing_done_in_recompile = (('[100%] Built target lattice_gas.so' in [compile_results[i] for i in [-1, -2]]) and (len(compile_results) <= 2))
+				# except Exception as raised_error:
+					# print('WARNING:')
+					# print(raised_error)
+					# print('Complilation did not succeed, trying to import the existing lib, tmp_mode = %d' % tmp_mode)
+					# compile_results = ['None']
+					# nothing_done_in_recompile = True
 				
-			else:
-				compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True).split('\n')
-				nothing_done_in_recompile = np.any(np.array([('ninja: no work to do.' in s) for s in compile_results]))
+			# else:
+				# compile_results = my.run_it('cmake --build . --target %s.so -j 9' % (filebase), check=True).split('\n')
+				# nothing_done_in_recompile = np.any(np.array([('ninja: no work to do.' in s) for s in compile_results]))
 			
 			N_recompile_log_lines = len(compile_results)
 			assert(N_recompile_log_lines > 0), 'ERROR: nothing printed by make'
@@ -433,58 +458,58 @@ def mark_PB_plot(ax, ax_log, ax_sgm, ax_erfinv, ax_F_sgm, ax_F_erfinv, \
 		if(ax_erfinv is not None):
 			ax_erfinv.plot([0] * 2, [min(PB_erfinv), max(PB_erfinv)], '--', label='$m = 0$')
 
-def center_crd(x, L):
-	r2 = np.empty(L)
-	for i in range(L):
-		r2[i] = np.std(np.mod(x + i, L))
-
-	return np.argmin(r2), r2
-
 def draw_state_crds(x_crds, y_crds, to_show=False, ax=None, title=None):
 	if(ax is None):
 		fig, ax, _ = my.get_fig('x', 'y', title=title)
-
+	
 	ax.scatter(x_crds, y_crds)
-
+	
 	if(to_show):
 		plt.show()
 
 def draw_state(state, to_show=False, ax=None, title=None):
 	L = state.shape[0]
 	assert(state.shape[1] == L)
-
+	
 	if(ax is None):
 		fig, ax, _ = my.get_fig('x', 'y', title=title)
-
+	
 	ax.imshow(state)
-
+	
 	if(to_show):
 		plt.show()
+
+def center_crd(x, L):
+	r2 = np.empty(L)
+	for i in range(L):
+		r2[i] = np.std(np.mod(x + i, L))
+	
+	return np.argmin(r2), r2
 
 def center_cluster(inds, L):
 	L2 = L*L
 	N = len(inds)
-
+	
 	state = np.zeros(L2)
 	state[inds] = 1
 	state = state.reshape((L, L))
 	x_crds = np.where(np.any(state, axis=0))[0]
 	y_crds = np.where(np.any(state, axis=1))[0]
-
+	
 	x_shift_to1image, _ = center_crd(x_crds, L)
 	y_shift_to1image, _ = center_crd(y_crds, L)
-
+	
 	crds = np.empty((N, 2))
-
+	
 	crds[:, 0] = np.mod(inds % L + x_shift_to1image, L)
 	crds[:, 1] = np.mod(inds // L + y_shift_to1image, L)
-
+	
 	x_cm = np.mean(crds[:, 0])
 	y_cm = np.mean(crds[:, 1])
-
+	
 	crds[:, 0] = crds[:, 0] - x_cm
 	crds[:, 1] = crds[:, 1] - y_cm
-
+	
 	return crds, x_shift_to1image, y_shift_to1image, x_cm, y_cm
 
 def center_state_by_cluster(state, cluster_inds, \
@@ -494,12 +519,12 @@ def center_state_by_cluster(state, cluster_inds, \
 	assert(state.shape[1] == L)
 	L2 = L*L
 	N = len(cluster_inds)
-
+	
 	cluster_centered0_crds = None
 	if(x_shift_to1image is None):
 		cluster_centered0_crds, x_shift_to1image, y_shift_to1image, x_cm, y_cm = \
 			center_cluster(cluster_inds, L)
-
+	
 	species_crds = [[]] * N_species
 	for i in range(N_species):
 		specie_inds = np.where(state.flatten() == i)[0]
@@ -507,7 +532,7 @@ def center_state_by_cluster(state, cluster_inds, \
 		species_crds[i][:, 0] = np.mod(specie_inds % L + x_shift_to1image - x_cm + L/2, L)
 		species_crds[i][:, 1] = np.mod(specie_inds // L + y_shift_to1image - y_cm + L/2, L)
 		#draw_state_crds(species_crds[i][:, 0], species_crds[i][:, 1], to_show=True)
-
+	
 	return species_crds, cluster_centered0_crds
 
 def keep_new_npz_file(filepath_olds, filepath_new):
@@ -2473,6 +2498,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 				if(to_save_npz):
 					print('writing', npz_states_filepath)
 					
+					#with open(filename, 'wb') as f:
 					pickle.dump({'OP_grouped_states' : OP_grouped_states, \
 							'maxclust_ind' : maxclust_ind, \
 							'max_cluster_1st_ind_id' : max_cluster_1st_ind_id, \
@@ -2511,44 +2537,46 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 			else:
 				print(npz_states_filepath, 'loading')
 				#npz_data = np.load(npz_states_filepath, allow_pickle=True)
-				pickle_data = pickle.load(open(npz_states_filepath, 'rb'))
-				
-				OP_grouped_states = pickle_data['OP_grouped_states']
-				maxclust_ind = pickle_data['maxclust_ind']
-				max_cluster_1st_ind_id = pickle_data['max_cluster_1st_ind_id']
-				max_cluster_site_inds = pickle_data['max_cluster_site_inds']
-				cluster_sizes = pickle_data['cluster_sizes']
-				cluster_centered_crds = pickle_data['cluster_centered_crds']
-				state_centered_crds = pickle_data['state_centered_crds']
-				cluster_centered_crds_per_interface = pickle_data['cluster_centered_crds_per_interface']
-				state_centered_crds_per_interface = pickle_data['state_centered_crds_per_interface']
-				cluster_centered_crds_all = pickle_data['cluster_centered_crds_all']
-				cluster_map_edges = pickle_data['cluster_map_edges']
-				cluster_Rdens_edges = pickle_data['cluster_Rdens_edges']
-				cluster_map_centers = pickle_data['cluster_map_centers']
-				state_map_edges = pickle_data['state_map_edges']
-				state_Rdens_edges = pickle_data['state_Rdens_edges']
-				state_map_centers = pickle_data['state_map_centers']
-				cluster_centered_maps = pickle_data['cluster_centered_maps']
-				cluster_centered_Rdens_s = pickle_data['cluster_centered_Rdens_s']
-				d_cluster_centered_map_total = pickle_data['d_cluster_centered_map_total']
-				state_centered_map_total = pickle_data['state_centered_map_total']
-				state_centered_maps = pickle_data['state_centered_maps']
-				state_centered_Rdens_s = pickle_data['state_centered_Rdens_s']
-				d_state_centered_map = pickle_data['d_state_centered_map']
-				cluster_Rdens_centers = pickle_data['cluster_Rdens_centers']
-				cluster_centered_Rdens_total = pickle_data['cluster_centered_Rdens_total']
-				d_cluster_centered_Rdens_total = pickle_data['d_cluster_centered_Rdens_total']
-				cluster_centered_map_total = pickle_data['cluster_centered_map_total']
-				cluster_map_centers = pickle_data['cluster_map_centers']
-				state_Rdens_centers = pickle_data['state_Rdens_centers']
-				state_centered_Rdens_total = pickle_data['state_centered_Rdens_total']
-				d_state_centered_Rdens = pickle_data['d_state_centered_Rdens']
-				rho_fourier2D = pickle_data['rho_fourier2D']
-				rho_avg = pickle_data['rho_inf']
-				d_rho_avg = pickle_data['d_rho_inf']
-				
-				pickle_data = None
+				with open(npz_states_filepath, 'rb') as file:
+					#pickle_data = pickle.load(open(npz_states_filepath, 'rb'))
+					pickle_data = pickle.load(file)
+					
+					OP_grouped_states = pickle_data['OP_grouped_states']
+					maxclust_ind = pickle_data['maxclust_ind']
+					max_cluster_1st_ind_id = pickle_data['max_cluster_1st_ind_id']
+					max_cluster_site_inds = pickle_data['max_cluster_site_inds']
+					cluster_sizes = pickle_data['cluster_sizes']
+					cluster_centered_crds = pickle_data['cluster_centered_crds']
+					state_centered_crds = pickle_data['state_centered_crds']
+					cluster_centered_crds_per_interface = pickle_data['cluster_centered_crds_per_interface']
+					state_centered_crds_per_interface = pickle_data['state_centered_crds_per_interface']
+					cluster_centered_crds_all = pickle_data['cluster_centered_crds_all']
+					cluster_map_edges = pickle_data['cluster_map_edges']
+					cluster_Rdens_edges = pickle_data['cluster_Rdens_edges']
+					cluster_map_centers = pickle_data['cluster_map_centers']
+					state_map_edges = pickle_data['state_map_edges']
+					state_Rdens_edges = pickle_data['state_Rdens_edges']
+					state_map_centers = pickle_data['state_map_centers']
+					cluster_centered_maps = pickle_data['cluster_centered_maps']
+					cluster_centered_Rdens_s = pickle_data['cluster_centered_Rdens_s']
+					d_cluster_centered_map_total = pickle_data['d_cluster_centered_map_total']
+					state_centered_map_total = pickle_data['state_centered_map_total']
+					state_centered_maps = pickle_data['state_centered_maps']
+					state_centered_Rdens_s = pickle_data['state_centered_Rdens_s']
+					d_state_centered_map = pickle_data['d_state_centered_map']
+					cluster_Rdens_centers = pickle_data['cluster_Rdens_centers']
+					cluster_centered_Rdens_total = pickle_data['cluster_centered_Rdens_total']
+					d_cluster_centered_Rdens_total = pickle_data['d_cluster_centered_Rdens_total']
+					cluster_centered_map_total = pickle_data['cluster_centered_map_total']
+					cluster_map_centers = pickle_data['cluster_map_centers']
+					state_Rdens_centers = pickle_data['state_Rdens_centers']
+					state_centered_Rdens_total = pickle_data['state_centered_Rdens_total']
+					d_state_centered_Rdens = pickle_data['d_state_centered_Rdens']
+					rho_fourier2D = pickle_data['rho_fourier2D']
+					rho_avg = pickle_data['rho_inf']
+					d_rho_avg = pickle_data['d_rho_inf']
+					
+					pickle_data = None
 				
 			if(to_plot_states_densities):
 				plot_states_maps(get_ThL_lbl(e, mu, init_composition, L, MC_move_mode), \
@@ -6581,6 +6609,7 @@ def main():
 	# python run.py -mode BF_AB_collection -Nt 150000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.011693 0.010179 0.011837 0.010678 0.01198 0.011177 0.012124 0.011676 0.012267 0.012175 0.012411 0.012674 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -OP_max 150 -timeevol_stride 2000 -to_recomp 1 -verbose 1 -to_plot 1 -to_plot_legend 1 -font_mode present
 	
 	# python run.py -mode FFS_AB -L 300 -to_get_timeevol 0 -N_states_FFS 50 -N_init_states_FFS 100 -e -2.680103 -1.340051 -1.715266 -MC_move_mode long_swap -init_composition 0.0126 0.0132 -OP_interfaces_set_IDs nvt29  -to_plot 0 -to_show_on_screen 0 -my_seeds 1014 -to_post_proc 1 -Temp 1.0 -to_recomp 0 -Dtop_Nruns 1000 -CStest_Nruns 100 -CStest_interfaces_inds_to_test top
+	# python run_tmp2.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103
 	
 	# TODO: run failed IDs with longer times
 	

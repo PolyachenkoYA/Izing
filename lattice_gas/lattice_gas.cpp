@@ -2136,7 +2136,7 @@ namespace lattice_gas
 
 	void print_E(const double *E, long Nt, char prefix, char suffix)
     {
-        if(prefix > 0) printf("Es:  %c\n", prefix);
+        if(prefix > 0) printf("Es :  %c\n", prefix);
         for(int i = 0; i < Nt; ++i) printf("%lf ", E[i]);
         if(suffix > 0) printf("%c", suffix);
     }

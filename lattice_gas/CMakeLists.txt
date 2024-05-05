@@ -13,16 +13,22 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O3")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 set(MATH_LIBS m gsl gslcblas)
-set(PY_LIBS crypt pthread dl util rt python3.9)
+#set(PY_LIBS crypt pthread dl util rt python3.9)
+set(PY_LIBS crypt pthread dl util rt python3.8)
 #set(PY_LIBS crypt pthread dl util rt python3)
 # specific python version (e.g. 3.9 but not just 3) is necessary
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 #message(STATUS "${Python_EXECUTABLE}")
-include_directories($ENV{HOME}/anaconda3/include)
+
+#include_directories($ENV{HOME}/anaconda3/include)
 #include_directories($ENV{HOME}/anaconda3/include/python3.8)
-link_directories($ENV{HOME}/anaconda3/lib)
-link_directories($ENV{HOME}/anaconda3/lib/python3.9/config-3.9-x86_64-linux-gnu)
+include_directories($ENV{HOME}/.conda/envs/fast-mpi4py/include)
+
+#link_directories($ENV{HOME}/anaconda3/lib)
+#link_directories($ENV{HOME}/anaconda3/lib/python3.9/config-3.9-x86_64-linux-gnu)
+link_directories($ENV{HOME}/.conda/envs/fast-mpi4py/lib)
+link_directories($ENV{HOME}/.conda/envs/fast-mpi4py/lib/python3.8/config-3.8-x86_64-linux-gnu)
 
 find_package(pybind11 REQUIRED)
 add_executable(lattice_gas main.cpp lattice_gas.h lattice_gas.cpp)
