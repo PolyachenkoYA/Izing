@@ -276,7 +276,7 @@ def flip_OP(OP, L2, interface_mode):
 	elif(interface_mode == 'CS'):
 		return L2 - np.flip(OP)
 
-def get_sigmoid_fit(PB, d_PB, OP, sgm_fnc, sgminv_fnc, d_sgm_fnc=None, d_sgminv_fnc=None, sgminv_dx=1e-5, fit_w=None, bad_points_mult=1.1):
+def get_sigmoid_fit(PB, d_PB, OP, sgm_fnc, sgminv_fnc, d_sgm_fnc=None, d_sgminv_fnc=None, sgminv_dx=1e-5, fit_w=None, bad_points_mult=1.1, dim=2):
 	#ok_inds = (PB < 1) & (d_PB > 0)
 	ok_inds = (PB < 1)
 	N_OP = len(OP)
@@ -310,7 +310,7 @@ def get_sigmoid_fit(PB, d_PB, OP, sgm_fnc, sgminv_fnc, d_sgm_fnc=None, d_sgminv_
 	#F_from_PB_sigmoid = np.log(np.sqrt(OP[ok_inds]) * lin_interp(OP[ok_inds], 1) * d_sgm_fnc(PB_sigmoid[ok_inds]))
 	F_from_PB_sigmoid_fnc = \
 		lambda x_Ncl, sgm_lin_interp=sgm_lin_interp, d_sgm_fnc=d_sgm_fnc: \
-					np.log(np.sqrt(x_Ncl) * sgm_lin_interp(x_Ncl, 1) * d_sgm_fnc(sgm_lin_interp(x_Ncl)))
+					np.log((x_Ncl**(1 - 1/dim)) * sgm_lin_interp(x_Ncl, 1) * d_sgm_fnc(sgm_lin_interp(x_Ncl)))
 	#F_from_PB_sigmoid -= F_from_PB_sigmoid[0]
 	
 	return PB_sigmoid, d_PB_sigmoid, linfit, linfit_inds, OP0, sgm_lin_interp, F_from_PB_sigmoid_fnc
@@ -1581,21 +1581,35 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	#P_B_x0_opt = P_B_opt.x[0]
 	#P_B_s_opt = P_B_opt.x[1]
 	#Nc_0 = table_data.Nc_reference_data[str(Temp)] if(str(Temp) in table_data.Nc_reference_data) else None
-	P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, P_B_sigmoid_lininterp, F_from_P_B_sigmoid_fnc = \
-		get_sigmoid_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
+	# P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, P_B_sigmoid_lininterp, F_from_P_B_sigmoid_fnc = \
+		# get_sigmoid_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
+						# sgm_fnc=lambda x: 1 / (1 + np.exp(-x)), \
+						# sgminv_fnc=lambda y: -np.log(1/y - 1), \
+						# d_sgm_fnc=lambda x: 0.5 / (1 + np.cosh(x)), \
+						# d_sgminv_fnc=lambda y, x: 1/(y*(1-y)))
+	P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, _, P_B_sigmoid_lininterp, F_from_P_B_sigmoid_fnc = \
+		my.get_sigmoid_committor_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
 						sgm_fnc=lambda x: 1 / (1 + np.exp(-x)), \
-						sgminv_fnc=lambda x: -np.log(1/x - 1), \
-						d_sgm_fnc=lambda x: 0.5 / (1 + np.cosh(x)), \
-						d_sgminv_fnc=lambda x, y: 1/(x*(1-x)))
+						sgminv_fnc=lambda y: -np.log(1/y - 1), \
+						d_sgm_fnc=lambda x, y: (0.5/(1+np.cosh(x)) if(y is None) else y*(y-1)), \
+						fit_w=-0.2, fit_region='center', dim=2)
+#						d_sgminv_fnc=lambda y, x: 1/(y*(1-y)), \
 	
-	P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, P_B_erfinv_lininterp, F_from_P_B_erfinv_fnc = \
-		get_sigmoid_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
+	# P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, P_B_erfinv_lininterp, F_from_P_B_erfinv_fnc = \
+		# get_sigmoid_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
+						# sgm_fnc=lambda x: (scipy.special.erf(x) + 1) / 2, \
+						# sgminv_fnc=lambda y: scipy.special.erfinv(2 * y - 1), \
+						# d_sgm_fnc=lambda x: np.exp(-x**2) / (2 * np.sqrt(np.pi)), \
+						# d_sgminv_fnc=lambda y, x: np.exp(x**2) * np.sqrt(np.pi))
+	P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, P_B_width, P_B_erfinv_lininterp, F_from_P_B_erfinv_fnc = \
+		my.get_sigmoid_committor_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
 						sgm_fnc=lambda x: (scipy.special.erf(x) + 1) / 2, \
-						sgminv_fnc=lambda x: scipy.special.erfinv(2 * x - 1), \
+						sgminv_fnc=lambda y: scipy.special.erfinv(2 * y - 1), \
 						d_sgm_fnc=lambda x: np.exp(-x**2) / (2 * np.sqrt(np.pi)), \
-						d_sgminv_fnc=lambda x, y: np.exp(y**2) * np.sqrt(np.pi))
+						fit_w=-0.2, fit_region='center', dim=2)
+#						d_sgminv_fnc=lambda y, x: np.exp(x**2) * np.sqrt(np.pi), \
 	ZeldovichG = linfit_erfinv[0] / np.sqrt(np.pi)
-	P_B_width = 1 / linfit_erfinv[0]
+	#P_B_width = 1 / linfit_erfinv[0]
 	
 	#print('ZG =', ZeldovichG)
 	#print('OP0 =', OP0_erfinv)
@@ -6609,7 +6623,7 @@ def main():
 	# python run.py -mode BF_AB_collection -Nt 150000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.011693 0.010179 0.011837 0.010678 0.01198 0.011177 0.012124 0.011676 0.012267 0.012175 0.012411 0.012674 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -OP_max 150 -timeevol_stride 2000 -to_recomp 1 -verbose 1 -to_plot 1 -to_plot_legend 1 -font_mode present
 	
 	# python run.py -mode FFS_AB -L 300 -to_get_timeevol 0 -N_states_FFS 50 -N_init_states_FFS 100 -e -2.680103 -1.340051 -1.715266 -MC_move_mode long_swap -init_composition 0.0126 0.0132 -OP_interfaces_set_IDs nvt29  -to_plot 0 -to_show_on_screen 0 -my_seeds 1014 -to_post_proc 1 -Temp 1.0 -to_recomp 0 -Dtop_Nruns 1000 -CStest_Nruns 100 -CStest_interfaces_inds_to_test top
-	# python run_tmp2.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103
+	# python run_tmp1.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103
 	
 	# TODO: run failed IDs with longer times
 	
