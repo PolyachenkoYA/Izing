@@ -1,0 +1,334 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 13.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[     10611,        324]
+NotebookOptionsPosition[      9719,        301]
+NotebookOutlinePosition[     10117,        317]
+CellTagsIndexPosition[     10074,        314]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"p_", ",", "n_"}], "]"}], ":=", 
+   RowBox[{
+    RowBox[{"p", "^", 
+     RowBox[{"(", 
+      RowBox[{"p", "*", "n"}], ")"}]}], "*", 
+    RowBox[{
+     RowBox[{"(", 
+      RowBox[{"1", "-", "p"}], ")"}], "^", 
+     RowBox[{"(", 
+      RowBox[{"n", "*", 
+       RowBox[{"(", 
+        RowBox[{"1", "-", "p"}], ")"}]}], ")"}]}], "*", 
+    RowBox[{"Binomial", "[", 
+     RowBox[{"n", ",", 
+      RowBox[{"n", "*", "p"}]}], "]"}]}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Series", "[", 
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"p", ",", "n"}], "]"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"p", ",", "0", ",", "1"}], "}"}]}], "]"}]}], "Input",
+ CellChangeTimes->{{3.91885533990729*^9, 3.918855467173252*^9}},
+ CellLabel->"In[4]:=",ExpressionUUID->"22bcfd77-6378-45fc-b973-17f911ee2d3b"],
+
+Cell[BoxData[
+ InterpretationBox[
+  RowBox[{"1", "+", 
+   RowBox[{
+    RowBox[{"(", 
+     RowBox[{
+      RowBox[{"-", "n"}], "+", 
+      RowBox[{"EulerGamma", " ", "n"}], "+", 
+      RowBox[{"n", " ", 
+       RowBox[{"Log", "[", "p", "]"}]}], "+", 
+      RowBox[{"n", " ", 
+       RowBox[{"PolyGamma", "[", 
+        RowBox[{"0", ",", 
+         RowBox[{"1", "+", "n"}]}], "]"}]}]}], ")"}], " ", "p"}], "+", 
+   InterpretationBox[
+    SuperscriptBox[
+     RowBox[{"O", "[", "p", "]"}], "2"],
+    SeriesData[$CellContext`p, 0, {}, 0, 2, 1],
+    Editable->False]}],
+  SeriesData[$CellContext`p, 0, {
+   1, -$CellContext`n + 
+    EulerGamma $CellContext`n + $CellContext`n 
+     Log[$CellContext`p] + $CellContext`n PolyGamma[0, 1 + $CellContext`n]}, 
+   0, 2, 1],
+  Editable->False]], "Output",
+ CellChangeTimes->{3.9188554184011908`*^9, 3.918855467602413*^9},
+ CellLabel->"Out[5]=",ExpressionUUID->"6907b85a-3e0e-4b32-bf06-1448111e89f5"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{"f2", "[", 
+    RowBox[{"r_", ",", "v_", ",", "n_", ",", "v2_"}], "]"}], ":=", 
+   RowBox[{
+    RowBox[{"(", 
+     RowBox[{
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{"v", "*", 
+         RowBox[{"r", "/", "n"}]}], ")"}], "^", "n"}], "*", 
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{"(", 
+          RowBox[{"1", "-", 
+           RowBox[{"v", "/", "v2"}]}], ")"}], "/", 
+         RowBox[{"(", 
+          RowBox[{"1", "-", 
+           RowBox[{"n", "/", 
+            RowBox[{"(", 
+             RowBox[{"r", "*", "v2"}], ")"}]}]}], ")"}]}], ")"}], "^", 
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{"r", "*", "v2"}], "-", "n"}], ")"}]}]}], ")"}], "/", 
+    RowBox[{"Sqrt", "[", 
+     RowBox[{"2", "*", "Pi", "*", "n", "*", 
+      RowBox[{"(", 
+       RowBox[{"1", "-", 
+        RowBox[{"n", "/", 
+         RowBox[{"(", 
+          RowBox[{"r", "*", "v2"}], ")"}]}]}], ")"}]}], "]"}]}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"ass", "=", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"r", ">", "0"}], ",", 
+     RowBox[{"v", ">", "0"}], ",", 
+     RowBox[{"n", ">", "0"}]}], "}"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"f2", "[", 
+  RowBox[{"r", ",", "v", ",", "n", ",", "v2"}], 
+  "]"}], "\[IndentingNewLine]", 
+ RowBox[{"Series", "[", 
+  RowBox[{
+   RowBox[{"f2", "[", 
+    RowBox[{"r", ",", "v", ",", "n", ",", "v2"}], "]"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"v2", ",", "Infinity", ",", "1"}], "}"}], ",", 
+   RowBox[{"Assumptions", "\[Rule]", "ass"}]}], 
+  "]"}], "\[IndentingNewLine]", 
+ RowBox[{"Series", "[", 
+  RowBox[{
+   RowBox[{"Log", "[", 
+    RowBox[{"f2", "[", 
+     RowBox[{"r", ",", "v", ",", "n", ",", "v2"}], "]"}], "]"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"v2", ",", "Infinity", ",", "1"}], "}"}], ",", 
+   RowBox[{"Assumptions", "\[Rule]", "ass"}]}], "]"}]}], "Input",
+ CellChangeTimes->{{3.918857882256289*^9, 3.918858134498829*^9}, {
+  3.918858209997588*^9, 3.918858211800963*^9}, {3.918858349790246*^9, 
+  3.918858433022873*^9}},
+ CellLabel->"In[23]:=",ExpressionUUID->"c6f66c4e-fe6c-4e92-b3f3-2061cc283c8e"],
+
+Cell[BoxData[
+ FractionBox[
+  RowBox[{
+   SuperscriptBox[
+    RowBox[{"(", 
+     FractionBox[
+      RowBox[{"r", " ", "v"}], "n"], ")"}], "n"], " ", 
+   SuperscriptBox[
+    RowBox[{"(", 
+     FractionBox[
+      RowBox[{"1", "-", 
+       FractionBox["v", "v2"]}], 
+      RowBox[{"1", "-", 
+       FractionBox["n", 
+        RowBox[{"r", " ", "v2"}]]}]], ")"}], 
+    RowBox[{
+     RowBox[{"-", "n"}], "+", 
+     RowBox[{"r", " ", "v2"}]}]]}], 
+  RowBox[{
+   SqrtBox[
+    RowBox[{"2", " ", "\[Pi]"}]], " ", 
+   SqrtBox[
+    RowBox[{"n", " ", 
+     RowBox[{"(", 
+      RowBox[{"1", "-", 
+       FractionBox["n", 
+        RowBox[{"r", " ", "v2"}]]}], ")"}]}]]}]]], "Output",
+ CellChangeTimes->{{3.918858105411478*^9, 3.918858135106193*^9}, 
+   3.918858212215884*^9, 3.918858350203516*^9, 3.918858380746932*^9, 
+   3.9188584333109713`*^9},
+ CellLabel->"Out[25]=",ExpressionUUID->"9537437b-47cb-49e5-98be-a219b7d54d96"],
+
+Cell[BoxData[
+ InterpretationBox[
+  RowBox[{
+   FractionBox[
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"r", " ", 
+       RowBox[{"(", 
+        RowBox[{
+         FractionBox["n", "r"], "-", "v"}], ")"}]}]], " ", 
+     SuperscriptBox[
+      RowBox[{"(", 
+       FractionBox[
+        RowBox[{"r", " ", "v"}], "n"], ")"}], "n"]}], 
+    RowBox[{
+     SqrtBox["n"], " ", 
+     SqrtBox[
+      RowBox[{"2", " ", "\[Pi]"}]]}]], "-", 
+   FractionBox[
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"r", " ", 
+       RowBox[{"(", 
+        RowBox[{
+         FractionBox["n", "r"], "-", "v"}], ")"}]}]], " ", 
+     SuperscriptBox[
+      RowBox[{"(", 
+       FractionBox[
+        RowBox[{"r", " ", "v"}], "n"], ")"}], "n"], " ", 
+     RowBox[{"(", 
+      RowBox[{
+       RowBox[{"-", "n"}], "+", 
+       SuperscriptBox["n", "2"], "-", 
+       RowBox[{"2", " ", "n", " ", "r", " ", "v"}], "+", 
+       RowBox[{
+        SuperscriptBox["r", "2"], " ", 
+        SuperscriptBox["v", "2"]}]}], ")"}]}], 
+    RowBox[{"2", " ", 
+     RowBox[{"(", 
+      RowBox[{
+       SqrtBox["n"], " ", 
+       SqrtBox[
+        RowBox[{"2", " ", "\[Pi]"}]], " ", "r"}], ")"}], " ", "v2"}]], "+", 
+   InterpretationBox[
+    SuperscriptBox[
+     RowBox[{"O", "[", 
+      FractionBox["1", "v2"], "]"}], "2"],
+    SeriesData[$CellContext`v2, 
+     DirectedInfinity[1], {}, 0, 2, 1],
+    Editable->False]}],
+  SeriesData[$CellContext`v2, 
+   DirectedInfinity[1], {
+   E^($CellContext`r ($CellContext`n/$CellContext`r - $CellContext`v)) \
+$CellContext`n^Rational[-1, 2] (2 Pi)^
+     Rational[-1, 
+       2] ($CellContext`n^(-1) $CellContext`r $CellContext`v)^$CellContext`n, 
+    Rational[-1, 2] 
+    E^($CellContext`r ($CellContext`n/$CellContext`r - $CellContext`v)) \
+$CellContext`n^Rational[-1, 2] (2 Pi)^
+     Rational[-1, 
+       2] $CellContext`r^(-1) ($CellContext`n^(-1) $CellContext`r \
+$CellContext`v)^$CellContext`n (-$CellContext`n + $CellContext`n^2 - 
+     2 $CellContext`n $CellContext`r $CellContext`v + $CellContext`r^2 \
+$CellContext`v^2)}, 0, 2, 1],
+  Editable->False]], "Output",
+ CellChangeTimes->{{3.918858105411478*^9, 3.918858135106193*^9}, 
+   3.918858212215884*^9, 3.918858350203516*^9, 3.918858380746932*^9, 
+   3.9188584333353148`*^9},
+ CellLabel->"Out[26]=",ExpressionUUID->"7687ecea-4117-4884-a113-86f1ac77c1af"],
+
+Cell[BoxData[
+ InterpretationBox[
+  RowBox[{
+   RowBox[{
+    FractionBox["1", "2"], " ", 
+    RowBox[{"(", 
+     RowBox[{
+      RowBox[{"2", " ", "n"}], "-", 
+      RowBox[{"2", " ", "r", " ", "v"}], "-", 
+      RowBox[{"Log", "[", "2", "]"}], "-", 
+      RowBox[{"Log", "[", "n", "]"}], "-", 
+      RowBox[{"2", " ", "n", " ", 
+       RowBox[{"Log", "[", "n", "]"}]}], "-", 
+      RowBox[{"Log", "[", "\[Pi]", "]"}], "+", 
+      RowBox[{"2", " ", "n", " ", 
+       RowBox[{"Log", "[", "r", "]"}]}], "+", 
+      RowBox[{"2", " ", "n", " ", 
+       RowBox[{"Log", "[", "v", "]"}]}]}], ")"}]}], "-", 
+   FractionBox[
+    RowBox[{
+     SuperscriptBox["n", "2"], "+", 
+     RowBox[{
+      SuperscriptBox["r", "2"], " ", 
+      SuperscriptBox["v", "2"]}], "-", 
+     RowBox[{"n", " ", 
+      RowBox[{"(", 
+       RowBox[{"1", "+", 
+        RowBox[{"2", " ", "r", " ", "v"}]}], ")"}]}]}], 
+    RowBox[{"2", " ", "r", " ", "v2"}]], "+", 
+   InterpretationBox[
+    SuperscriptBox[
+     RowBox[{"O", "[", 
+      FractionBox["1", "v2"], "]"}], "2"],
+    SeriesData[$CellContext`v2, 
+     DirectedInfinity[1], {}, 0, 2, 1],
+    Editable->False]}],
+  SeriesData[$CellContext`v2, 
+   DirectedInfinity[1], {
+   Rational[1, 2] (2 $CellContext`n - 2 $CellContext`r $CellContext`v - Log[
+     2] - Log[$CellContext`n] - 2 $CellContext`n Log[$CellContext`n] - Log[
+     Pi] + 2 $CellContext`n Log[$CellContext`r] + 
+     2 $CellContext`n Log[$CellContext`v]), 
+    Rational[-1, 
+      2] $CellContext`r^(-1) ($CellContext`n^2 + $CellContext`r^2 \
+$CellContext`v^2 - $CellContext`n (1 + 2 $CellContext`r $CellContext`v))}, 0, 
+   2, 1],
+  Editable->False]], "Output",
+ CellChangeTimes->{{3.918858105411478*^9, 3.918858135106193*^9}, 
+   3.918858212215884*^9, 3.918858350203516*^9, 3.918858380746932*^9, 
+   3.91885843339715*^9},
+ CellLabel->"Out[27]=",ExpressionUUID->"3cddb32e-fa33-4d1c-8a50-d609d5c3bf45"]
+}, Open  ]]
+},
+WindowSize->{606., 659.25},
+WindowMargins->{{363, Automatic}, {48, Automatic}},
+FrontEndVersion->"13.0 for Linux x86 (64-bit) (February 4, 2022)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"d4a2a355-48f9-4b35-9d74-244ad4ce6e25"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 855, 26, 51, "Input",ExpressionUUID->"22bcfd77-6378-45fc-b973-17f911ee2d3b"],
+Cell[1438, 50, 934, 26, 33, "Output",ExpressionUUID->"6907b85a-3e0e-4b32-bf06-1448111e89f5"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[2409, 81, 2140, 63, 155, "Input",ExpressionUUID->"c6f66c4e-fe6c-4e92-b3f3-2061cc283c8e"],
+Cell[4552, 146, 911, 30, 82, "Output",ExpressionUUID->"9537437b-47cb-49e5-98be-a219b7d54d96"],
+Cell[5466, 178, 2346, 68, 68, "Output",ExpressionUUID->"7687ecea-4117-4884-a113-86f1ac77c1af"],
+Cell[7815, 248, 1888, 50, 109, "Output",ExpressionUUID->"3cddb32e-fa33-4d1c-8a50-d609d5c3bf45"]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)
+
