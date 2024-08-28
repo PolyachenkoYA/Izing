@@ -78,6 +78,26 @@ OP_interfaces_table['nvt']      = np.array([12, 16, 20, 24, 28, 32, 36, 40, 44, 
 OP_interfaces_table['nvtFixed'] = np.array([12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 65, 70, 75, 80, 85, 90, 95, 101, 107, 115, 125], dtype=int)
 OP_interfaces_table['nvtBig'] = np.array([12, 17, 22, 27, 32, 37, 42, 47, 52, 57, 62, 67, 72, 77, 82, 87, 92, 97, 105, 115, 130, 150], dtype=int)
 
+OP_BF_hist_edges_table = {}
+OP_BF_hist_edges_table['mu1'] = np.array([[25, 35, 45, 55, 65, 75, 85, 95, 105, 115, 125, 135, 145], \
+										  [28, 38, 48, 58, 68, 78, 88, 98, 108, 118, 128, 138, 148]], \
+										dtype=int)
+OP_BF_hist_edges_table['mu2'] = np.array([[40, 60], \
+										  [60, 80]], \
+										dtype=int)
+OP_BF_hist_edges_table['mu3'] = np.array([list(range(40, 80, 2)), \
+										  list(range(42, 82, 2))], \
+										dtype=int)
+OP_BF_hist_edges_table['mu4'] = np.array([[40, 50, 60, 70], \
+										  [50, 60, 70, 80]], \
+										dtype=int)
+OP_BF_hist_edges_table['mu5'] = np.array([[51, 53, 55, 59, 61], \
+										  [53, 55, 57, 61, 63]], \
+										dtype=int)
+OP_BF_hist_edges_table['mu6'] = np.array([[40, 42, 44, 46, 48], \
+										  [42, 44, 46, 48, 50]], \
+										dtype=int)
+
 n144h_FFS_dict = {'swap' : {'0.8': {'0.014': 21*6, '0.0145': 19*6, '0.015' : 19*6, '0.0155': 24*6, '0.016': 22*6}, \
 		  '0.85': {'0.014': 214, '0.0145': 266, '0.015': 274, '0.0155': 297, '0.016': 309}, \
 		  '0.9': {'0.014': 23*6, '0.0145': 25*6, '0.015' : 27*6, '0.0155': 28*6, '0.016': 31*6}, \

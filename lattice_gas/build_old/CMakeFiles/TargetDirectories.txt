@@ -1,0 +1,4 @@
+/home/yp1065/Izing/lattice_gas/build/CMakeFiles/lattice_gas.dir
+/home/yp1065/Izing/lattice_gas/build/CMakeFiles/lattice_gas.so.dir
+/home/yp1065/Izing/lattice_gas/build/CMakeFiles/edit_cache.dir
+/home/yp1065/Izing/lattice_gas/build/CMakeFiles/rebuild_cache.dir
