@@ -6624,6 +6624,7 @@ def main():
 	
 	# python run.py -mode FFS_AB -L 300 -to_get_timeevol 0 -N_states_FFS 50 -N_init_states_FFS 100 -e -2.680103 -1.340051 -1.715266 -MC_move_mode long_swap -init_composition 0.0126 0.0132 -OP_interfaces_set_IDs nvt29  -to_plot 0 -to_show_on_screen 0 -my_seeds 1014 -to_post_proc 1 -Temp 1.0 -to_recomp 0 -Dtop_Nruns 1000 -CStest_Nruns 100 -CStest_interfaces_inds_to_test top
 	# python run_tmp1.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103
+	# python run.py -mode BF_AB -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23
 	
 	# TODO: run failed IDs with longer times
 	
