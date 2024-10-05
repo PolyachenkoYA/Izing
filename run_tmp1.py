@@ -276,7 +276,7 @@ def flip_OP(OP, L2, interface_mode):
 	elif(interface_mode == 'CS'):
 		return L2 - np.flip(OP)
 
-def get_sigmoid_fit(PB, d_PB, OP, sgm_fnc, sgminv_fnc, d_sgm_fnc=None, d_sgminv_fnc=None, sgminv_dx=1e-5, fit_w=None, bad_points_mult=1.1):
+def get_sigmoid_fit(PB, d_PB, OP, sgm_fnc, sgminv_fnc, d_sgm_fnc=None, d_sgminv_fnc=None, sgminv_dx=1e-5, fit_w=None, bad_points_mult=1.1, dim=2):
 	#ok_inds = (PB < 1) & (d_PB > 0)
 	ok_inds = (PB < 1)
 	N_OP = len(OP)
@@ -310,7 +310,7 @@ def get_sigmoid_fit(PB, d_PB, OP, sgm_fnc, sgminv_fnc, d_sgm_fnc=None, d_sgminv_
 	#F_from_PB_sigmoid = np.log(np.sqrt(OP[ok_inds]) * lin_interp(OP[ok_inds], 1) * d_sgm_fnc(PB_sigmoid[ok_inds]))
 	F_from_PB_sigmoid_fnc = \
 		lambda x_Ncl, sgm_lin_interp=sgm_lin_interp, d_sgm_fnc=d_sgm_fnc: \
-					np.log(np.sqrt(x_Ncl) * sgm_lin_interp(x_Ncl, 1) * d_sgm_fnc(sgm_lin_interp(x_Ncl)))
+					np.log((x_Ncl**(1 - 1/dim)) * sgm_lin_interp(x_Ncl, 1) * d_sgm_fnc(sgm_lin_interp(x_Ncl)))
 	#F_from_PB_sigmoid -= F_from_PB_sigmoid[0]
 	
 	return PB_sigmoid, d_PB_sigmoid, linfit, linfit_inds, OP0, sgm_lin_interp, F_from_PB_sigmoid_fnc
@@ -573,6 +573,8 @@ def test_CS(MC_move_mode, L, e, mu, interface_mode, init_composition, \
 				OP_closest_to_OP0_ind=None, \
 				progress_print_stride=-1, \
 				CStest_interfaces_inds_to_test='top'):
+	assert(False), 'unsupported brunch'
+	
 	N_OP_interfaces = len(OP_interfaces)
 	
 	if(isinstance(CStest_interfaces_inds_to_test[0], str)):
@@ -678,6 +680,8 @@ def get_D_at_interface(MC_move_mode, L, e, mu, interface_mode, states, Nruns, \
 	
 	Dest, d_Dest = tuple([0] * 2)
 	Dest_data, d_Dest_data = tuple([None] * 2)
+	
+	# print('HIHI')
 	
 	if(Nruns > 0):
 		L2 = L**2
@@ -1581,21 +1585,35 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 	#P_B_x0_opt = P_B_opt.x[0]
 	#P_B_s_opt = P_B_opt.x[1]
 	#Nc_0 = table_data.Nc_reference_data[str(Temp)] if(str(Temp) in table_data.Nc_reference_data) else None
-	P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, P_B_sigmoid_lininterp, F_from_P_B_sigmoid_fnc = \
-		get_sigmoid_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
+	# P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, P_B_sigmoid_lininterp, F_from_P_B_sigmoid_fnc = \
+		# get_sigmoid_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
+						# sgm_fnc=lambda x: 1 / (1 + np.exp(-x)), \
+						# sgminv_fnc=lambda y: -np.log(1/y - 1), \
+						# d_sgm_fnc=lambda x: 0.5 / (1 + np.cosh(x)), \
+						# d_sgminv_fnc=lambda y, x: 1/(y*(1-y)))
+	P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, _, P_B_sigmoid_lininterp, F_from_P_B_sigmoid_fnc = \
+		my.get_sigmoid_committor_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
 						sgm_fnc=lambda x: 1 / (1 + np.exp(-x)), \
-						sgminv_fnc=lambda x: -np.log(1/x - 1), \
-						d_sgm_fnc=lambda x: 0.5 / (1 + np.cosh(x)), \
-						d_sgminv_fnc=lambda x, y: 1/(x*(1-x)))
+						sgminv_fnc=lambda y: -np.log(1/y - 1), \
+						d_sgm_fnc=lambda x, y: (0.5/(1+np.cosh(x)) if(y is None) else y*(y-1)), \
+						fit_w=-0.2, fit_region='center', dim=2)
+#						d_sgminv_fnc=lambda y, x: 1/(y*(1-y)), \
 	
-	P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, P_B_erfinv_lininterp, F_from_P_B_erfinv_fnc = \
-		get_sigmoid_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
+	# P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, P_B_erfinv_lininterp, F_from_P_B_erfinv_fnc = \
+		# get_sigmoid_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
+						# sgm_fnc=lambda x: (scipy.special.erf(x) + 1) / 2, \
+						# sgminv_fnc=lambda y: scipy.special.erfinv(2 * y - 1), \
+						# d_sgm_fnc=lambda x: np.exp(-x**2) / (2 * np.sqrt(np.pi)), \
+						# d_sgminv_fnc=lambda y, x: np.exp(x**2) * np.sqrt(np.pi))
+	P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, P_B_width, P_B_erfinv_lininterp, F_from_P_B_erfinv_fnc = \
+		my.get_sigmoid_committor_fit(P_B[:-1], d_P_B[:-1], OP_interfaces_scaled[:-1], \
 						sgm_fnc=lambda x: (scipy.special.erf(x) + 1) / 2, \
-						sgminv_fnc=lambda x: scipy.special.erfinv(2 * x - 1), \
-						d_sgm_fnc=lambda x: np.exp(-x**2) / (2 * np.sqrt(np.pi)), \
-						d_sgminv_fnc=lambda x, y: np.exp(y**2) * np.sqrt(np.pi))
+						sgminv_fnc=lambda y: scipy.special.erfinv(2 * y - 1), \
+						d_sgm_fnc=lambda x, y: np.exp(-x**2) / (2 * np.sqrt(np.pi)), \
+						fit_w=-0.2, fit_region='center', dim=2)
+#						d_sgminv_fnc=lambda y, x: np.exp(x**2) * np.sqrt(np.pi), \
 	ZeldovichG = linfit_erfinv[0] / np.sqrt(np.pi)
-	P_B_width = 1 / linfit_erfinv[0]
+	#P_B_width = 1 / linfit_erfinv[0]
 	
 	#print('ZG =', ZeldovichG)
 	#print('OP0 =', OP0_erfinv)
@@ -1694,6 +1712,7 @@ def proc_order_parameter_FFS(MC_move_mode, L, e, mu, flux0, d_flux0, probs, \
 			get_OP_parent_inds_OPexactly(OP_children_inds, well_interface_ind, OP_init_states_OPexactly_inds)
 	
 	# =========== estimate Dtop ==============
+	# print('HIHI')
 	Dtop, d_Dtop, _, _ = \
 		get_D_at_interface(MC_move_mode, L, e, mu, interface_mode, states, Dtop_Nruns, \
 						OP_init_states, OP_interfaces, OP_closest_to_OP0_ind, \
@@ -2287,6 +2306,8 @@ def proc_FFS_AB(MC_move_mode, L, e, mu, N_init_states, OP_interfaces, interface_
 		data['M'] = _M
 		data['CS'] = _CS
 		
+		# print('HIHI')
+		
 		ln_k_AB, d_ln_k_AB, P_B, d_P_B, \
 			P_B_sigmoid, d_P_B_sigmoid, linfit_sigmoid, linfit_sigmoid_inds, OP0_sigmoid, \
 			P_B_erfinv, d_P_B_erfinv, linfit_erfinv, linfit_erfinv_inds, OP0_erfinv, \
@@ -2353,6 +2374,104 @@ def exp2_integrate(fit2, x1):
 
 	return np.exp(c) / 2 * np.sqrt(np.pi / np.abs(a)) * (scipy.special.erfi(dx) if(a > 0) else scipy.special.erf(dx))
 
+def get_TP_inds(OP, times, OP_A, OP_B, \
+				OP_hist_edges=None, OP_hist=None, OP_hist_lens=None, \
+				rho=None, d_rho=None, L2=1):
+	Nt_stab = len(OP)
+
+	TPs = []
+	TPs_inds = []
+	TPs_types = []
+	current_state_ind = 0
+	TP_state_inds = np.zeros(Nt_stab, dtype=int)
+	TP_state_inds[OP >= OP_A] = 1
+	TP_state_inds[OP >= OP_B] = 2
+	TP_change_inds = [TP_state_inds[current_state_ind]]
+	
+	#fig1, ax1, _ = my.get_fig('t', 'CS')
+	#ax1.plot(np.cumsum())
+	
+	# print(Nt_stab, Nt_states)
+	# print('OP_A,B_b:', OP_A_byas, OP_B_byas)
+	# input('ok')
+	
+	while(current_state_ind < Nt_stab):
+		TP_next_inds = (TP_state_inds[current_state_ind + 1:] != TP_state_inds[current_state_ind])
+		if(np.any(TP_next_inds)):
+			d_state_ind = np.argmax(TP_next_inds) + 1
+			# print(d_state_ind, TP_change_inds[-1])
+		else:
+			# print('exit:', TP_state_inds[current_state_ind])
+			break
+		current_state_ind += d_state_ind
+		TP_change_inds.append(TP_state_inds[current_state_ind])
+		
+		if(TP_change_inds[-1] != 1):
+			if(len(TP_change_inds) > 2):
+				if(TP_change_inds[-1] != TP_change_inds[-3]):
+					TPs_inds.append([current_state_ind - d_state_ind, current_state_ind])
+					TPs.append(OP[current_state_ind - d_state_ind: current_state_ind])
+					TPs_types.append(TP_change_inds[-3])
+	TP_change_inds = np.array(TP_change_inds, dtype=int)
+	TPs_types = np.array(TPs_types, dtype=int)
+	TPs_inds = np.array(TPs_inds, dtype=int)
+	N_TP = len(TPs_types)
+	
+	# print(N_TP)
+	# input('ok')
+	
+	if((N_TP > 0) and (OP_hist_edges is not None)):
+		OP_TP_allData = np.concatenate(tuple(TPs)).flatten()
+		TPs_weights_all = np.concatenate(tuple([times[TPs_inds[i, 0] : TPs_inds[i, 1]] for i in range(N_TP)])).flatten()
+		TPs_times_total = np.sum(TPs_weights_all)
+		OP_TP_hist, _ = np.histogram(OP_TP_allData, \
+									bins=OP_hist_edges, \
+									weights=TPs_weights_all)
+		OP_TP_hist[OP_TP_hist == 0] = 1/L2   # to not get errors for log(hist)
+		OP_TP_rho = OP_TP_hist / OP_hist_lens / TPs_times_total
+		d_OP_TP_rho = np.sqrt(np.sum(TPs_weights_all**2) * OP_TP_hist / TPs_times_total * (1 - OP_TP_hist / TPs_times_total)) / OP_hist_lens / TPs_times_total
+		
+		#TP_OP_rho = (TP_rho / rho) * (np.sum(TPs_weights_all) / total_stab_time)
+		TP_OP_hist = OP_TP_hist / OP_hist
+		d_TP_OP_hist = TP_OP_hist * np.sqrt((d_OP_TP_rho / OP_TP_rho)**2 + (d_rho / rho)**2)
+	else:
+		OP_TP_hist, OP_TP_rho, d_OP_TP_rho, TP_OP_hist, d_TP_OP_hist = \
+			tuple([None] * 5)
+	
+	return N_TP, TP_change_inds, TPs_types, TPs_inds, TPs, \
+			OP_TP_hist, OP_TP_rho, d_OP_TP_rho, TP_OP_hist, d_TP_OP_hist
+
+def fix_TPinds_load(TPs_inds, TPs_types, TPs, OP_A_bound_ind, OP_B_bound_ind):
+	if(TPs_inds is not None):
+		if(len(TPs_inds.shape) < 1):
+			if(TPs_inds == None):
+				TPs_inds = None
+	
+	if(TPs_types is not None):
+		if(len(TPs_types.shape) < 1):
+			if(TPs_types == None):
+				TPs_types = None
+	
+	if(TPs_types is not None):
+		# print(TPs_types)
+		# print(TPs_types is not None)
+		# print(type(TPs_types))
+		# input('ok')
+		N_TP = len(TPs_types)
+		TP_OP_inds = np.arange(OP_A_bound_ind, OP_B_bound_ind)
+		
+		N_TP_AB = np.sum(TPs_types == 0)
+		N_TP_BA = np.sum(TPs_types == 2)
+	
+		if(TPs_types is not None):
+			assert(TPs_inds.shape[0] == N_TP), 'ERROR: TPs_inds = %s (shape = %s), but TPs_types = %s (len = %d)' % \
+				(str(TPs_inds), str(TPs_inds.shape), str(TPs_types), N_TP)
+	else:
+		N_TP, N_TP_AB, N_TP_BA = tuple([0] * 3)
+		TPs, TP_OP_inds = tuple([None] * 2)
+	
+	return TPs_inds, TPs_types, TPs, N_TP, N_TP_AB, N_TP_BA, TP_OP_inds
+
 def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 							stab_step, dOP_step, OP_hist_edges, \
 							OP_peak_guess, OP_fit2_width, interface_mode, \
@@ -2390,8 +2509,9 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 	OP_inds = np.arange(Nt_OP)
 	steps = OP_inds * stride
 	#OP_times = np.cumsum(times)  # times only has every 'stride' time, so we cannot do cumsum
-	#OP_times = steps * np.mean(times)   # sweeps
+	#OP_times = steps * np.mean(times)   # sweeps  (???)
 	OP_times = np.cumsum(times) * stride   # sweeps
+	# print(steps, stab_step)
 	stab_ind = np.where(steps > stab_step)[0]
 	stab_time = OP_times[stab_ind[0]]
 	Nt_stab = len(stab_ind)
@@ -2399,8 +2519,587 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 	assert(Nt_stab > 1), 'ERROR: the system may not have reached equlibrium, stab_step = %d, max-present-step = %d' % (stab_step, max(steps))
 	
 	Nt_states = states.shape[0]
+	
 	#print(Nt_states)
 	#input('ok2')
+	if(not means_only):
+		if(npz_basename is None):
+			F_filepath = ''
+			to_recomp = izing.binflags['all']
+			to_save_npz = 0
+		else:
+			F_filepath = os.path.join(npz_basename + '_F.npz')
+		
+		# print(to_recomp, izing.binflags['postproc_light'])
+		# input('ok')
+		
+		if((not os.path.isfile(F_filepath)) or (to_recomp & izing.binflags['postproc_light'])):
+			times_stab = times[stab_ind]
+			OP_stab = m[stab_ind]
+			
+			# fig, ax, _ = my.get_fig('t', 'CS')
+			# ax.plot(OP_times, m)
+			# my.add_legend(fig, ax)
+			# plt.show()
+			
+			M_mean = np.average(M[stab_ind], weights=times_stab)
+			
+			OP_jumps = OP_stab[1:] - OP_stab[:-1]
+			OP_mean = np.average(OP_stab, weights=times_stab)
+			#OP_std = np.std(OP_stab)
+			OP_std = np.sqrt(np.average((OP_stab - OP_mean)**2, weights=times_stab))
+			
+			memory_time = max(1, OP_std / dOP_step)
+			# Time of statistical decorelation of the system state.
+			# 'the number of flips necessary to cover the typical system states range' * 'the upper-bound estimate on the number of steps for 1 flip to happen'
+			print('memory time =', my.f2s(memory_time))
+			
+			N_indep_measurs = Nt_stab / memory_time
+			d_M_mean = np.sqrt(np.average((M[stab_ind] - M_mean)**2, weights=times_stab)) / np.sqrt(N_indep_measurs)
+			d_OP_mean = OP_std / np.sqrt(N_indep_measurs)
+			
+			OP_hist, _ = np.histogram(OP_stab, bins=OP_hist_edges, weights=times_stab)
+			OP_jumps_hist, _ = np.histogram(OP_jumps, bins=OP_jumps_hist_edges)
+			OP_jumps_hist = OP_jumps_hist / Nt_stab
+			OP_hist_lens = (OP_hist_edges[1:] - OP_hist_edges[:-1])
+			N_m_points = len(OP_hist_lens)
+			OP_hist[OP_hist == 0] = 1/L2   # to not get errors for log(hist)
+			OP_hist = OP_hist# / memory_time
+			OP_hist_centers = (OP_hist_edges[1:] + OP_hist_edges[:-1]) / 2
+			rho = OP_hist / OP_hist_lens / total_stab_time
+			d_rho = np.sqrt(np.sum(times_stab**2) * OP_hist / total_stab_time * (1 - OP_hist / total_stab_time)) / OP_hist_lens / total_stab_time
+			
+			rho_interp1d = scipy.interpolate.interp1d(OP_hist_centers, rho, fill_value='extrapolate')
+			d_rho_interp1d = scipy.interpolate.interp1d(OP_hist_centers, d_rho, fill_value='extrapolate')
+			
+			#F = -np.log(rho * OP_hist_lens)
+			#D_fnc = lambda Ncl: np.ones(Ncl.shape)
+			F = -np.log(rho)
+			F = F - F[0]
+			d_F = d_rho / rho
+			if(np.any(OP_hist_centers <= 0)):
+				print(OP_hist_edges)
+				print(OP_hist_centers)
+				input('ok')
+			F0 = F - np.log(D_fnc(OP_hist_centers))
+			# F - true Free energy
+			# F0 - Langevin grive for Ito formulation
+			F0 = F0 - F0[0]
+			d_F0 = np.copy(d_F)
+			
+			# fig, ax, _ = my.get_fig('CS', 'F/T')
+			# ax.errorbar(OP_hist_centers, F, yerr=d_F)
+			# my.add_legend(fig, ax)
+			# plt.show()
+			
+			if(OP_A_byas is None):
+				OP_A_TPguess = OP_A 
+			else:
+				if(OP_A_byas <= 0):
+					OP_A_TPguess = OP_A
+				else:
+					OP_A_inds = np.where(OP_hist_centers < OP_A_byas)[0]
+					OP_A_min_ind = OP_A_inds[np.argmin(F[OP_A_inds])]
+					F_OP_A_min = F[OP_A_min_ind]
+					OP_A_bound_ind = OP_A_inds[-1]
+					OP_A_TPguess = None
+			if(OP_B_byas is None):
+				OP_B_TPguess = OP_B
+			else:
+				if(OP_B_byas <= 0):
+					OP_B_TPguess = OP_B
+				else:
+					OP_B_inds = np.where(OP_hist_centers >= OP_B_byas)[0]
+					OP_B_min_ind = OP_B_inds[np.argmin(F[OP_B_inds])]
+					F_OP_B_min = F[OP_B_min_ind]
+					OP_B_bound_ind = OP_B_inds[0]
+					OP_B_TPguess = None
+			
+			if((OP_A_TPguess is None) and (OP_B_TPguess is None)):
+				TP_inds = np.where((OP_hist_centers >= OP_A_byas) & \
+									(OP_hist_centers < OP_B_byas))[0]
+				# print(OP_A_TPguess, OP_B_TPguess, TP_inds)
+				OP_top_ind = TP_inds[np.argmax(F[TP_inds])]
+				OP_top = OP_hist_centers[OP_top_ind]
+				
+			else:
+				# print(OP_A_TPguess, OP_B_TPguess, OP_A_byas, OP_B_byas)
+				# input('ok')
+				if((OP_A_TPguess is None) or (OP_B_TPguess is None)):
+					if(OP_B_TPguess is None):
+						OP_A_inds = np.where(OP_hist_centers < OP_B_byas)[0]
+						OP_A_min_ind = OP_A_inds[np.argmin(F[OP_A_inds])]
+						F_OP_A_min = F[OP_A_min_ind]
+						OP_A_bound_ind = min(OP_B_bound_ind, (OP_A_min_ind+1 + np.argmax(F[OP_A_min_ind+1 : ] > (F_OP_A_min + 1))))
+					if(OP_A_TPguess is None):
+						OP_B_inds = np.where(OP_hist_centers >= OP_A_byas)[0]
+						OP_B_min_ind = OP_B_inds[np.argmin(F[OP_B_inds])]
+						F_OP_B_min = F[OP_B_min_ind]
+						OP_B_bound_ind = max(OP_A_bound_ind, (OP_B_min_ind - (np.argmax(np.flip(F[ : OP_B_min_ind - 1]) > (F_OP_B_min + 1)) + 1))) + 1   # +1 to keep consistent with [) intervals
+					
+					#print(OP_hist_centers[OP_A_bound_ind], OP_hist_centers[OP_B_bound_ind])
+					TP_inds = np.where((OP_hist_centers > OP_hist_centers[OP_A_bound_ind]) & \
+										(OP_hist_centers < OP_hist_centers[OP_B_bound_ind]))[0]
+					# print(OP_A_TPguess, OP_B_TPguess, TP_inds)
+					OP_top_ind = TP_inds[np.argmax(F[TP_inds])]
+					OP_top = OP_hist_centers[OP_top_ind]
+					
+				else:
+					TP_inds = np.where((OP_hist_centers > OP_A_TPguess) & \
+										(OP_hist_centers < OP_B_TPguess))[0]
+					# print(OP_A_TPguess, OP_B_TPguess, TP_inds)
+					OP_top_ind = TP_inds[np.argmax(F[TP_inds])]
+					OP_top = OP_hist_centers[OP_top_ind]
+					
+					OP_A_min_ind = np.argmin(F[ : OP_top_ind])
+					F_OP_A_min = F[OP_A_min_ind]
+					
+					OP_B_min_ind = OP_top_ind + np.argmin(F[OP_top_ind : ])
+					F_OP_B_min = F[OP_B_min_ind]
+					
+					OP_A_bound_ind = min(OP_top_ind, (OP_A_min_ind+1 + np.argmax(F[OP_A_min_ind+1 : ] > (F_OP_A_min + 1))))
+					OP_B_bound_ind = max(OP_top_ind, (OP_B_min_ind - (np.argmax(np.flip(F[ : OP_B_min_ind - 1]) > (F_OP_B_min + 1)) + 1))) + 1   # +1 to keep consistent with [) intervals
+			# print('OP_A,B:', OP_A, OP_B)
+			# print('OP_top = ', OP_top)
+			# print(OP_top_ind, OP_A_min_ind, OP_B_min_ind)
+			# print(OP_A_bound_ind, OP_B_bound_ind)
+			# fig1,ax1,_ = my.get_fig('Ncl', 'F/T')
+			# ax1.errorbar(OP_hist_centers, F, yerr=d_F)
+			# plt.show()
+			
+			# print(OP_B_byas, OP_hist_centers[OP_B_min_ind], OP_B_min_ind)
+			
+			N_TP, TP_change_inds, TPs_types, TPs_inds, TPs, \
+				OP_TP_hist, OP_TP_rho, d_OP_TP_rho, TP_OP_hist, d_TP_OP_hist = \
+					get_TP_inds(OP_stab, times_stab, OP_hist_centers[OP_A_min_ind], OP_hist_centers[OP_B_min_ind], 
+								OP_hist_edges=OP_hist_edges, OP_hist=OP_hist, OP_hist_lens=OP_hist_lens, \
+								rho=rho, d_rho=d_rho, L2=L2)
+			
+			if(OP_A_byas is None):
+				TPforStates_change_inds, TPforStates_types, TPforStates_inds, TPsforStates, \
+					OP_TP_rho, d_OP_TP_rho, TP_OP_hist, d_TP_OP_hist = tuple([None] * 8)
+				
+			else:
+				if(OP_B_byas is None):
+					OP_B_byas = -1
+				
+				if(OP_A_byas < 0):
+					OP_A_byas = OP_hist_centers[OP_A_bound_ind]
+				else:
+					OP_A_bound_ind = np.where(OP_hist_centers >= OP_A_byas)[0][0]
+				
+				if(OP_B_byas < 0):
+					OP_B_byas = OP_hist_centers[OP_B_bound_ind]
+				else:
+					OP_B_bound_ind = np.where(OP_hist_centers < OP_B_byas)[0][-1]
+				
+				# N_TPforStates, TPforStates_change_inds, TPforStates_types, TPforStates_inds, TPsforStates, \
+					# _, _, _, _, _ = \
+						# get_TP_inds(OP_stab, times_stab, OP_A_byas, OP_B_byas, 
+								# OP_hist_edges=OP_hist_edges, OP_hist=OP_hist, OP_hist_lens=OP_hist_lens, \
+								# rho=rho, d_rho=d_rho, L2=L2)
+			
+			N_TP_AB = np.sum(TPs_types == 0)
+			N_TP_BA = np.sum(TPs_types == 2)
+			OP_TP_AB_interps = []
+			OP_TP_AB_interp_maxTimes = np.empty(N_TP_AB)
+			if(N_TP_AB > 0):
+				for i in range(N_TP):
+					TP_inds_local = np.arange(TPs_inds[i, 0] + stab_ind[0], TPs_inds[i, 1] + stab_ind[0])
+					if(TPs_types[i] == 0):   # A -> B
+						OP_TP_AB_interps.append(scipy.interpolate.interp1d(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], TPs[i], fill_value=(TPs[i][0], TPs[i][-1]), bounds_error=False))
+						OP_TP_AB_interp_maxTimes[len(OP_TP_AB_interps) - 1] = OP_times[TP_inds_local[-1]] - OP_times[TP_inds_local[0]]
+			
+			E_avg = np.empty(N_m_points)
+			for i in range(N_m_points):
+				E_for_avg = E[(OP_hist_edges[i] < m) & (m < OP_hist_edges[i+1])] * L2
+				#E_avg[i] = np.average(E_for_avg, weights=np.exp(- E_for_avg))
+				E_avg[i] = np.mean(E_for_avg) if(len(E_for_avg) > 0) else (e[1,1] + abs(mu[1])) * L2
+			E_avg = E_avg - E_avg[0]   # we can choose the E constant
+			S = (E_avg - F)
+			S = S - S[0] # S[m=+-1] = 0 because S = log(N), and N(m=+-1)=1
+			
+			if(to_save_npz):
+				print('writing', F_filepath)
+				np.savez(F_filepath, OP_hist_centers=OP_hist_centers, \
+						rho=rho, d_rho=d_rho, OP_hist_lens=OP_hist_lens, \
+						possible_jumps=possible_jumps, \
+						OP_jumps_hist=OP_jumps_hist, F0=F0, d_F0=d_F0, \
+						F=F, d_F=d_F, \
+						E_avg=E_avg, S=S, \
+						rho_interp1d=rho_interp1d,
+						d_rho_interp1d=d_rho_interp1d, \
+						OP_mean=OP_mean, OP_std=OP_std, d_OP_mean=d_OP_mean, \
+						M_mean=M_mean, d_M_mean=d_M_mean, \
+						OP_top=OP_top, TP_change_inds=TP_change_inds, \
+						TPs_types=TPs_types, TPs_inds=TPs_inds, TPs=TPs, \
+						OP_TP_AB_interps=OP_TP_AB_interps, \
+						OP_TP_AB_interp_maxTimes=OP_TP_AB_interp_maxTimes, \
+						OP_TP_rho=OP_TP_rho, d_OP_TP_rho=d_OP_TP_rho, \
+						TP_OP_hist=TP_OP_hist, d_TP_OP_hist=d_TP_OP_hist, \
+						OP_A_bound_ind=OP_A_bound_ind, \
+						OP_B_bound_ind=OP_B_bound_ind, \
+						OP_A_min_ind=OP_A_min_ind, \
+						OP_B_min_ind=OP_B_min_ind)
+						# TPforStates_types=TPforStates_types, \
+						# TPforStates_inds=TPforStates_inds, \
+						
+		else:
+			print('loading', F_filepath)
+			npz_data = np.load(F_filepath, allow_pickle=True)
+			
+			OP_hist_centers = npz_data['OP_hist_centers']
+			rho = npz_data['rho']
+			d_rho = npz_data['d_rho']
+			OP_hist_lens = npz_data['OP_hist_lens']
+			possible_jumps = npz_data['possible_jumps']
+			OP_jumps_hist = npz_data['OP_jumps_hist']
+			F0 = npz_data['F0']
+			d_F0 = npz_data['d_F0']
+			F = npz_data['F']
+			d_F = npz_data['d_F']
+			E_avg = npz_data['E_avg']
+			S = npz_data['S']
+			rho_interp1d = npz_data['rho_interp1d'].item()
+			d_rho_interp1d = npz_data['d_rho_interp1d'].item()
+			OP_mean = npz_data['OP_mean']
+			OP_std = npz_data['OP_std']
+			d_OP_mean = npz_data['d_OP_mean']
+			OP_top = npz_data['OP_top']
+			if('M_mean' in npz_data.files):
+				M_mean = npz_data['M_mean']
+				d_M_mean = npz_data['d_M_mean']
+			else:
+				M_mean, d_M_mean = tuple([None] * 2)
+			TP_change_inds = npz_data['TP_change_inds']
+			# TPforStates_types = npz_data['TPforStates_types']
+			# TPforStates_inds = npz_data['TPforStates_inds']
+			TPs_types = npz_data['TPs_types']
+			TPs_inds = npz_data['TPs_inds']
+			TPs = npz_data['TPs']
+			OP_TP_AB_interps = npz_data['OP_TP_AB_interps']
+			OP_TP_AB_interp_maxTimes = npz_data['OP_TP_AB_interp_maxTimes']
+			OP_TP_rho = npz_data['OP_TP_rho']
+			d_OP_TP_rho = npz_data['d_OP_TP_rho']
+			TP_OP_hist = npz_data['TP_OP_hist']
+			d_TP_OP_hist = npz_data['d_TP_OP_hist']
+			OP_A_bound_ind = npz_data['OP_A_bound_ind']
+			OP_B_bound_ind = npz_data['OP_B_bound_ind']
+			OP_A_min_ind = npz_data['OP_A_min_ind']
+			OP_B_min_ind = npz_data['OP_B_min_ind']
+		
+		TPs_inds, TPs_types, TPs, N_TP, N_TP_AB, N_TP_BA, TP_OP_inds = \
+			fix_TPinds_load(TPs_inds, TPs_types, TPs, OP_A_bound_ind, OP_B_bound_ind)
+		
+		# TPforStates_inds, TPforStates_types, TPsforStates, N_TPforStates, N_TPforStates_AB, N_TPforStates_BA, TPforStates_OP_inds = \
+			# fix_TPinds_load(TPforStates_inds, TPforStates_types, TPsforStates, OP_A_bound_ind, OP_B_bound_ind)
+		
+		if(to_estimate_k):
+			if(npz_basename is None):
+				k_filepath = ''
+				to_recomp = izing.binflags['all']
+				to_save_npz = 0
+			else:
+				k_filepath = os.path.join(npz_basename + '_kAB.npz')
+			if((not os.path.isfile(k_filepath)) or (to_recomp & izing.binflags['postproc_light'])):
+				assert(hA is not None), 'ERROR: k estimation is requested in BF, but no hA provided'
+				#k_AB_ratio = np.sum(hA > 0.5) / np.sum(hA < 0.5)
+				hA_jump = hA[1:] - hA[:-1]   # jump > 0 => {0->1} => from B to A => k_BA ==> k_ratio = k_BA / k_AB
+				jump_inds = (hA_jump != 0)
+				
+				jumps_AB_inds = np.where(hA_jump < 0)[0]
+				N_AB_jumps = len(jumps_AB_inds)
+				jumps_BA_inds = np.where(hA_jump > 0)[0]
+				N_BA_jumps = len(jumps_BA_inds)
+				
+				# if(N_AB_jumps > 0):
+					# k_AB = N_AB_jumps / (np.sum(times[hA > 0.5]) * stride)
+					# d_k_AB = k_AB / np.sqrt(N_AB_jumps)
+				# else:
+					# k_AB, d_k_AB = 0, 0
+				# if(N_BA_jumps > 0):
+					# k_BA = N_BA_jumps / (np.sum(times[hA < 0.5]) * stride)
+					# d_k_BA = k_BA / np.sqrt(N_BA_jumps)
+				# else:
+					# k_BA, d_k_BA = 0, 0
+				
+				dwell_times_A = []
+				dwell_times_B = []
+				if(N_AB_jumps + N_BA_jumps > 0):
+					jump_inds = np.where(jump_inds)[0]
+					times_AB_chunked = np.split(times, jump_inds + 1)
+					for i_jump, dwell_times in enumerate(times_AB_chunked[:-1]):
+						if(hA_jump[jump_inds[i_jump]] < 0):
+							dwell_times_A.append(np.sum(dwell_times))
+						else:
+							dwell_times_B.append(np.sum(dwell_times))
+				else:
+					jump_inds = np.array([], dtype=int)
+				
+				dwell_times_A = np.array(dwell_times_A) * stride
+				dwell_times_B = np.array(dwell_times_B) * stride
+				if(N_AB_jumps > 0):
+					# <1/t> diverges for an exponential time distribution due to small times. 
+					# The correct way to get k is to do 1/<t> because <t> = 1/k for the exponential distribution
+					k_AB = 1 / np.mean(dwell_times_A)
+					d_k_AB = k_AB / np.sqrt(N_AB_jumps)
+				else:
+					k_AB, d_k_AB = 0, 0
+				
+				if(N_BA_jumps > 0):
+					k_BA = 1 / np.mean(dwell_times_B)
+					d_k_BA = k_BA / np.sqrt(N_BA_jumps)
+				else:
+					k_BA, d_k_BA = 0, 0
+				
+				if(to_save_npz):
+					print('writing', k_filepath)
+					np.savez(k_filepath, hA=hA, hA_jump=hA_jump, \
+							jump_inds=jump_inds, N_AB_jumps=N_AB_jumps, \
+							k_AB=k_AB, d_k_AB=d_k_AB, \
+							k_BA=k_BA, d_k_BA=d_k_BA, \
+							dwell_times_A=dwell_times_A, \
+							dwell_times_B=dwell_times_B)
+			else:
+				print('loading', k_filepath)
+				npz_data = np.load(k_filepath, allow_pickle=True)
+				
+				hA = npz_data['hA']
+				hA_jump = npz_data['hA_jump']
+				jump_inds = npz_data['jump_inds']
+				N_AB_jumps = npz_data['N_AB_jumps']
+				k_AB = npz_data['k_AB']
+				d_k_AB = npz_data['d_k_AB']
+				k_BA = npz_data['k_BA']
+				d_k_BA = npz_data['d_k_BA']
+				dwell_times_A = npz_data['dwell_times_A']
+				dwell_times_B = npz_data['dwell_times_B']
+			
+			if(OP_peak_guess < 0):
+				OP_peak_guess = OP_top
+			OP_fit2_OPmin_ind = np.argmax(OP_hist_centers > OP_peak_guess - OP_fit2_width)
+			OP_fit2_OPmax_ind = np.argmax(OP_hist_centers > OP_peak_guess + OP_fit2_width)
+			if(0 in [OP_fit2_OPmin_ind, OP_fit2_OPmax_ind]):
+				OP_peak_guess = np.argmin(F) * 3 + OP_fit2_width
+				OP_fit2_OPmin_ind = np.argmax(OP_hist_centers > OP_peak_guess - OP_fit2_width)
+				OP_fit2_OPmax_ind = np.argmax(OP_hist_centers > OP_peak_guess + OP_fit2_width)
+			
+			if(0 in [OP_fit2_OPmin_ind, OP_fit2_OPmax_ind]):
+				N_good_points_near_OPpeak = 0
+			else:
+				OP_fit2_inds = (OP_fit2_OPmin_ind <= np.arange(len(OP_hist_centers))) & (OP_fit2_OPmax_ind >= np.arange(len(OP_hist_centers))) & (F < max(F))
+				N_good_points_near_OPpeak = np.sum(OP_fit2_inds)
+			
+			if(N_good_points_near_OPpeak > 2):
+				OP_F0_fit2 = np.polyfit(OP_hist_centers[OP_fit2_inds], F0[OP_fit2_inds], 2, w = 1/d_F0[OP_fit2_inds])
+				OP_F_fit2 = np.polyfit(OP_hist_centers[OP_fit2_inds], F[OP_fit2_inds], 2, w = 1/d_F[OP_fit2_inds])
+				OP_peak = -OP_F0_fit2[1] / (2 * OP_F0_fit2[0])
+				m_peak_ind = min(np.argmin(abs(OP_hist_centers - OP_peak)), len(OP_hist_centers) - 2)
+				F_max = np.polyval(OP_F0_fit2, OP_peak)
+				#m_peak_ind = np.argmin(OP_hist_centers - OP_peak)
+				bc_Z_AB = exp_integrate(OP_hist_centers[ : OP_fit2_OPmin_ind + 1], -F[ : OP_fit2_OPmin_ind + 1]) + exp2_integrate(- OP_F_fit2, OP_hist_centers[OP_fit2_OPmin_ind])
+				bc_Z_BA = exp_integrate(OP_hist_centers[OP_fit2_OPmax_ind : ], -F[OP_fit2_OPmax_ind : ]) + abs(exp2_integrate(- OP_F_fit2, OP_hist_centers[OP_fit2_OPmax_ind]))
+				k_bc_AB = (np.mean(abs(OP_hist_centers[m_peak_ind + 1] - OP_hist_centers[m_peak_ind - 1]))/2 / 2) * (np.exp(-F_max) / bc_Z_AB)
+				k_bc_BA = (np.mean(abs(OP_hist_centers[m_peak_ind + 1] - OP_hist_centers[m_peak_ind - 1]))/2 / 2) * (np.exp(-F_max) / bc_Z_BA)
+			else:
+				print('WARNING: too few (%d) points with good data found near guessed OP_peak (%d)' % (N_good_points_near_OPpeak, OP_peak_guess))
+				k_bc_AB, k_bc_BA = 0, 0
+				
+				# OP_F_fit2, OP_peak, m_peak_ind, F_max, bc_Z_AB, bc_Z_BA, \
+				# k_bc_AB, k_bc_BA = \
+					# tuple([np.nan] * 8)
+			
+			if(k_AB > 0):
+				get_log_errors(np.log(k_AB), d_k_AB / k_AB, lbl='k_AB_BF', units='1/sweep', print_scale=print_scale_k)
+			else:
+				print('k_AB = 0')
+			
+			if(k_BA > 0):
+				get_log_errors(np.log(k_BA), d_k_BA / k_BA, lbl='k_BA_BF', units='1/sweep', print_scale=print_scale_k)
+			else:
+				print('k_BA = 0')
+		
+		if(to_plot_time_evol):
+			fig_OP, ax_OP, _ = my.get_fig('time (step attempts / $L^2$)', y_lbl, title='$' + x_lbl + '$(steps); ' + ThL_lbl)
+			if(TPs_inds is not None):
+				print('transition types:', TPs_types)
+				
+				if(N_TP_AB > 0):
+					fig_TP_AB, ax_TP_AB, _ = my.get_fig('time (step attempts / $L^2$)', y_lbl, title=r'$A \to B$; $' + x_lbl + '$(steps); ' + ThL_lbl)
+				if(N_TP_BA > 0):
+					fig_TP_BA, ax_TP_BA, _ = my.get_fig('time (step attempts / $L^2$)', y_lbl, title=r'$B \to A$; $' + x_lbl + '$(steps); ' + ThL_lbl)
+			
+			# fig_OPforStates, ax_OPforStates, _ = my.get_fig('time (step attempts / $L^2$)', y_lbl, title='$' + x_lbl + '$(steps); ' + ThL_lbl)
+			
+			fig_dwellTimes, ax_dwellTimes, _ = my.get_fig('', r'$t_{dwell}$ (step-attempt/$L^2$)', title=r'$t_{dwell}(' + x_lbl + ')/T$; ' + ThL_lbl, yscl='log')
+			if(to_estimate_k):
+				fig_hA, ax_hA, _ = my.get_fig('time (step attempts / $L^2$)', '$h_A$', title='$h_{A, ' + x_lbl + '}$(steps); ' + ThL_lbl)
+			if(M_mean is not None):
+				fig_M, ax_M, _ = my.get_fig('time (step attempts / $L^2$)', '$m = M / L^2$', title='$m$(steps); ' + ThL_lbl)
+			
+			if(M_mean is not None):
+				ax_M.plot(OP_times, M, label='data')
+				ax_M.plot([stab_time] * 2, [min(M), max(M)], '--', label='equilibr')
+				ax_M.plot([stab_time, max(OP_times)], [M_mean] * 2, '--', label=('$<m> = ' + my.errorbar_str(M_mean, d_M_mean) + '$'))
+			
+			ax_OP.plot(OP_times, m, label='data', lw=0.5)
+			# ax_OPforStates.plot(OP_times, m, label='data', lw=0.5)
+			m_minmax = np.array([min(m), max(m)])
+			OP_times_minmax = np.array([min(OP_times), max(OP_times)])
+			ax_OP.plot([stab_time] * 2, m_minmax, '--', label='equilibr')
+			
+			# ax_OPforStates.plot([stab_time] * 2, m_minmax, '--', label='equilibr')
+			# if(OP_min_save_state is not None):
+				# ax_OPforStates.plot(OP_times_minmax, [OP_min_save_state]*2, '--', label='$OP_{min,save} = %d$' % (OP_min_save_state))
+			# if(OP_max_save_state is not None):
+				# ax_OPforStates.plot(OP_times_minmax, [OP_max_save_state]*2, '--', label='$OP_{max,save} = %d$' % (OP_max_save_state))
+				
+			#ax_OP.plot([stab_time, max(OP_times)], [OP_mean] * 2, '--', label=('$<' + x_lbl + '> = ' + my.errorbar_str(OP_mean, d_OP_mean) + '$'))
+			ax_OP.plot([stab_time, max(OP_times)], [OP_hist_centers[OP_A_min_ind]] * 2, '--', label=('$OP_A$'))
+			ax_OP.plot([stab_time, max(OP_times)], [OP_hist_centers[OP_B_min_ind]] * 2, '--', label=('$OP_B$'))
+			
+			
+			if(to_estimate_k):
+				ax_hA.plot(OP_times, hA, label='$h_A$')
+				ax_hA.plot(OP_times[jump_inds+1], hA_jump[jump_inds], '.', label='$h_A$ jumps')
+				
+				ax_OP.plot([0, max(OP_times)], [OP_A] * 2, '--', label='state A, B', color=my.get_my_color(1))
+				ax_OP.plot([0, max(OP_times)], [OP_B] * 2, '--', label=None, color=my.get_my_color(1))
+				
+				if(len(dwell_times_A) > 0):
+					ax_dwellTimes.plot([0] * len(dwell_times_A), dwell_times_A, '.')
+				if(len(dwell_times_B) > 0):
+					ax_dwellTimes.plot([1] * len(dwell_times_B), dwell_times_B, '.')
+				
+				ax_dwellTimes.set_xlim([-0.5, 1.5])
+				ax_dwellTimes.set_xticks([0, 1])
+				ax_dwellTimes.set_xticklabels([r'$\tau_A$', r'$\tau_B$'])
+				
+			if(TPs_inds is not None):
+				n_TP_AB_drawn = 0
+				for i in range(N_TP):
+					TP_inds_local = np.arange(TPs_inds[i, 0] + stab_ind[0], TPs_inds[i, 1] + stab_ind[0])
+					if(TPs_types[i] == 0):
+						#ax_TP_AB.plot(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], m[TP_inds_local], color=my.get_my_color(0), lw=0.5)
+						#ax_TP_AB.plot(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], TPs[i], color=my.get_my_color(0), lw=0.5)
+						ax_TP_AB.plot(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], OP_TP_AB_interps[n_TP_AB_drawn](OP_times[TP_inds_local] - OP_times[TP_inds_local[0]]), color=my.get_my_color(0), lw=0.5)
+						n_TP_AB_drawn += 1
+						
+					elif(TPs_types[i] == 2):
+						#ax_TP_BA.plot(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], m[TP_inds_local], color=my.get_my_color(0), lw=0.5)
+						ax_TP_BA.plot(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], m[TP_inds_local], color=my.get_my_color(0), lw=0.5)
+					
+					ax_OP.plot([OP_times[TP_inds_local[0]]] * 2, m_minmax, \
+						'--', color=my.get_my_color(2), \
+						label=('TP start' if(i == 0) else None))
+					ax_OP.plot([OP_times[TP_inds_local[-1]]] * 2, m_minmax, \
+						'--', color=my.get_my_color(3), \
+						label=('TP end' if(i == 0) else None))
+			
+			# if(TPforStates_inds is not None):
+				# for i in range(N_TPforStates):
+					# TPforStates_inds_local = np.arange(TPforStates_inds[i, 0] + stab_ind[0], TPforStates_inds[i, 1] + stab_ind[0])
+					
+					# ax_OPforStates.plot([OP_times[TPforStates_inds_local[0]]] * 2, m_minmax, \
+						# '--', color=my.get_my_color(2), \
+						# label=('TP start' if(i == 0) else None))
+					# ax_OPforStates.plot([OP_times[TPforStates_inds_local[-1]]] * 2, m_minmax, \
+						# '--', color=my.get_my_color(3), \
+						# label=('TP end' if(i == 0) else None))
+			
+			my.add_legend(fig_OP, ax_OP, do_legend=to_plot_legend)
+			# my.add_legend(fig_OPforStates, ax_OPforStates, do_legend=to_plot_legend)
+			if(TPs_inds is not None):
+				if(N_TP_AB > 0):
+					my.add_legend(fig_TP_AB, ax_TP_AB, do_legend=to_plot_legend)
+				if(N_TP_BA > 0):
+					my.add_legend(fig_TP_BA, ax_TP_BA, do_legend=to_plot_legend)
+				
+			if(M_mean is not None):
+				my.add_legend(fig_M, ax_M, do_legend=to_plot_legend)
+			
+			if(to_estimate_k):
+				fig_dwellTimes.tight_layout()
+				my.add_legend(fig_hA, ax_hA, do_legend=to_plot_legend)
+			
+			#print('k_' + x_lbl + '_AB    =    (' + my.errorbar_str(k_AB, d_k_AB) + ')    (1/step);    dk/k =', my.f2s(d_k_AB / k_AB))
+			#print('k_' + x_lbl + '_BA    =    (' + my.errorbar_str(k_BA, d_k_BA) + ')    (1/step);    dk/k =', my.f2s(d_k_BA / k_BA))
+		
+		if(to_plot_F):
+			fig_OP_hist, ax_OP_hist, _ = my.get_fig(y_lbl, r'$\rho(' + x_lbl + ')$', title=r'$\rho(' + x_lbl + ')$; ' + ThL_lbl)
+			fig_F0, ax_F0, _ = my.get_fig(y_lbl, r'$F_0/T$', title=r'$F_0(' + x_lbl + ')/T$; ' + ThL_lbl)
+			fig_F, ax_F, _ = my.get_fig(y_lbl, r'$-\ln(p_{eq})$', title=r'$-\ln[p_{eq}(' + x_lbl + ')]$; ' + ThL_lbl)
+			fig_OP_jumps_hist, ax_OP_jumps_hist, _ = my.get_fig('d' + x_lbl, 'probability', title=x_lbl + ' jumps distribution; ' + ThL_lbl, yscl='log')
+			if(OP_TP_rho is not None):
+				fig_OP_TP_rho, ax_OP_TP_rho, _ = my.get_fig(y_lbl, r'$\rho(' + x_lbl + ' | TP)$', title=r'$\rho(' + x_lbl + ' | TP)$; ' + ThL_lbl)
+			if(TP_OP_hist is not None):
+				fig_TP_OP_hist, ax_TP_OP_hist, _ = my.get_fig(y_lbl, r'$P(TP | ' + x_lbl + ')$', title=r'$P(TP | ' + x_lbl + ')$; ' + ThL_lbl)
+			
+			ax_OP_hist.bar(OP_hist_centers, rho, yerr=d_rho, width=OP_hist_lens, label=r'$\rho(' + x_lbl + ')$', align='center')
+			if(to_estimate_k):
+				ax_OP_hist.plot([OP_A] * 2, [0, max(rho)], '--', label='state A,B', color=my.get_my_color(1))
+				ax_OP_hist.plot([OP_B] * 2, [0, max(rho)], '--', label=None, color=my.get_my_color(1))
+			
+			if(TP_OP_hist is not None):
+				if(len(TP_OP_hist.shape) < 1):
+					if(TP_OP_hist == None):
+						TP_OP_hist = None
+			if(TP_OP_hist is not None):
+				ax_TP_OP_hist.errorbar(OP_hist_centers[TP_OP_inds], TP_OP_hist[TP_OP_inds], yerr=d_TP_OP_hist[TP_OP_inds], xerr=OP_hist_lens[TP_OP_inds] / 2, \
+										label=r'$P(TP | ' + x_lbl + ')$')
+				ax_TP_OP_hist.plot([min(OP_hist_centers[TP_OP_inds]), max(OP_hist_centers[TP_OP_inds])], [1/2] * 2, \
+									'--', label='P=1/2')
+			if(OP_TP_rho is not None):
+				if(len(OP_TP_rho.shape) < 1):
+					if(OP_TP_rho == None):
+						OP_TP_rho = None
+			if(OP_TP_rho is not None):
+				ax_OP_TP_rho.bar(OP_hist_centers[TP_OP_inds], OP_TP_rho[TP_OP_inds], yerr=d_OP_TP_rho[TP_OP_inds], width=OP_hist_lens[TP_OP_inds], \
+								label=r'$\rho(' + x_lbl + ' | TP)$', align='center')
+			
+			ax_OP_jumps_hist.plot(possible_jumps, OP_jumps_hist, '.')
+			
+			ax_F0.errorbar(OP_hist_centers, F0, yerr=d_F0, fmt='.', label='$F_0(' + x_lbl + ')/T$')
+			
+			ax_F.errorbar(OP_hist_centers, F, yerr=d_F, fmt='.', label='$-\ln[p_{eq}]$')
+			
+			#print('F/T: ', OP_hist_centers, F, d_F)
+			
+			F0_minmax = np.array([min(F0), max(F0)])
+			F_minmax = np.array([min(F), max(F)])
+			if(to_estimate_k):
+				if(N_good_points_near_OPpeak > 2):
+					ax_F0.plot([OP_A] * 2, F0_minmax, '--', label='state A, B', color=my.get_my_color(1))
+					ax_F0.plot([OP_B] * 2, F0_minmax, '--', label=None, color=my.get_my_color(1))
+					ax_F0.plot(OP_hist_centers[OP_fit2_inds], np.polyval(OP_F0_fit2, OP_hist_centers[OP_fit2_inds]), label='fit2; $' + x_lbl + '_0 = ' + my.f2s(OP_peak) + '$')
+					ax_F.plot([OP_A] * 2, F_minmax, '--', label='state A, B', color=my.get_my_color(1))
+					ax_F.plot([OP_B] * 2, F_minmax, '--', label=None, color=my.get_my_color(1))
+					ax_F.plot(OP_hist_centers[OP_fit2_inds], np.polyval(OP_F_fit2, OP_hist_centers[OP_fit2_inds]), label='fit2; $' + x_lbl + '_0 = ' + my.f2s(OP_peak) + '$')
+			ax_F0.plot([OP_hist_centers[OP_A_bound_ind]] * 2, F0_minmax, '--', label='$p_{eq,A} + kT$', color=my.get_my_color(2))
+			ax_F0.plot([OP_hist_centers[OP_B_bound_ind-1]] * 2, F0_minmax, '--', label='$p_{eq,B} + kT$', color=my.get_my_color(3))
+			ax_F.plot([OP_hist_centers[OP_A_bound_ind]] * 2, F_minmax, '--', label='$p_{eq,A} + kT$', color=my.get_my_color(2))
+			ax_F.plot([OP_hist_centers[OP_B_bound_ind-1]] * 2, F_minmax, '--', label='$p_{eq,B} + kT$', color=my.get_my_color(3))
+			
+			if(to_plot_ETS):
+				ax_F0.plot(OP_hist_centers, E_avg, '.', label='<E>(' + x_lbl + ')/T')
+				ax_F0.plot(OP_hist_centers, S, '.', label='$T \cdot S(' + x_lbl + ')$')
+			
+			my.add_legend(fig_OP_hist, ax_OP_hist, do_legend=to_plot_legend)
+			if(OP_TP_rho is not None):
+				my.add_legend(fig_OP_TP_rho, ax_OP_TP_rho, do_legend=to_plot_legend)
+			if(TP_OP_hist is not None):
+				my.add_legend(fig_TP_OP_hist, ax_TP_OP_hist, do_legend=to_plot_legend)
+			my.add_legend(fig_F0, ax_F0, do_legend=to_plot_legend)
+			my.add_legend(fig_F, ax_F, do_legend=to_plot_legend)
+			my.add_legend(fig_OP_jumps_hist, ax_OP_jumps_hist, do_legend=to_plot_legend)
+			my.add_legend(fig_OP_hist, ax_OP_hist, do_legend=to_plot_legend)
+			
+			if(to_estimate_k):
+				print('k_' + x_lbl + '_bc_AB   =   ' + my.f2s(k_bc_AB * print_scale_k) + '   (%e/step);' % (1/print_scale_k))
+				print('k_' + x_lbl + '_bc_BA   =   ' + my.f2s(k_bc_BA * print_scale_k) + '   (%e/step);' % (1/print_scale_k))
+	
+	plt.show()
+	
 	if(Nt_states == 0):
 		cluster_Rdens_centers, cluster_centered_Rdens_total, \
 			cluster_map_centers, cluster_centered_map_total, \
@@ -2462,14 +3161,20 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 				os.path.join(npz_basename + '_OPedges%d_%d_%d_dr%s_dx%s_BFab.pkl' % \
 					(rho_profile_OP_hist_edges.shape[1], min(rho_profile_OP_hist_edges[0, :]), max(rho_profile_OP_hist_edges[1, :]), my.f2s(cluster_map_dr), my.f2s(cluster_map_dx)))
 			
-			#print(os.path.isfile(npz_states_filepath))
-			#input(npz_states_filepath)
+			# print(os.path.isfile(npz_states_filepath))
+			# print(to_recomp, to_recomp & izing.binflags['postproc_hard'], izing.binflags['postproc_hard'])
+			# input(npz_states_filepath)
 			
-			if((not os.path.isfile(npz_states_filepath)) or (to_recomp & izing.binflags['postproc_hard'] == izing.binflags['postproc_hard'])):
+			if((not os.path.isfile(npz_states_filepath)) or ((to_recomp & izing.binflags['postproc_hard']) == izing.binflags['postproc_hard'])):
+				m_max = np.amax(m)
+				near_stateB_inds = np.where(m > 0.9 * m_max)[0]
+				
+				
 				state_groups = []
 				state_groups_timeinds = []
 				for i in range(N_rho_profile_bins):
-					state_groups_timeinds.append(np.where((m[states_timeinds] >= rho_profile_OP_hist_edges[0, i]) & (m[states_timeinds] < rho_profile_OP_hist_edges[1, i]))[0])
+					state_groups_timeinds.append(np.where((m[states_timeinds] >= rho_profile_OP_hist_edges[0, i]) & (m[states_timeinds] < rho_profile_OP_hist_edges[1, i]))[0])   # take all states in the margins
+					
 					state_groups.append(states[state_groups_timeinds[i], :, :])
 				
 				OP_grouped_states, maxclust_ind, max_cluster_1st_ind_id, \
@@ -2614,480 +3319,14 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 			
 			my.add_legend(fig_phi, ax_phi, do_legend=to_plot_legend)
 	
-	if(not means_only):
-		if(npz_basename is None):
-			F_filepath = ''
-			to_recomp = izing.binflags['all']
-			to_save_npz = 0
-		else:
-			F_filepath = os.path.join(npz_basename + '_F.npz')
-		
-		if((not os.path.isfile(F_filepath)) or (to_recomp & izing.binflags['postproc_light'])):
-			times_stab = times[stab_ind]
-			OP_stab = m[stab_ind]
-			
-			M_mean = np.average(M[stab_ind], weights=times_stab)
-			
-			OP_jumps = OP_stab[1:] - OP_stab[:-1]
-			OP_mean = np.average(OP_stab, weights=times_stab)
-			#OP_std = np.std(OP_stab)
-			OP_std = np.sqrt(np.average((OP_stab - OP_mean)**2, weights=times_stab))
-			
-			memory_time = max(1, OP_std / dOP_step)
-			# Time of statistical decorelation of the system state.
-			# 'the number of flips necessary to cover the typical system states range' * 'the upper-bound estimate on the number of steps for 1 flip to happen'
-			print('memory time =', my.f2s(memory_time))
-			
-			N_indep_measurs = Nt_stab / memory_time
-			d_M_mean = np.sqrt(np.average((M[stab_ind] - M_mean)**2, weights=times_stab)) / np.sqrt(N_indep_measurs)
-			d_OP_mean = OP_std / np.sqrt(N_indep_measurs)
-			
-			OP_hist, _ = np.histogram(OP_stab, bins=OP_hist_edges, weights=times_stab)
-			OP_jumps_hist, _ = np.histogram(OP_jumps, bins=OP_jumps_hist_edges)
-			OP_jumps_hist = OP_jumps_hist / Nt_stab
-			OP_hist_lens = (OP_hist_edges[1:] - OP_hist_edges[:-1])
-			N_m_points = len(OP_hist_lens)
-			OP_hist[OP_hist == 0] = 1/L2   # to not get errors for log(hist)
-			OP_hist = OP_hist# / memory_time
-			OP_hist_centers = (OP_hist_edges[1:] + OP_hist_edges[:-1]) / 2
-			rho = OP_hist / OP_hist_lens / total_stab_time
-			d_rho = np.sqrt(np.sum(times_stab**2) * OP_hist / total_stab_time * (1 - OP_hist / total_stab_time)) / OP_hist_lens / total_stab_time
-			
-			rho_interp1d = scipy.interpolate.interp1d(OP_hist_centers, rho, fill_value='extrapolate')
-			d_rho_interp1d = scipy.interpolate.interp1d(OP_hist_centers, d_rho, fill_value='extrapolate')
-			
-			#F = -np.log(rho * OP_hist_lens)
-			#D_fnc = lambda Ncl: np.ones(Ncl.shape)
-			F = -np.log(rho)
-			F = F - F[0]
-			d_F = d_rho / rho
-			if(np.any(OP_hist_centers <= 0)):
-				print(OP_hist_edges)
-				print(OP_hist_centers)
-				input('ok')
-			F0 = F - np.log(D_fnc(OP_hist_centers))
-			# F - true Free energy
-			# F0 - Langevin grive for Ito formulation
-			F0 = F0 - F0[0]
-			d_F0 = np.copy(d_F)
-			
-			TP_inds = np.where((OP_hist_centers > OP_A) & (OP_hist_centers < OP_B))[0]
-			OP_top_ind = TP_inds[np.argmax(F[TP_inds])]
-			OP_top = OP_hist_centers[OP_top_ind]
-			OP_A_min_ind = np.argmin(F[ : OP_top_ind])
-			F_OP_A_min = F[OP_A_min_ind]
-			OP_B_min_ind = OP_top_ind + np.argmin(F[OP_top_ind : ])
-			F_OP_B_min = F[OP_B_min_ind]
-			OP_A_bound_ind = (OP_A_min_ind+1 + np.argmax(F[OP_A_min_ind+1 : ] > (F_OP_A_min + 1)))
-			OP_B_bound_ind = (OP_B_min_ind - (np.argmax(np.flip(F[ : OP_B_min_ind - 1]) > (F_OP_B_min + 1)) + 1)) + 1   # +1 to keep consistent with [) intervals
-			
-			if(OP_A_byas is None):
-				TP_change_inds, TPs_types, TPs_inds, OP_TP_rho, \
-					d_OP_TP_rho, TP_OP_hist, d_TP_OP_hist = tuple([None] * 7)
-				
-			else:
-				if(OP_B_byas is None):
-					OP_B_byas = -1
-				
-				if(OP_A_byas < 0):
-					OP_A_byas = OP_hist_centers[OP_A_bound_ind]
-				if(OP_B_byas < 0):
-					OP_B_byas = OP_hist_centers[OP_B_bound_ind]
-				
-				TPs = []
-				TPs_inds = []
-				TPs_types = []
-				current_state_ind = 0
-				TP_state_inds = np.zeros(Nt_stab, dtype=int)
-				TP_state_inds[OP_stab >= OP_A_byas] = 1
-				TP_state_inds[OP_stab >= OP_B_byas] = 2
-				TP_change_inds = [TP_state_inds[current_state_ind]]
-				
-				#fig1, ax1, _ = my.get_fig('t', 'CS')
-				#ax1.plot(np.cumsum())
-				
-				while(current_state_ind < Nt_stab):
-					TP_next_inds = (TP_state_inds[current_state_ind + 1:] != TP_state_inds[current_state_ind])
-					if(np.any(TP_next_inds)):
-						d_state_ind = np.argmax(TP_next_inds) + 1
-					else:
-						break
-					current_state_ind += d_state_ind
-					TP_change_inds.append(TP_state_inds[current_state_ind])
-					
-					if(TP_change_inds[-1] != 1):
-						if(len(TP_change_inds) > 2):
-							if(TP_change_inds[-1] != TP_change_inds[-3]):
-								TPs_inds.append([current_state_ind - d_state_ind, current_state_ind])
-								TPs.append(OP_stab[current_state_ind - d_state_ind: current_state_ind])
-								TPs_types.append(TP_change_inds[-3])
-				TP_change_inds = np.array(TP_change_inds, dtype=int)
-				TPs_types = np.array(TPs_types, dtype=int)
-				TPs_inds = np.array(TPs_inds, dtype=int)
-				N_TP = len(TPs_types)
-				if(N_TP > 0):
-					TPs_weights_all = np.concatenate(tuple([times_stab[TPs_inds[i, 0] : TPs_inds[i, 1]] for i in range(N_TP)])).flatten()
-					TPs_times_total = np.sum(TPs_weights_all)
-					OP_TP_hist, _ = np.histogram(np.concatenate(tuple(TPs)).flatten(), \
-												bins=OP_hist_edges, \
-												weights=TPs_weights_all)
-					OP_TP_hist[OP_TP_hist == 0] = 1/L2   # to not get errors for log(hist)
-					OP_TP_rho = OP_TP_hist / OP_hist_lens / TPs_times_total
-					d_OP_TP_rho = np.sqrt(np.sum(TPs_weights_all**2) * OP_TP_hist / TPs_times_total * (1 - OP_TP_hist / TPs_times_total)) / OP_hist_lens / TPs_times_total
-					
-					#TP_OP_rho = (TP_rho / rho) * (np.sum(TPs_weights_all) / total_stab_time)
-					TP_OP_hist = OP_TP_hist / OP_hist
-					d_TP_OP_hist = TP_OP_hist * np.sqrt((d_OP_TP_rho / OP_TP_rho)**2 + (d_rho / rho)**2)
-				else:
-					OP_TP_hist, OP_TP_rho, d_OP_TP_rho, TP_OP_hist, d_TP_OP_hist = \
-						tuple([None] * 5)
-			
-			E_avg = np.empty(N_m_points)
-			for i in range(N_m_points):
-				E_for_avg = E[(OP_hist_edges[i] < m) & (m < OP_hist_edges[i+1])] * L2
-				#E_avg[i] = np.average(E_for_avg, weights=np.exp(- E_for_avg))
-				E_avg[i] = np.mean(E_for_avg) if(len(E_for_avg) > 0) else (e[1,1] + abs(mu[1])) * L2
-			E_avg = E_avg - E_avg[0]   # we can choose the E constant
-			S = (E_avg - F)
-			S = S - S[0] # S[m=+-1] = 0 because S = log(N), and N(m=+-1)=1
-			
-			if(to_save_npz):
-				print('writing', F_filepath)
-				np.savez(F_filepath, OP_hist_centers=OP_hist_centers, \
-						rho=rho, d_rho=d_rho, OP_hist_lens=OP_hist_lens, \
-						possible_jumps=possible_jumps, \
-						OP_jumps_hist=OP_jumps_hist, F0=F0, d_F0=d_F0, \
-						F=F, d_F=d_F, \
-						E_avg=E_avg, S=S, \
-						rho_interp1d=rho_interp1d,
-						d_rho_interp1d=d_rho_interp1d, \
-						OP_mean=OP_mean, OP_std=OP_std, d_OP_mean=d_OP_mean, \
-						M_mean=M_mean, d_M_mean=d_M_mean, \
-						OP_top=OP_top, TP_change_inds=TP_change_inds, \
-						TPs_types=TPs_types, TPs_inds=TPs_inds, \
-						OP_TP_rho=OP_TP_rho, d_OP_TP_rho=d_OP_TP_rho, \
-						TP_OP_hist=TP_OP_hist, d_TP_OP_hist=d_TP_OP_hist, \
-						OP_A_bound_ind=OP_A_bound_ind, \
-						OP_B_bound_ind=OP_B_bound_ind)
-						
-		else:
-			print('loading', F_filepath)
-			npz_data = np.load(F_filepath, allow_pickle=True)
-			
-			OP_hist_centers = npz_data['OP_hist_centers']
-			rho = npz_data['rho']
-			d_rho = npz_data['d_rho']
-			OP_hist_lens = npz_data['OP_hist_lens']
-			possible_jumps = npz_data['possible_jumps']
-			OP_jumps_hist = npz_data['OP_jumps_hist']
-			F0 = npz_data['F0']
-			d_F0 = npz_data['d_F0']
-			F = npz_data['F']
-			d_F = npz_data['d_F']
-			E_avg = npz_data['E_avg']
-			S = npz_data['S']
-			rho_interp1d = npz_data['rho_interp1d'].item()
-			d_rho_interp1d = npz_data['d_rho_interp1d'].item()
-			OP_mean = npz_data['OP_mean']
-			OP_std = npz_data['OP_std']
-			d_OP_mean = npz_data['d_OP_mean']
-			OP_top = npz_data['OP_top']
-			if('M_mean' in npz_data.files):
-				M_mean = npz_data['M_mean']
-				d_M_mean = npz_data['d_M_mean']
-			else:
-				M_mean, d_M_mean = tuple([None] * 2)
-			TP_change_inds = npz_data['TP_change_inds']
-			TPs_types = npz_data['TPs_types']
-			TPs_inds = npz_data['TPs_inds']
-			OP_TP_rho = npz_data['OP_TP_rho']
-			d_OP_TP_rho = npz_data['d_OP_TP_rho']
-			TP_OP_hist = npz_data['TP_OP_hist']
-			d_TP_OP_hist = npz_data['d_TP_OP_hist']
-			OP_A_bound_ind = npz_data['OP_A_bound_ind']
-			OP_B_bound_ind = npz_data['OP_B_bound_ind']
-		
-		if(TPs_types is not None):
-			if(len(TPs_types.shape) < 1):
-				if(TPs_types == None):
-					TPs_types = None
-		
-		if(TPs_types is not None):
-			# print(TPs_types)
-			# print(TPs_types is not None)
-			# print(type(TPs_types))
-			# input('ok')
-			N_TP = len(TPs_types)
-			TP_OP_inds = np.arange(OP_A_bound_ind, OP_B_bound_ind)
-		
-		if(to_estimate_k):
-			if(npz_basename is None):
-				k_filepath = ''
-				to_recomp = izing.binflags['all']
-				to_save_npz = 0
-			else:
-				k_filepath = os.path.join(npz_basename + '_kAB.npz')
-			if((not os.path.isfile(k_filepath)) or (to_recomp & izing.binflags['postproc_light'])):
-				assert(hA is not None), 'ERROR: k estimation is requested in BF, but no hA provided'
-				#k_AB_ratio = np.sum(hA > 0.5) / np.sum(hA < 0.5)
-				hA_jump = hA[1:] - hA[:-1]   # jump > 0 => {0->1} => from B to A => k_BA ==> k_ratio = k_BA / k_AB
-				jump_inds = (hA_jump != 0)
-				
-				jumps_AB_inds = np.where(hA_jump < 0)[0]
-				N_AB_jumps = len(jumps_AB_inds)
-				jumps_BA_inds = np.where(hA_jump > 0)[0]
-				N_BA_jumps = len(jumps_BA_inds)
-				
-				# if(N_AB_jumps > 0):
-					# k_AB = N_AB_jumps / (np.sum(times[hA > 0.5]) * stride)
-					# d_k_AB = k_AB / np.sqrt(N_AB_jumps)
-				# else:
-					# k_AB, d_k_AB = 0, 0
-				# if(N_BA_jumps > 0):
-					# k_BA = N_BA_jumps / (np.sum(times[hA < 0.5]) * stride)
-					# d_k_BA = k_BA / np.sqrt(N_BA_jumps)
-				# else:
-					# k_BA, d_k_BA = 0, 0
-				
-				dwell_times_A = []
-				dwell_times_B = []
-				if(N_AB_jumps + N_BA_jumps > 0):
-					jump_inds = np.where(jump_inds)[0]
-					times_AB_chunked = np.split(times, jump_inds + 1)
-					for i_jump, dwell_times in enumerate(times_AB_chunked[:-1]):
-						if(hA_jump[jump_inds[i_jump]] < 0):
-							dwell_times_A.append(np.sum(dwell_times))
-						else:
-							dwell_times_B.append(np.sum(dwell_times))
-				else:
-					jump_inds = np.array([], dtype=int)
-				
-				dwell_times_A = np.array(dwell_times_A) * stride
-				dwell_times_B = np.array(dwell_times_B) * stride
-				if(N_AB_jumps > 0):
-					# <1/t> diverges for an exponential time distribution due to small times. 
-					# The correct way to get k is to do 1/<t> because <t> = 1/k for the exponential distribution
-					k_AB = 1 / np.mean(dwell_times_A)
-					d_k_AB = k_AB / np.sqrt(N_AB_jumps)
-				else:
-					k_AB, d_k_AB = 0, 0
-				
-				if(N_BA_jumps > 0):
-					k_BA = 1 / np.mean(dwell_times_B)
-					d_k_BA = k_BA / np.sqrt(N_BA_jumps)
-				else:
-					k_BA, d_k_BA = 0, 0
-				
-				if(to_save_npz):
-					print('writing', k_filepath)
-					np.savez(k_filepath, hA=hA, hA_jump=hA_jump, \
-							jump_inds=jump_inds, N_AB_jumps=N_AB_jumps, \
-							k_AB=k_AB, d_k_AB=d_k_AB, \
-							k_BA=k_BA, d_k_BA=d_k_BA, \
-							dwell_times_A=dwell_times_A, \
-							dwell_times_B=dwell_times_B)
-			else:
-				print('loading', k_filepath)
-				npz_data = np.load(k_filepath, allow_pickle=True)
-				
-				hA = npz_data['hA']
-				hA_jump = npz_data['hA_jump']
-				jump_inds = npz_data['jump_inds']
-				N_AB_jumps = npz_data['N_AB_jumps']
-				k_AB = npz_data['k_AB']
-				d_k_AB = npz_data['d_k_AB']
-				k_BA = npz_data['k_BA']
-				d_k_BA = npz_data['d_k_BA']
-				dwell_times_A = npz_data['dwell_times_A']
-				dwell_times_B = npz_data['dwell_times_B']
-			
-			if(OP_peak_guess < 0):
-				OP_peak_guess = OP_top
-			OP_fit2_OPmin_ind = np.argmax(OP_hist_centers > OP_peak_guess - OP_fit2_width)
-			OP_fit2_OPmax_ind = np.argmax(OP_hist_centers > OP_peak_guess + OP_fit2_width)
-			if(0 in [OP_fit2_OPmin_ind, OP_fit2_OPmax_ind]):
-				OP_peak_guess = np.argmin(F) * 3 + OP_fit2_width
-				OP_fit2_OPmin_ind = np.argmax(OP_hist_centers > OP_peak_guess - OP_fit2_width)
-				OP_fit2_OPmax_ind = np.argmax(OP_hist_centers > OP_peak_guess + OP_fit2_width)
-			
-			if(0 in [OP_fit2_OPmin_ind, OP_fit2_OPmax_ind]):
-				N_good_points_near_OPpeak = 0
-			else:
-				OP_fit2_inds = (OP_fit2_OPmin_ind <= np.arange(len(OP_hist_centers))) & (OP_fit2_OPmax_ind >= np.arange(len(OP_hist_centers))) & (F < max(F))
-				N_good_points_near_OPpeak = np.sum(OP_fit2_inds)
-			
-			if(N_good_points_near_OPpeak > 2):
-				OP_F0_fit2 = np.polyfit(OP_hist_centers[OP_fit2_inds], F0[OP_fit2_inds], 2, w = 1/d_F0[OP_fit2_inds])
-				OP_F_fit2 = np.polyfit(OP_hist_centers[OP_fit2_inds], F[OP_fit2_inds], 2, w = 1/d_F[OP_fit2_inds])
-				OP_peak = -OP_F0_fit2[1] / (2 * OP_F0_fit2[0])
-				m_peak_ind = min(np.argmin(abs(OP_hist_centers - OP_peak)), len(OP_hist_centers) - 2)
-				F_max = np.polyval(OP_F0_fit2, OP_peak)
-				#m_peak_ind = np.argmin(OP_hist_centers - OP_peak)
-				bc_Z_AB = exp_integrate(OP_hist_centers[ : OP_fit2_OPmin_ind + 1], -F[ : OP_fit2_OPmin_ind + 1]) + exp2_integrate(- OP_F_fit2, OP_hist_centers[OP_fit2_OPmin_ind])
-				bc_Z_BA = exp_integrate(OP_hist_centers[OP_fit2_OPmax_ind : ], -F[OP_fit2_OPmax_ind : ]) + abs(exp2_integrate(- OP_F_fit2, OP_hist_centers[OP_fit2_OPmax_ind]))
-				k_bc_AB = (np.mean(abs(OP_hist_centers[m_peak_ind + 1] - OP_hist_centers[m_peak_ind - 1]))/2 / 2) * (np.exp(-F_max) / bc_Z_AB)
-				k_bc_BA = (np.mean(abs(OP_hist_centers[m_peak_ind + 1] - OP_hist_centers[m_peak_ind - 1]))/2 / 2) * (np.exp(-F_max) / bc_Z_BA)
-			else:
-				print('WARNING: too few (%d) points with good data found near guessed OP_peak (%d)' % (N_good_points_near_OPpeak, OP_peak_guess))
-				k_bc_AB, k_bc_BA = 0, 0
-				
-				# OP_F_fit2, OP_peak, m_peak_ind, F_max, bc_Z_AB, bc_Z_BA, \
-				# k_bc_AB, k_bc_BA = \
-					# tuple([np.nan] * 8)
-			
-			if(k_AB > 0):
-				get_log_errors(np.log(k_AB), d_k_AB / k_AB, lbl='k_AB_BF', units='1/sweep', print_scale=print_scale_k)
-			else:
-				print('k_AB = 0')
-			
-			if(k_BA > 0):
-				get_log_errors(np.log(k_BA), d_k_BA / k_BA, lbl='k_BA_BF', units='1/sweep', print_scale=print_scale_k)
-			else:
-				print('k_BA = 0')
-		
-		if(to_plot_time_evol):
-			fig_OP, ax_OP, _ = my.get_fig('time (step attempts / $L^2$)', y_lbl, title='$' + x_lbl + '$(steps); ' + ThL_lbl)
-			fig_dwellTimes, ax_dwellTimes, _ = my.get_fig('', r'$t_{dwell}$ (step-attempt/$L^2$)', title=r'$t_{dwell}(' + x_lbl + ')/T$; ' + ThL_lbl, yscl='log')
-			if(to_estimate_k):
-				fig_hA, ax_hA, _ = my.get_fig('time (step attempts / $L^2$)', '$h_A$', title='$h_{A, ' + x_lbl + '}$(steps); ' + ThL_lbl)
-			if(M_mean is not None):
-				fig_M, ax_M, _ = my.get_fig('time (step attempts / $L^2$)', '$m = M / L^2$', title='$m$(steps); ' + ThL_lbl)
-			
-			if(M_mean is not None):
-				ax_M.plot(OP_times, M, label='data')
-				ax_M.plot([stab_time] * 2, [min(M), max(M)], '--', label='equilibr')
-				ax_M.plot([stab_time, max(OP_times)], [M_mean] * 2, '--', label=('$<m> = ' + my.errorbar_str(M_mean, d_M_mean) + '$'))
-			
-			ax_OP.plot(OP_times, m, label='data')
-			m_minmax = np.array([min(m), max(m)])
-			OP_times_minmax = np.array([min(OP_times), max(OP_times)])
-			ax_OP.plot([stab_time] * 2, m_minmax, '--', label='equilibr')
-			if(OP_min_save_state is not None):
-				ax_OP.plot(OP_times_minmax, [OP_min_save_state]*2, '--', label='$OP_{min,save} = %d$' % (OP_min_save_state))
-			if(OP_max_save_state is not None):
-				ax_OP.plot(OP_times_minmax, [OP_max_save_state]*2, '--', label='$OP_{max,save} = %d$' % (OP_max_save_state))
-			ax_OP.plot([stab_time, max(OP_times)], [OP_mean] * 2, '--', label=('$<' + x_lbl + '> = ' + my.errorbar_str(OP_mean, d_OP_mean) + '$'))
-			
-			if(to_estimate_k):
-				ax_hA.plot(OP_times, hA, label='$h_A$')
-				ax_hA.plot(OP_times[jump_inds+1], hA_jump[jump_inds], '.', label='$h_A$ jumps')
-				
-				ax_OP.plot([0, max(OP_times)], [OP_A] * 2, '--', label='state A, B', color=my.get_my_color(1))
-				ax_OP.plot([0, max(OP_times)], [OP_B] * 2, '--', label=None, color=my.get_my_color(1))
-				
-				if(len(dwell_times_A) > 0):
-					ax_dwellTimes.plot([0] * len(dwell_times_A), dwell_times_A, '.')
-				if(len(dwell_times_B) > 0):
-					ax_dwellTimes.plot([1] * len(dwell_times_B), dwell_times_B, '.')
-				
-				ax_dwellTimes.set_xlim([-0.5, 1.5])
-				ax_dwellTimes.set_xticks([0, 1])
-				ax_dwellTimes.set_xticklabels([r'$\tau_A$', r'$\tau_B$'])
-				
-			if(TPs_inds is not None):
-				if(len(TPs_inds.shape) < 1):
-					if(TPs_inds == None):
-						TPs_inds = None
-			
-			if(TPs_inds is not None):
-				for i in range(len(TPs_inds)):
-					ax_OP.plot([OP_times[TPs_inds[i, 0] + stab_ind[0]]] * 2, m_minmax, \
-						'--', color=my.get_my_color(2), \
-						label=('TP start' if(i == 0) else None))
-					ax_OP.plot([OP_times[TPs_inds[i, 1] + stab_ind[0]]] * 2, m_minmax, \
-						'--', color=my.get_my_color(3), \
-						label=('TP end' if(i == 0) else None))
-					#
-			
-			my.add_legend(fig_OP, ax_OP, do_legend=to_plot_legend)
-			if(M_mean is not None):
-				my.add_legend(fig_M, ax_M, do_legend=to_plot_legend)
-			
-			if(to_estimate_k):
-				fig_dwellTimes.tight_layout()
-				my.add_legend(fig_hA, ax_hA, do_legend=to_plot_legend)
-			
-			#print('k_' + x_lbl + '_AB    =    (' + my.errorbar_str(k_AB, d_k_AB) + ')    (1/step);    dk/k =', my.f2s(d_k_AB / k_AB))
-			#print('k_' + x_lbl + '_BA    =    (' + my.errorbar_str(k_BA, d_k_BA) + ')    (1/step);    dk/k =', my.f2s(d_k_BA / k_BA))
-		
-		if(to_plot_F):
-			fig_OP_hist, ax_OP_hist, _ = my.get_fig(y_lbl, r'$\rho(' + x_lbl + ')$', title=r'$\rho(' + x_lbl + ')$; ' + ThL_lbl)
-			fig_F0, ax_F0, _ = my.get_fig(y_lbl, r'$F_0/T$', title=r'$F_0(' + x_lbl + ')/T$; ' + ThL_lbl)
-			fig_F, ax_F, _ = my.get_fig(y_lbl, r'$-\ln(p_{eq})$', title=r'$-\ln[p_{eq}(' + x_lbl + ')]$; ' + ThL_lbl)
-			fig_OP_jumps_hist, ax_OP_jumps_hist, _ = my.get_fig('d' + x_lbl, 'probability', title=x_lbl + ' jumps distribution; ' + ThL_lbl, yscl='log')
-			if(OP_TP_rho is not None):
-				fig_OP_TP_rho, ax_OP_TP_rho, _ = my.get_fig(y_lbl, r'$\rho(' + x_lbl + ' | TP)$', title=r'$\rho(' + x_lbl + ' | TP)$; ' + ThL_lbl)
-			if(TP_OP_hist is not None):
-				fig_TP_OP_hist, ax_TP_OP_hist, _ = my.get_fig(y_lbl, r'$P(TP | ' + x_lbl + ')$', title=r'$P(TP | ' + x_lbl + ')$; ' + ThL_lbl)
-			
-			ax_OP_hist.bar(OP_hist_centers, rho, yerr=d_rho, width=OP_hist_lens, label=r'$\rho(' + x_lbl + ')$', align='center')
-			if(to_estimate_k):
-				ax_OP_hist.plot([OP_A] * 2, [0, max(rho)], '--', label='state A,B', color=my.get_my_color(1))
-				ax_OP_hist.plot([OP_B] * 2, [0, max(rho)], '--', label=None, color=my.get_my_color(1))
-			
-			if(TP_OP_hist is not None):
-				if(len(TP_OP_hist.shape) < 1):
-					if(TP_OP_hist == None):
-						TP_OP_hist = None
-			if(TP_OP_hist is not None):
-				ax_TP_OP_hist.errorbar(OP_hist_centers[TP_OP_inds], TP_OP_hist[TP_OP_inds], yerr=d_TP_OP_hist[TP_OP_inds], xerr=OP_hist_lens[TP_OP_inds] / 2, \
-										label=r'$P(TP | ' + x_lbl + ')$')
-				ax_TP_OP_hist.plot([min(OP_hist_centers[TP_OP_inds]), max(OP_hist_centers[TP_OP_inds])], [1/2] * 2, \
-									'--', label='P=1/2')
-			if(OP_TP_rho is not None):
-				if(len(OP_TP_rho.shape) < 1):
-					if(OP_TP_rho == None):
-						OP_TP_rho = None
-			if(OP_TP_rho is not None):
-				ax_OP_TP_rho.bar(OP_hist_centers[TP_OP_inds], OP_TP_rho[TP_OP_inds], yerr=d_OP_TP_rho[TP_OP_inds], width=OP_hist_lens[TP_OP_inds], \
-								label=r'$\rho(' + x_lbl + ' | TP)$', align='center')
-			
-			ax_OP_jumps_hist.plot(possible_jumps, OP_jumps_hist, '.')
-			
-			ax_F0.errorbar(OP_hist_centers, F0, yerr=d_F0, fmt='.', label='$F_0(' + x_lbl + ')/T$')
-			
-			ax_F.errorbar(OP_hist_centers, F, yerr=d_F, fmt='.', label='$-\ln[p_{eq}]$')
-			
-			#print('F/T: ', OP_hist_centers, F, d_F)
-			
-			F0_minmax = np.array([min(F0), max(F0)])
-			F_minmax = np.array([min(F), max(F)])
-			if(to_estimate_k):
-				if(N_good_points_near_OPpeak > 2):
-					ax_F0.plot([OP_A] * 2, F0_minmax, '--', label='state A, B', color=my.get_my_color(1))
-					ax_F0.plot([OP_B] * 2, F0_minmax, '--', label=None, color=my.get_my_color(1))
-					ax_F0.plot(OP_hist_centers[OP_fit2_inds], np.polyval(OP_F0_fit2, OP_hist_centers[OP_fit2_inds]), label='fit2; $' + x_lbl + '_0 = ' + my.f2s(OP_peak) + '$')
-					ax_F.plot([OP_A] * 2, F_minmax, '--', label='state A, B', color=my.get_my_color(1))
-					ax_F.plot([OP_B] * 2, F_minmax, '--', label=None, color=my.get_my_color(1))
-					ax_F.plot(OP_hist_centers[OP_fit2_inds], np.polyval(OP_F_fit2, OP_hist_centers[OP_fit2_inds]), label='fit2; $' + x_lbl + '_0 = ' + my.f2s(OP_peak) + '$')
-			ax_F0.plot([OP_hist_centers[OP_A_bound_ind]] * 2, F0_minmax, '--', label='$p_{eq,A} + kT$', color=my.get_my_color(2))
-			ax_F0.plot([OP_hist_centers[OP_B_bound_ind-1]] * 2, F0_minmax, '--', label='$p_{eq,B} + kT$', color=my.get_my_color(3))
-			ax_F.plot([OP_hist_centers[OP_A_bound_ind]] * 2, F_minmax, '--', label='$p_{eq,A} + kT$', color=my.get_my_color(2))
-			ax_F.plot([OP_hist_centers[OP_B_bound_ind-1]] * 2, F_minmax, '--', label='$p_{eq,B} + kT$', color=my.get_my_color(3))
-			
-			if(to_plot_ETS):
-				ax_F0.plot(OP_hist_centers, E_avg, '.', label='<E>(' + x_lbl + ')/T')
-				ax_F0.plot(OP_hist_centers, S, '.', label='$T \cdot S(' + x_lbl + ')$')
-			
-			my.add_legend(fig_OP_hist, ax_OP_hist, do_legend=to_plot_legend)
-			if(OP_TP_rho is not None):
-				my.add_legend(fig_OP_TP_rho, ax_OP_TP_rho, do_legend=to_plot_legend)
-			if(TP_OP_hist is not None):
-				my.add_legend(fig_TP_OP_hist, ax_TP_OP_hist, do_legend=to_plot_legend)
-			my.add_legend(fig_F0, ax_F0, do_legend=to_plot_legend)
-			my.add_legend(fig_F, ax_F, do_legend=to_plot_legend)
-			my.add_legend(fig_OP_jumps_hist, ax_OP_jumps_hist, do_legend=to_plot_legend)
-			my.add_legend(fig_OP_hist, ax_OP_hist, do_legend=to_plot_legend)
-			
-			if(to_estimate_k):
-				print('k_' + x_lbl + '_bc_AB   =   ' + my.f2s(k_bc_AB * print_scale_k) + '   (%e/step);' % (1/print_scale_k))
-				print('k_' + x_lbl + '_bc_BA   =   ' + my.f2s(k_bc_BA * print_scale_k) + '   (%e/step);' % (1/print_scale_k))
 	
 	return F, d_F, OP_hist_centers, OP_hist_lens, \
 			cluster_Rdens_centers, cluster_centered_Rdens_total, \
 			cluster_map_centers, cluster_centered_map_total, \
 			state_Rdens_centers, state_centered_Rdens_total, \
 			state_map_centers, state_centered_map_total, \
+			TPs_types, TPs_inds, \
+			OP_TP_AB_interps, OP_TP_AB_interp_maxTimes, \
 			rho_fourier2D, \
 			rho_interp1d, d_rho_interp1d, \
 			k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, \
@@ -3268,6 +3507,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 		
 		if(to_gen_init_state):
 			init_state = get_fixed_composition_random_state(L, init_composition)
+			# print('gen:', init_state.sum())
 			if(verbose > 0):
 				print('generated init composition with L = %d, init_compos = %s. N_total = %d' % (L, str(init_composition), np.sum(init_state.flatten() == 1)))
 		if((init_state is not None) and (R_clust_init is not None)):
@@ -3278,6 +3518,7 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 				draw_state(init_state, to_show=False, title='init cluster formed')
 			if(verbose > 0):
 				print('initial cluster of R = %s created, to_keep_compos = %s, N_total = %d' % (my.f2s(R_clust_init), str(to_keep_composition), np.sum(init_state.flatten() == 1)))
+			
 			#plt.show()
 		
 		'''
@@ -3313,6 +3554,10 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 		
 		if(verbose > 0):
 			print("BF Timestamp BEGIN:", time.time())
+		
+		# print(init_state)
+		# print(init_state.sum())
+		# input('ok')
 		
 		(states, N_states_saved, E, M, CS, hA, times, k_AB_launches, time_total) = \
 			lattice_gas.run_bruteforce(MC_move_mode, L, e.flatten(), mu, Nt,
@@ -3417,6 +3662,8 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 				cluster_map_centers, cluster_centered_map_total, \
 				state_Rdens_centers, state_centered_Rdens_total, \
 				state_map_centers, state_centered_map_total, \
+				TPs_types, TPs_inds, \
+				OP_TP_AB_interps, OP_TP_AB_interp_maxTimes, \
 				rho_fourier2D, \
 				rho_interp1d, d_rho_interp1d, \
 				k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, OP_avg, \
@@ -3477,6 +3724,8 @@ def proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, verbose=None, \
 					cluster_map_centers, cluster_centered_map_total, \
 					state_Rdens_centers, state_centered_Rdens_total, \
 					state_map_centers, state_centered_map_total, \
+					TPs_types, TPs_inds, \
+					OP_TP_AB_interps, OP_TP_AB_interp_maxTimes, \
 					rho_fourier2D, \
 					rho_interp1d, d_rho_interp1d, \
 					k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, OP_avg, d_OP_avg, \
@@ -3651,7 +3900,7 @@ def run_phi01_pair(MC_move_mode, L, e, mu, Nt, interface_mode, timeevol_stride, 
 	assert(MC_move_mode not in nvt_movemodes), 'ERROR: MC_move_mode = %d in restricted modes %s for phi01_pair run' % (MC_move_mode, str(nvt_movemodes))
 	
 	_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, \
-		_, _, _, _, _, _, _, _, \
+		_, _, _, _, _, _, _, _, _, _, _, _, \
 		phi_0_evol, phi_0, d_phi_0, \
 		_, _, _, _, = \
 			proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, \
@@ -3666,7 +3915,7 @@ def run_phi01_pair(MC_move_mode, L, e, mu, Nt, interface_mode, timeevol_stride, 
 				verbose=verbose)   # phi_0 is a state-vector enriched in phi0
 	
 	_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, \
-		_, _, _, _, _, _, _, _, \
+		_, _, _, _, _, _, _, _, _, _, _, _, \
 		phi_1_evol, phi_1, d_phi_1, \
 		_, _, _, _, = \
 			proc_T(MC_move_mode, L, e, mu, Nt, interface_mode, \
@@ -3781,9 +4030,9 @@ def cost_fnc(MC_move_mode, L, e, mu, Nt, interface_mode, phi0_target, phi1_targe
 	steps = np.arange(Nt_states) * timeevol_stride
 	#stab_inds = (steps < stab_step) & (steps > 5 * L2)
 	stab_inds = steps > stab_step
-
+	
 	reg = 2
-
+	
 	if(cost_mode == 0):
 		err =   [np.mean(((phi_0 - phi0_target) / d_phi_0)**2), \
 				np.mean(((phi_1 - phi1_target) / d_phi_1)**2)]
@@ -4568,9 +4817,10 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			init_gen_mode=-2, to_plot_committer=None, to_get_timeevol=None, \
 			target_states0=None, target_states1=None, stab_step=-5,
 			init_composition=None, to_save_npz=True, to_recomp=0, \
-			to_equilibrate=None, \
+			to_equilibrate=None, to_post_proc=False, \
 			OP_min_save_state=None, OP_max_save_state=None, \
 			rho_profile_OP_hist_edges=None, \
+			OP_A_byas=None, OP_B_byas=None, \
 			R_clust_init=None, seeds=None, interfacesIDs_to_plot_dens='main', \
 			Dtop_Nruns=0, Dtop_PBthr=[0.05, 0.05], N_fourier=5, dF_species_id=1, \
 			N_clusters_deplet_track=15, phi_c=0.746e-2, rho_chi2_p=2, \
@@ -4647,6 +4897,10 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 		ln_k_bc_AB_data = np.empty(N_runs)
 		ln_k_bc_BA_data = np.empty(N_runs)
 	
+	elif(mode == 'BF_AB'):
+		OP_TP_AB_interps = [[]] * N_runs
+		OP_TP_AB_interp_maxTimes = [[]] * N_runs
+	
 	elif(mode == 'BF_2sides'):
 		Nt_states = Nt_per_BF_run // timeevol_stride
 		phi_0_data = np.empty((N_species, N_runs))
@@ -4705,6 +4959,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					cluster_map_centers_new, cluster_centered_map_total_new, \
 					state_Rdens_centers_new, state_centered_Rdens_total_new, \
 					_, _, \
+					_, _, OP_TP_AB_interps_new, OP_TP_AB_interp_maxTimes_new, \
 					rho_fourier2D_new, \
 					rho_fncs[i], d_rho_fncs[i], k_bc_AB_BF, k_bc_BA_BF, \
 					k_AB_BF, _, k_BA_BF, _, _, _, _, _, _, _, k_AB_BFcount, _, _ = \
@@ -4719,6 +4974,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								cluster_map_dr=cluster_map_dr, cluster_map_dx=cluster_map_dx, \
 								OP_min_save_state=OP_min_save_state, \
 								OP_max_save_state=OP_max_save_state, \
+								OP_A_byas=OP_A_byas, OP_B_byas=OP_B_byas, \
 								rho_profile_OP_hist_edges=rho_profile_OP_hist_edges, \
 								to_plot_legend=to_plot_legend, \
 								progress_print_stride=progress_print_stride, \
@@ -4752,6 +5008,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 							cluster_centered_map_total_new=cluster_centered_map_total_new, \
 							state_Rdens_centers_new=state_Rdens_centers_new, \
 							state_centered_Rdens_total_new=state_centered_Rdens_total_new, \
+							OP_TP_AB_interps_new=OP_TP_AB_interps_new, \
 							k_bc_AB_BF=k_bc_AB_BF, k_bc_BA_BF=k_bc_BA_BF, \
 							k_AB_BF=k_AB_BF, k_BA_BF=k_BA_BF, \
 							k_AB_BFcount=k_AB_BFcount)
@@ -4772,6 +5029,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				cluster_centered_map_total_new = npz_data['cluster_centered_map_total_new']
 				state_Rdens_centers_new = npz_data['state_Rdens_centers_new']
 				state_centered_Rdens_total_new = npz_data['state_centered_Rdens_total_new']
+				OP_TP_AB_interps_new = npz_data['OP_TP_AB_interps_new']
 				rho_fourier2D_new = npz_data['rho_fourier2D_new']
 				rho_fncs[i] = npz_data['rho_fncs']
 				d_rho_fncs[i] = npz_data['d_rho_fncs']
@@ -4834,12 +5092,15 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 # 			print(npz_BFAB_filepath)
 # 			print(to_recomp & izing.binflags['postproc_hard'] == izing.binflags['postproc_hard'], to_recomp, izing.binflags['postproc_hard'])
 # 			input(to_save_npz)
-			if((not os.path.isfile(npz_BFAB_filepath)) or (to_recomp & izing.binflags['postproc_hard'] == izing.binflags['postproc_hard'])):
+			#if((not os.path.isfile(npz_BFAB_filepath)) or (to_recomp & izing.binflags['postproc_hard'] == izing.binflags['postproc_hard'])):
+			if((not os.path.isfile(npz_BFAB_filepath)) or (to_recomp & izing.binflags['postproc_light'] == izing.binflags['postproc_light'])):
 				F_new, d_F_new, OP_hist_centers_new, OP_hist_lens_new, \
 					_, _, \
 					cluster_map_centers_new, cluster_centered_map_total_new, \
 					state_Rdens_centers_new, state_centered_Rdens_total_new, \
 					_, _, \
+					_, _, \
+					OP_TP_AB_interps[i], OP_TP_AB_interp_maxTimes[i], \
 					rho_fourier2D_new, \
 					rho_fncs[i], d_rho_fncs[i], _, _, _, _, _, _, _, _, _, _, _, \
 						_, k_AB_BFcount, _, k_AB_BFcount_N_data[i] = \
@@ -4855,6 +5116,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								cluster_map_dr=cluster_map_dr, cluster_map_dx=cluster_map_dx, \
 								OP_min_save_state=OP_min_save_state, \
 								OP_max_save_state=OP_max_save_state, \
+								OP_A_byas=OP_A_byas, OP_B_byas=OP_B_byas, \
 								rho_profile_OP_hist_edges=rho_profile_OP_hist_edges, \
 								to_equilibrate=to_equilibrate, \
 								progress_print_stride=progress_print_stride, \
@@ -4878,6 +5140,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 							cluster_centered_map_total_new=cluster_centered_map_total_new, \
 							state_Rdens_centers_new=state_Rdens_centers_new, \
 							state_centered_Rdens_total_new=state_centered_Rdens_total_new, \
+							OP_TP_AB_interps=OP_TP_AB_interps[i], \
+							OP_TP_AB_interp_maxTimes=OP_TP_AB_interp_maxTimes[i], \
 							rho_fourier2D_new=rho_fourier2D_new, \
 							rho_fncs=rho_fncs[i], \
 							d_rho_fncs=d_rho_fncs[i], \
@@ -4899,6 +5163,8 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 				cluster_centered_map_total_new = npz_data['cluster_centered_map_total_new']
 				state_Rdens_centers_new = npz_data['state_Rdens_centers_new']
 				state_centered_Rdens_total_new = npz_data['state_centered_Rdens_total_new']
+				OP_TP_AB_interps[i] = npz_data['OP_TP_AB_interps']
+				OP_TP_AB_interp_maxTimes[i] = npz_data['OP_TP_AB_interp_maxTimes']
 				rho_fourier2D_new = npz_data['rho_fourier2D_new']
 				rho_fncs[i] = npz_data['rho_fncs']
 				d_rho_fncs[i] = npz_data['d_rho_fncs']
@@ -4968,7 +5234,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 			#print(os.path.isfile(npz_FFSAB_filepath), npz_FFSAB_filepath, to_recomp)
 			#input('ok')
 			
-			if((not os.path.isfile(npz_FFSAB_filepath)) or (to_recomp)):
+			if((not os.path.isfile(npz_FFSAB_filepath)) or (to_recomp) or (to_post_proc)):
 				probs_AB_data[:, i], _, ln_k_AB_data[i], _, flux0_AB_data[i], _, rho_new, d_rho_new, OP_hist_centers_new, OP_hist_lens_new, \
 					PB_AB_data[:, i], d_PB_AB_data[:, i], \
 					PB_sigmoid_data[:, i], d_PB_sigmoid_data[:, i], PB_linfit_sigmoid_data[:, i], PB_linfit_sigmoid_inds_data[:, i], OP0_sigmoid_AB_data[i], \
@@ -4997,6 +5263,7 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 								phi_c=phi_c, \
 								to_plot_legend=to_plot_legend, \
 								progress_print_stride=progress_print_stride, \
+								to_post_proc=to_post_proc, \
 								dF_species_id=dF_species_id)
 								# max([to_recomp - 1, 0])
 				
@@ -5221,6 +5488,19 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 	if('BF' in mode):
 		if(mode == 'BF_AB'):
 			k_AB_BFcount_N, d_k_AB_BFcount_N = my.get_average(k_AB_BFcount_N_data)
+			
+			OP_TP_AB_Ntimes = 100000
+			N_TPs = np.sum([len(xx) for xx in OP_TP_AB_interps])
+			OP_TP_AB_maxTimes_all = np.concatenate(tuple(OP_TP_AB_interp_maxTimes))
+			OP_TP_AB_times = np.linspace(0, max(OP_TP_AB_maxTimes_all), OP_TP_AB_Ntimes)
+			OP_TP_AB_data = np.empty((N_TPs, OP_TP_AB_Ntimes))
+			OP_TP_i = 0
+			for i in range(N_runs):
+				for j in range(len(OP_TP_AB_interps[i])):
+					OP_TP_AB_data[OP_TP_i, :] = OP_TP_AB_interps[i][j](OP_TP_AB_times)
+					OP_TP_i += 1
+			
+			OP_TP_AB, d_OP_TP_AB = my.get_average(OP_TP_AB_data, axis=0, to_norm_dx=False)
 		
 		elif(mode == 'BF_2sides'):
 			phi_0, d_phi_0 = my.get_average(phi_0_data, axis=1)
@@ -5387,6 +5667,17 @@ def run_many(MC_move_mode, L, e, mu, N_runs, interface_mode, \
 					 rho_chi2_p=rho_chi2_p, phi_c=phi_c, \
 					 to_plot_legend=to_plot_legend)
 			
+			if(mode == 'BF_AB'):
+				fig_OP_TP_AB, ax_OP_TP_AB, _ = my.get_fig('time [step attempts / $L^2$]', title['CS'], 'CS(t | $TP_{AB}$); ' + ThL_lbl)
+				
+				#ax_OP_TP_AB.errorbar(OP_TP_AB_times, OP_TP_AB, yerr=d_OP_TP_AB, lw=0.5)
+				ax_OP_TP_AB.plot(OP_TP_AB_times, OP_TP_AB, lw=0.5)
+				
+				if(OP_TP_AB_data.shape[0] > 1):
+					for OP_TP_i in range(OP_TP_AB_data.shape[0]):
+						ax_OP_TP_AB.plot(OP_TP_AB_times, OP_TP_AB_data[OP_TP_i, :], alpha=min(1, 2/OP_TP_AB_data.shape[0]), color=my.get_my_color(1))
+				
+				my.add_legend(fig_OP_TP_AB, ax_OP_TP_AB)
 			
 		elif('FFS' in mode):
 			if(state_Rdens_centers_new is not None):
@@ -6597,6 +6888,16 @@ def main():
 	# python run.py -mode BF_AB -Nt 300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 300010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode long_swap -init_composition 0.010 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 1000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu2
 	# python run.py -mode BF_AB -Nt 2100000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 210010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.010 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 10000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu2
 	
+	# python run.py -mode BF_measureD -Nt 25000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -timeevol_stride 100 -to_recomp all -to_save_npz 0 -stab_step 100 -N_saved_states_max -1 -to_animate 1 -my_seeds 23
+	# python run.py -mode BF_measureD -Nt 25000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -timeevol_stride 100 -to_recomp all -to_save_npz 0 -stab_step 100 -N_saved_states_max -1 -to_animate 0 -my_seeds 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42
+	
+	# python run.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103
+	# python run.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143
+	# python run.py -mode BF_AB -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23
+	
+	# python run.py -mode BF_AB -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 24 -to_save_npz 1 -to_recomp postproc_light -OP_A_byas 20 -OP_B_byas 100
+	# python run.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23 24 -to_save_npz 1 -to_recomp postproc_light -OP_A_byas 20 -OP_B_byas 100
+	
 	# ========= 3-component ==========
 	# python run.py -mode FFS_AB -L 32 -OP_interfaces_set_IDs mu19 -to_get_timeevol 0 -N_states_FFS 50 -N_init_states_FFS 100 -e -2.680103 -1.340051 -1.715266 -mu 5.15 4.92238326 -MC_move_mode flip -to_recomp 0 -Dtop_Nruns 50 -my_seeds 1000 -CStest_Nruns 100
 	# python run.py -mode FFS_AB_many -L 32 -OP_interfaces_set_IDs mu19 -to_get_timeevol 0 -N_states_FFS 50 -N_init_states_FFS 100 -e -2.680103 -1.340051 -1.715266 -mu 5.15 4.92238326 -MC_move_mode flip -to_recomp 0 -Dtop_Nruns 5000 -my_seeds 1000 1001 1002 1003
@@ -6609,14 +6910,11 @@ def main():
 	# python run.py -mode BF_AB_collection -Nt 150000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.011693 0.010179 0.011837 0.010678 0.01198 0.011177 0.012124 0.011676 0.012267 0.012175 0.012411 0.012674 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -OP_max 150 -timeevol_stride 2000 -to_recomp 1 -verbose 1 -to_plot 1 -to_plot_legend 1 -font_mode present
 	
 	# python run.py -mode FFS_AB -L 300 -to_get_timeevol 0 -N_states_FFS 50 -N_init_states_FFS 100 -e -2.680103 -1.340051 -1.715266 -MC_move_mode long_swap -init_composition 0.0126 0.0132 -OP_interfaces_set_IDs nvt29  -to_plot 0 -to_show_on_screen 0 -my_seeds 1014 -to_post_proc 1 -Temp 1.0 -to_recomp 0 -Dtop_Nruns 1000 -CStest_Nruns 100 -CStest_interfaces_inds_to_test top
-	# python run_tmp2.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103
 	
-	# TODO: run failed IDs with longer times
-	
-	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,     init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier,     Temp_s,     phi1_s,      phi2,     OP0_constr_s,     N_ID_groups,       to_post_proc,     Dtop_Nruns,     n_emu_digits,        to_do_Dtop,     Tphi1_fit_ord,      Dtop_PBthr,            to_plot,     to_keep_composition,     to_equilibrate,        to_cluster,      to_plot_legend,     CStest_Nruns,     CStest_interfaces_inds_to_test,     OP_min_save_state,     OP_max_save_state,     BF_hist_edges_ID,     progress_print_stride], _ = \
-		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',  '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier',  '-Temp_s',  '-phi1_s',   '-phi2',  '-OP0_constr_s',  '-N_ID_groups',    '-to_post_proc',  '-Dtop_Nruns',  '-n_emu_digits',     '-to_do_Dtop',  '-Tphi1_fit_ord',   '-Dtop_PBthr',         '-to_plot',  '-to_keep_composition',  '-to_equilibrate',     '-to_cluster',   '-to_plot_legend',  '-CStest_Nruns',  '-CStest_interfaces_inds_to_test',  '-OP_min_save_state',  '-OP_max_save_state',  '-BF_hist_edges_ID',  '-progress_print_stride'], \
-					  possible_arg_numbers=[['+'],                   None,       [1],         None,           [0, 1],                [0, 1],              None,              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                 None,                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1],       None,       None,    [0, 1],             None,          [0, 1],             [0, 1],         [0, 1],           [0, 1],            [0, 1],            [0, 1],          [0, 2],             [0, 1],                  [0, 1],             [0, 1],            [0, 1],              [0, 1],           [0, 1],                               None,                [0, 1],                [0, 1],               [0, 1],                    [0, 1]], \
-					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],          ['FFS_auto'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],     ['-1'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,           ['0', '0'],     [my.yes_flags[0]],   [my.yes_flags[0]],           [None],  [my.no_flags[0]],      ['work'],         ['5'],    ['1.0'],  ['0.015'],  ['0.01'],           [None],          [None],  [my.yes_flags[0]],          ['0'],            ['6'],  [my.no_flags[0]],             ['2'],  ['0.1', '0.1'],  [my.yes_flags[0]],        [my.no_flags[0]],   [my.no_flags[0]],  [my.yes_flags[0]],  [my.yes_flags[0]],            ['0'],                            ['top'],                [None],                [None],               [None],                    ['-1']])
+	[                                           L,    potential_filenames,      mode,           Nt,     N_states_FFS,     N_init_states_FFS,         to_recomp,     to_get_timeevol,     verbose,     my_seeds,     N_OP_interfaces,     N_runs,     init_gen_mode,     OP_0,     OP_max,     interface_mode,     OP_min_BF,     OP_max_BF,     Nt_sample_A,     Nt_sample_B,      N_spins_up_init,       to_plot_ETS,     interface_set_mode,     timeevol_stride,     to_plot_timeevol,     N_saved_states_max,       J,       h,     OP_interfaces_set_IDs,     chi,      mu,       e,     stab_step,    Temp,    mu_chi,     to_plot_target_phase,     target_phase_id0,     target_phase_id1,     cost_mode,     opt_mode,     MC_move_mode,     init_composition,     to_show_on_screen,         to_save_npz,     R_clust_init,        to_animate,     font_mode,     N_fourier,     Temp_s,     phi1_s,      phi2,     OP0_constr_s,     N_ID_groups,       to_post_proc,     Dtop_Nruns,     n_emu_digits,        to_do_Dtop,     Tphi1_fit_ord,      Dtop_PBthr,            to_plot,     to_keep_composition,     to_equilibrate,        to_cluster,      to_plot_legend,     CStest_Nruns,     CStest_interfaces_inds_to_test,     OP_min_save_state,     OP_max_save_state,     BF_hist_edges_ID,     progress_print_stride,     OP_A_byas,     OP_B_byas], _ = \
+		my.parse_args(sys.argv,            [ '-L', '-potential_filenames',   '-mode',        '-Nt',  '-N_states_FFS',  '-N_init_states_FFS',      '-to_recomp',  '-to_get_timeevol',  '-verbose',  '-my_seeds',  '-N_OP_interfaces',  '-N_runs',  '-init_gen_mode',  '-OP_0',  '-OP_max',  '-interface_mode',  '-OP_min_BF',  '-OP_max_BF',  '-Nt_sample_A',  '-Nt_sample_B',   '-N_spins_up_init',    '-to_plot_ETS',  '-interface_set_mode',  '-timeevol_stride',  '-to_plot_timeevol',  '-N_saved_states_max',    '-J',    '-h',  '-OP_interfaces_set_IDs',  '-chi',   '-mu',    '-e',  '-stab_step', '-Temp', '-mu_chi',  '-to_plot_target_phase',  '-target_phase_id0',  '-target_phase_id1',  '-cost_mode',  '-opt_mode',  '-MC_move_mode',  '-init_composition',  '-to_show_on_screen',      '-to_save_npz',  '-R_clust_init',     '-to_animate',  '-font_mode',  '-N_fourier',  '-Temp_s',  '-phi1_s',   '-phi2',  '-OP0_constr_s',  '-N_ID_groups',    '-to_post_proc',  '-Dtop_Nruns',  '-n_emu_digits',     '-to_do_Dtop',  '-Tphi1_fit_ord',   '-Dtop_PBthr',         '-to_plot',  '-to_keep_composition',  '-to_equilibrate',     '-to_cluster',   '-to_plot_legend',  '-CStest_Nruns',  '-CStest_interfaces_inds_to_test',  '-OP_min_save_state',  '-OP_max_save_state',  '-BF_hist_edges_ID',  '-progress_print_stride',  '-OP_A_byas',  '-OP_B_byas'], \
+					  possible_arg_numbers=[['+'],                   None,       [1],         None,           [0, 1],                [0, 1],              None,              [0, 1],      [0, 1],         None,              [0, 1],     [0, 1],            [0, 1],     None,       None,             [0, 1],        [0, 1],        [0, 1],          [0, 1],          [0, 1],               [0, 1],            [0, 1],                 [0, 1],              [0, 1],               [0, 1],                 [0, 1],  [0, 1],    None,                      None,  [0, 3],    None,  [0, 3],        [0, 1],  [0, 1],      None,                   [0, 1],                 None,                 None,        [0, 1],       [0, 1],           [0, 1],                 None,                [0, 1],              [0, 1],           [0, 1],            [0, 1],        [0, 1],        [0, 1],       None,       None,    [0, 1],             None,          [0, 1],             [0, 1],         [0, 1],           [0, 1],            [0, 1],            [0, 1],          [0, 2],             [0, 1],                  [0, 1],             [0, 1],            [0, 1],              [0, 1],           [0, 1],                               None,                [0, 1],                [0, 1],               [0, 1],                    [0, 1],        [0, 1],        [0, 1]], \
+					  default_values=      [ None,                 [None],      None, ['-1000000'],        ['-5000'],          ['FFS_auto'],             ['0'],               ['1'],       ['1'],       ['23'],              [None],     ['-1'],            ['-3'],    ['1'],     [None],             ['CS'],        [None],        [None],    ['-1000000'],    ['-1000000'],               [None],  [my.no_flags[0]],            [ 'spaced'],           ['-3000'],     [my.no_flags[0]],               ['1000'],  [None],  [None],                    [None],  [None],  [None],  [None],        ['-1'],   ['1'],    [None],         [my.no_flags[0]],                ['0'],               [None],         ['2'],        ['2'],             None,           ['0', '0'],     [my.yes_flags[0]],   [my.yes_flags[0]],           [None],  [my.no_flags[0]],   ['present'],         ['5'],    ['1.0'],  ['0.015'],  ['0.01'],           [None],          [None],  [my.yes_flags[0]],          ['0'],            ['6'],  [my.no_flags[0]],             ['2'],  ['0.1', '0.1'],  [my.yes_flags[0]],        [my.no_flags[0]],   [my.no_flags[0]],  [my.yes_flags[0]],  [my.yes_flags[0]],            ['0'],                            ['top'],                [None],                [None],               [None],                    ['-1'],        ['-1'],        ['-1']])
 	
 	print("Timestamp BEGIN:", time.time())
 	
@@ -6744,7 +7042,10 @@ def main():
 	timeevol_stride = int(timeevol_stride[0])
 	to_plot_timeevol = (to_plot_timeevol[0] in my.yes_flags)
 	N_saved_states_max = int(N_saved_states_max[0])
-	stab_step = int(stab_step[0])
+	# print(stab_step)
+	stab_step = stab_step if(isinstance(stab_step, int)) else int(stab_step[0])
+	# print(stab_step)
+	# input('ok')
 	to_plot_target_phase = (to_plot_target_phase[0] in my.yes_flags)
 	target_phase_id0 = np.array([int(i) for i in target_phase_id0])
 	target_phase_id1 = np.copy(target_phase_id0) if(target_phase_id1[0] is None) else np.array([int(i) for i in target_phase_id1])
@@ -6784,6 +7085,8 @@ def main():
 	BF_hist_edges = None if(BF_hist_edges_ID[0] is None) else table_data.OP_BF_hist_edges_table[BF_hist_edges_ID[0]]
 	OP_min_save_state = (None if(BF_hist_edges is None) else min(BF_hist_edges[0, :])) if(OP_min_save_state[0] is None) else int(OP_min_save_state[0])
 	OP_max_save_state = (None if(BF_hist_edges is None) else max(BF_hist_edges[1, :])) if(OP_max_save_state[0] is None) else int(OP_max_save_state[0])
+	OP_A_byas = int(OP_A_byas[0])
+	OP_B_byas = int(OP_B_byas[0])
 	
 	if(OP_interfaces_set_IDs[0] is None):
 		if(OP_0[0] is None):
@@ -6822,6 +7125,10 @@ def main():
 		stab_step = (np.intc(np.minimum(L2, Nt/2) + 0.5) if('BF' in mode) else np.ones(Nt.shape, dtype=int) * L2) * (-stab_step) 
 		if((N_L > 1) and (np.any(stab_step[0] != stab_step))):
 			print('WARNING: Changing L-s are not supported with changing stab_steps')
+		
+	else:
+		if(isinstance(stab_step, int)):
+			stab_step = np.ones(Nt.shape, dtype=int) * stab_step
 	
 	if(timeevol_stride < 0):
 		assert(np.all(Nt[0] == Nt)), 'ERROR: smart timeevol_stride is not supported for different Nt-s'
@@ -6928,7 +7235,7 @@ def main():
 				to_save_npz=to_save_npz, to_recomp=to_recomp, \
 				to_keep_composition=to_keep_composition, \
 				to_plot_legend=to_plot_legend, \
-				OP_A_byas=-1, OP_B_byas=-1, \
+				OP_A_byas=OP_A_byas, OP_B_byas=OP_B_byas, \
 				progress_print_stride=progress_print_stride, \
 				to_equilibrate=to_equilibrate, to_cluster=to_cluster)
 	
@@ -6944,9 +7251,103 @@ def main():
 				to_save_npz=to_save_npz, to_recomp=to_recomp, \
 				to_keep_composition=to_keep_composition, \
 				to_plot_legend=to_plot_legend, \
-				OP_A_byas=-1, OP_B_byas=-1, \
+				OP_A_byas=OP_A_byas, OP_B_byas=OP_B_byas, \
 				to_equilibrate=to_equilibrate, to_cluster=to_cluster)
 	
+	elif(mode == 'BF_measureD'):
+		old_seed = lattice_gas.get_seed()
+		
+		time_sweeps_data, dcrds2_data, dcrds2_data_interp = tuple([[[]] * N_runs for i in range(3)])
+		
+		for i_run in range(N_runs):
+			lattice_gas.init_rand(my_seeds[i_run])
+			
+			#init_state_1particle = form_cluster(np.zeros((L, L), dtype=int), 0, 1, 0)
+			init_state_1particle = np.zeros((L, L), dtype=int)
+			init_state_1particle[L // 2, L // 2 - 1] = 1
+			
+			states, E, M, CS, hA, times, k_AB_launches, time_total = \
+				proc_T(MC_move_mode, Ls[0], e, mu[0, :], Nt[0], interface_mode, \
+					to_get_timeevol=True, \
+					OP_min=OP_min_BF, OP_max=OP_max_BF, to_estimate_k=False, \
+					to_gen_init_state=False, init_state=init_state_1particle, \
+					timeevol_stride=timeevol_stride, N_saved_states_max=N_saved_states_max, \
+					init_composition=[0, 0], \
+					to_post_process=False, to_cluster=False, \
+					to_save_npz=to_save_npz, to_recomp=to_recomp, \
+					to_equilibrate=False)
+					# OP_A=OP_0[0], OP_B=OP_max[0], \
+			
+			Nt_result = states.shape[0]
+			timesteps = np.empty(Nt_result)
+			timesteps[0] = 0
+			timesteps[1:] = np.cumsum(times) * timeevol_stride   # times happen only every 'stride' succesful steps so we need to *stride to estimate the total number of step attempts
+			time_sweeps_data[i_run] = timesteps / L**2
+			crds = np.empty((2, Nt_result))
+			for it in range(Nt_result):
+				# print(np.where(states[it, :, :]))
+				
+				crds[1, it], crds[0, it] = np.where(states[it, :, :])
+				
+				# crds[0, it] = np.argmax(states[it, :, :], axis=1)
+				crds[1, it] = (L-1) - crds[1, it]
+				# print(crds[:, it])
+				# input('ok')
+				
+				#crds[0, it] = np.argmax(states[it, :, :], axis=1)
+				#crds[1, it] = (L-1) - np.argmax(states[it, :, :], axis=0)
+			
+			crd_jumps = crds[:, 1:] - crds[:, :-1]
+			crd_jumps[crd_jumps > L/2] -= L
+			crd_jumps[crd_jumps < -L/2] += L
+			
+			dcrds = np.cumsum(crd_jumps, axis=1)
+			dcrds2_data[i_run] = np.sum(dcrds**2, axis=0)
+			dcrds2_data_interp[i_run] = my.interp1d(time_sweeps_data[i_run][1:] * L**2, dcrds2_data[i_run])
+			
+			if(to_animate):
+				#print(states.shape)
+				#print(times)
+				#print(np.sum(states, axis=(1,2)))
+				
+				fig_xy, ax_xy, _ = my.get_fig('t', 'crd')
+				ax_xy.plot(time_sweeps_data[i_run][1:], dcrds[0, :], label='dx')
+				ax_xy.plot(time_sweeps_data[i_run][1:], crds[0, 1:] - crds[0, 0], label='x-orig')
+				ax_xy.plot(time_sweeps_data[i_run][1:], dcrds[1, :], label='dy')
+				ax_xy.plot(time_sweeps_data[i_run][1:], crds[1, 1:] - crds[1, 0], label='y-orig')
+				my.add_legend(fig_xy, ax_xy)
+				plt.show()
+				
+				my.animate_2D(states, 'x', 'y', 's(x, y)', yx_lims = [0, L-1, 0, L-1], fps=100, interpolation='none', t_s=time_sweeps_data[i_run])
+		
+		lattice_gas.init_rand(old_seed)
+		
+		Nt_interp = 100
+		common_time_max = min([max(tt) for tt in time_sweeps_data])
+		time_sweeps = np.linspace(common_time_max, 0, Nt_interp, endpoint=False)[::-1]
+		if(N_runs == 1):
+			dcrds2 = dcrds2_data_interp[0](time_sweeps * L**2)
+			d_dcrds2 = np.ones(dcrds2.shape)
+		else:
+			dcrds2_data = np.empty((N_runs, Nt_interp))
+			for i_run in range(N_runs):
+				dcrds2_data[i_run, :] = dcrds2_data_interp[i_run](time_sweeps * L**2)
+			dcrds2, d_dcrds2 = my.get_average(dcrds2_data, axis=0)
+		
+		stab_step[0] = min(max(time_sweeps) / 2, stab_step[0])
+		D_fit_inds = time_sweeps > stab_step[0]
+		D_coef = 0.25 * np.sum(dcrds2[D_fit_inds] * time_sweeps[D_fit_inds] / d_dcrds2[D_fit_inds]**2) / np.sum((time_sweeps[D_fit_inds] / d_dcrds2[D_fit_inds])**2)
+		d_D_coef = (np.sum((time_sweeps[D_fit_inds] / d_dcrds2[D_fit_inds])**2))**(-0.5)
+		
+		ThL_lbl = get_ThL_lbl(e, mu, [0, 0], L, MC_move_mode, n_dgt=5)
+		fig_r2, ax_r2, _ = my.get_fig('t [step attempts / $L^2$]', '$(r(0) - r(t))^2$', title='$\Delta r^2(t)$; ' + ThL_lbl, xscl='log', yscl='log')
+		
+		ax_r2.errorbar(time_sweeps, dcrds2, yerr=d_dcrds2, label='data')
+		ax_r2.plot([0, common_time_max], [0, common_time_max * 4*D_coef], label='$D = %s$' % (my.errorbar_str(D_coef, d_D_coef)))
+		ax_r2.plot([stab_step[0]] * 2, [0, max(dcrds2)], label='$t_{stab} = %s$' % (my.f2s(stab_step[0])))
+		
+		my.add_legend(fig_r2, ax_r2)
+		
 	elif(mode == 'BF_mu_grid'):
 		mu1_vec = np.linspace(3, 3.3, 16)   # t=0.8
 		mu2_vec = np.linspace(4, 6, 21)
@@ -7086,7 +7487,11 @@ def main():
 				rho_profile_OP_hist_edges=BF_hist_edges, \
 				to_plot_states_densities=True, \
 				progress_print_stride=progress_print_stride, \
+				OP_A_byas=OP_A_byas, OP_B_byas=(0.95 * OP_max[0]) if(OP_B_byas < 0) else OP_B_byas, \
 				to_recomp=to_recomp, to_cluster=to_cluster, to_plot=to_plot)
+				# OP_B_byas=0.9 * OP_max[0]
+				# OP_B_byas=BF_hist_edges[-1,-1]
+				# OP_A_byas=BF_hist_edges[0,0]
 	
 	elif(mode == 'BF_many'):
 		run_many(MC_move_mode, Ls[0], e, mu[0, :], N_runs, interface_mode, Nt_per_BF_run=Nt[0], \
@@ -7119,6 +7524,7 @@ def main():
 				OP_min_save_state=OP_min_save_state, \
 				OP_max_save_state=OP_max_save_state, \
 				rho_profile_OP_hist_edges=BF_hist_edges, \
+				OP_A_byas=OP_A_byas, OP_B_byas=(0.95 * OP_max[0]) if(OP_B_byas < 0) else OP_B_byas, \
 				to_save_npz=to_save_npz, to_recomp=to_recomp, \
 				to_plot_legend=to_plot_legend, \
 				progress_print_stride=progress_print_stride, \
@@ -7134,7 +7540,8 @@ def main():
 		
 		my.add_legend(fig_F, ax_F, do_legend=to_plot_legend)
 	
-	elif(mode == 'BF_AB_collection'):
+	elif(mode == 'BF_AB_collection'):   # upsupported
+		assert(False), 'unsoported brunch'
 		F_lists, d_F_lists, hist_centers_lists, hist_lens_lists, \
 			rho_interp1d_lists, d_rho_interp1d_lists, phi_Lmeans_lists, \
 			E_avg_lists, phi_LTmeans_lists, d_phi_LTmeans_lists = \
@@ -7252,6 +7659,7 @@ def main():
 					CStest_Nruns=CStest_Nruns, \
 					CStest_interfaces_inds_to_test=CStest_interfaces_inds_to_test, \
 					Dtop_PBthr=Dtop_PBthr, to_plot=to_plot, \
+					to_post_proc=to_post_proc, \
 					to_plot_legend=to_plot_legend, \
 					progress_print_stride=progress_print_stride, \
 					seeds=my_seeds, n_emu_digits=n_emu_digits)

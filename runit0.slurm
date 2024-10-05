@@ -4,7 +4,7 @@
 #SBATCH --nodes=1                # node count
 #SBATCH --ntasks=1               # total number of tasks across all nodes
 #SBATCH --cpus-per-task=1        # cpu-cores per task (>1 if multi-threaded tasks)
-#SBATCH --mem-per-cpu=4G         # memory per cpu-core (4G is default)
+#SBATCH --mem-per-cpu=70G         # memory per cpu-core (4G is default)
 ###SBATCH --mail-type=begin        # send email when job begins
 ###SBATCH --mail-type=end          # send email when job ends
 #SBATCH --mail-type=ALL
@@ -12,6 +12,8 @@
 ###SBATCH --output=test0.out
 #SBATCH --constraint=cascade,skylake
 #========================================
+
+module load gsl/2.6
 
 #python run.py -mode FFS_AB -L 128 -to_get_timeevol 0 -N_states_FFS 5 -N_init_states_FFS 10 -N_runs 2 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode swap -init_composition 0.975 0.015 0.01 -OP_interfaces_set_IDs nvt16
 #python run_tmp.py -mode FFS_AB_Tphi1 -Temp_s 0.95 -phi1_s 0.014 0.0145 0.015 0.0155 0.016 -L 128 -to_get_timeevol 0 -e -2.68010292 -1.34005146 -1.71526587 -MC_move_mode long_swap -phi2 0.01 -OP_interfaces_set_IDs nvt -to_recomp 2 -font_mode present -OP0_constr_s 50 -to_show_on_screen 0
@@ -26,4 +28,5 @@
 #python run_tmp.py -mode BF_AB -Nt 200000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.9896 0.0104 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -OP_max 150 -timeevol_stride 2000 -to_recomp 0 -verbose 1 -my_seeds 1
 #python run_tmp.py -mode BF_AB -Nt 300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.0105 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -OP_max 150 -timeevol_stride 2000 -to_recomp 0 -verbose 1
 #python run_tmp2.py -mode BF_1 -Nt 4700000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 0 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.0101 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 25 -OP_max 150 -timeevol_stride 2000 -to_recomp 0 -verbose 1 -to_plot 0
-python run_tmp2.py -mode BF_AB -Nt 7200000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0  -e -2.680103 -1.340051 -1.715266 -MC_move_mode long_swap -init_composition 0.0104 0.0 -OP_0 2 -OP_max 150 -timeevol_stride 1000 -R_clust_init 0 -to_recomp 10 -verbose 1 -to_plot 0
+#python run_tmp2.py -mode BF_AB -Nt 7200000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0  -e -2.680103 -1.340051 -1.715266 -MC_move_mode long_swap -init_composition 0.0104 0.0 -OP_0 2 -OP_max 150 -timeevol_stride 1000 -R_clust_init 0 -to_recomp 10 -verbose 1 -to_plot 0
+python run_tmp1.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -to_save_npz 1 -to_recomp postproc_light -OP_A_byas 20 -OP_B_byas 100 -my_seeds 93 94 95 96 97 98 99 100 101 102 -to_show_on_screen 0
