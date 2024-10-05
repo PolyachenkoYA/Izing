@@ -2530,9 +2530,8 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 		else:
 			F_filepath = os.path.join(npz_basename + '_F.npz')
 		
-		# print(to_recomp, izing.binflags['postproc_light'])
-		# input('ok')
-		
+		#print(to_recomp, izing.binflags['postproc_light'], to_recomp & izing.binflags['postproc_light'])
+		#input('ok')
 		if((not os.path.isfile(F_filepath)) or (to_recomp & izing.binflags['postproc_light'])):
 			times_stab = times[stab_ind]
 			OP_stab = m[stab_ind]
@@ -2794,6 +2793,8 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 		# TPforStates_inds, TPforStates_types, TPsforStates, N_TPforStates, N_TPforStates_AB, N_TPforStates_BA, TPforStates_OP_inds = \
 			# fix_TPinds_load(TPforStates_inds, TPforStates_types, TPsforStates, OP_A_bound_ind, OP_B_bound_ind)
 		
+		# print(to_estimate_k)
+		# print('ok')
 		if(to_estimate_k):
 			if(npz_basename is None):
 				k_filepath = ''
@@ -2919,6 +2920,19 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 			else:
 				print('k_BA = 0')
 		
+		if(TPs_inds is not None):
+			TP_AB_inds_list = []
+			TP_BA_inds_list = []
+			for i in range(N_TP):
+				TP_inds_local = np.arange(TPs_inds[i, 0] + stab_ind[0], TPs_inds[i, 1] + stab_ind[0])
+				if(TPs_types[i] == 0):
+					TP_AB_inds_list.append(np.copy(TP_inds_local))
+				elif(TPs_types[i] == 2):
+					TP_BA_inds_list.append(np.copy(TP_inds_local))
+				
+			TP_AB_inds_all = np.concatenate(tuple(TP_AB_inds_list))
+			TP_BA_inds_all = np.concatenate(tuple(TP_BA_inds_list))
+		
 		if(to_plot_time_evol):
 			fig_OP, ax_OP, _ = my.get_fig('time (step attempts / $L^2$)', y_lbl, title='$' + x_lbl + '$(steps); ' + ThL_lbl)
 			if(TPs_inds is not None):
@@ -2974,20 +2988,24 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 				ax_dwellTimes.set_xlim([-0.5, 1.5])
 				ax_dwellTimes.set_xticks([0, 1])
 				ax_dwellTimes.set_xticklabels([r'$\tau_A$', r'$\tau_B$'])
-				
+			
 			if(TPs_inds is not None):
 				n_TP_AB_drawn = 0
+				# TP_AB_inds_list = []
+				# TP_BA_inds_list = []
 				for i in range(N_TP):
-					TP_inds_local = np.arange(TPs_inds[i, 0] + stab_ind[0], TPs_inds[i, 1] + stab_ind[0])
+					# TP_inds_local = np.arange(TPs_inds[i, 0] + stab_ind[0], TPs_inds[i, 1] + stab_ind[0])
 					if(TPs_types[i] == 0):
 						#ax_TP_AB.plot(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], m[TP_inds_local], color=my.get_my_color(0), lw=0.5)
 						#ax_TP_AB.plot(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], TPs[i], color=my.get_my_color(0), lw=0.5)
-						ax_TP_AB.plot(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], OP_TP_AB_interps[n_TP_AB_drawn](OP_times[TP_inds_local] - OP_times[TP_inds_local[0]]), color=my.get_my_color(0), lw=0.5)
+						ax_TP_AB.plot(OP_times[TP_AB_inds_list[i]] - OP_times[TP_AB_inds_list[i][0]], OP_TP_AB_interps[n_TP_AB_drawn](OP_times[TP_AB_inds_list[i]] - OP_times[TP_AB_inds_list[i][0]]), color=my.get_my_color(0), lw=0.5)
+						# TP_AB_inds_list.append(np.copy(TP_inds_local))
 						n_TP_AB_drawn += 1
 						
 					elif(TPs_types[i] == 2):
 						#ax_TP_BA.plot(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], m[TP_inds_local], color=my.get_my_color(0), lw=0.5)
-						ax_TP_BA.plot(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], m[TP_inds_local], color=my.get_my_color(0), lw=0.5)
+						ax_TP_BA.plot(OP_times[TP_AB_inds_list[i]] - OP_times[TP_AB_inds_list[i][0]], m[TP_AB_inds_list[i]], color=my.get_my_color(0), lw=0.5)
+						# TP_BA_inds_list.append(np.copy(TP_inds_local))
 					
 					ax_OP.plot([OP_times[TP_inds_local[0]]] * 2, m_minmax, \
 						'--', color=my.get_my_color(2), \
@@ -2995,6 +3013,9 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 					ax_OP.plot([OP_times[TP_inds_local[-1]]] * 2, m_minmax, \
 						'--', color=my.get_my_color(3), \
 						label=('TP end' if(i == 0) else None))
+				
+				# TP_AB_inds_all = np.concatenate(tuple(TP_AB_inds_list))
+				# TP_BA_inds_all = np.concatenate(tuple(TP_BA_inds_list))
 			
 			# if(TPforStates_inds is not None):
 				# for i in range(N_TPforStates):
@@ -3098,7 +3119,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 				print('k_' + x_lbl + '_bc_AB   =   ' + my.f2s(k_bc_AB * print_scale_k) + '   (%e/step);' % (1/print_scale_k))
 				print('k_' + x_lbl + '_bc_BA   =   ' + my.f2s(k_bc_BA * print_scale_k) + '   (%e/step);' % (1/print_scale_k))
 	
-	plt.show()
+	#plt.show()
 	
 	if(Nt_states == 0):
 		cluster_Rdens_centers, cluster_centered_Rdens_total, \
@@ -3160,22 +3181,33 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 			npz_states_filepath = \
 				os.path.join(npz_basename + '_OPedges%d_%d_%d_dr%s_dx%s_BFab.pkl' % \
 					(rho_profile_OP_hist_edges.shape[1], min(rho_profile_OP_hist_edges[0, :]), max(rho_profile_OP_hist_edges[1, :]), my.f2s(cluster_map_dr), my.f2s(cluster_map_dx)))
+			npz_TP_AB_states_filepath = \
+				os.path.join(npz_basename + '_OPedges%d_%d_%d_dr%s_dx%s_BFab_TP_AB.pkl' % \
+					(rho_profile_OP_hist_edges.shape[1], min(rho_profile_OP_hist_edges[0, :]), max(rho_profile_OP_hist_edges[1, :]), my.f2s(cluster_map_dr), my.f2s(cluster_map_dx)))
 			
 			# print(os.path.isfile(npz_states_filepath))
 			# print(to_recomp, to_recomp & izing.binflags['postproc_hard'], izing.binflags['postproc_hard'])
 			# input(npz_states_filepath)
 			
-			if((not os.path.isfile(npz_states_filepath)) or ((to_recomp & izing.binflags['postproc_hard']) == izing.binflags['postproc_hard'])):
+			if((not os.path.isfile(npz_states_filepath)) or (not os.path.isfile(npz_TP_AB_states_filepath)) or \
+				((to_recomp & izing.binflags['postproc_hard']) == izing.binflags['postproc_hard'])):
+				
 				m_max = np.amax(m)
 				near_stateB_inds = np.where(m > 0.9 * m_max)[0]
 				
-				
 				state_groups = []
+				state_TP_AB_groups = []
 				state_groups_timeinds = []
+				state_TP_AB_groups_timeinds = []
+				#TP_AB_and_state_saved_indsBool = np.where(np.isin(states_timeinds, TP_AB_inds_all))[0]
+				TP_AB_and_state_saved_indsBool = np.isin(states_timeinds, TP_AB_inds_all)
 				for i in range(N_rho_profile_bins):
-					state_groups_timeinds.append(np.where((m[states_timeinds] >= rho_profile_OP_hist_edges[0, i]) & (m[states_timeinds] < rho_profile_OP_hist_edges[1, i]))[0])   # take all states in the margins
+					OP_in_interface_indsBool = (m[states_timeinds] >= rho_profile_OP_hist_edges[0, i]) & (m[states_timeinds] < rho_profile_OP_hist_edges[1, i])
+					state_groups_timeinds.append(np.where(OP_in_interface_indsBool)[0])   # take all states in the margins
+					state_TP_AB_groups_timeinds.append(np.where(TP_AB_and_state_saved_indsBool & OP_in_interface_indsBool)[0])   # (in the margins) && (on an A->B path)
 					
 					state_groups.append(states[state_groups_timeinds[i], :, :])
+					state_TP_AB_groups.append(states[state_TP_AB_groups_timeinds[i], :, :])
 				
 				OP_grouped_states, maxclust_ind, max_cluster_1st_ind_id, \
 					max_cluster_site_inds, cluster_sizes, OP_init_states_OPexactly_inds, \
@@ -3197,13 +3229,33 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 						center_and_average_states(L, cluster_map_dx, cluster_map_dr, \
 							state_groups, interface_mode)
 				
-				#print()
 				rho_fourier2D = get_states_fourier(N_fourier, cluster_centered_crds)
+				
+				OP_grouped_states_TP_AB, maxclust_ind_TP_AB, max_cluster_1st_ind_id_TP_AB, \
+					max_cluster_site_inds_TP_AB, cluster_sizes_TP_AB, OP_init_states_OPexactly_inds_TP_AB, \
+					cluster_centered_crds_TP_AB, state_centered_crds_TP_AB, \
+					cluster_centered_crds_per_interface_TP_AB, \
+					state_centered_crds_per_interface_TP_AB, \
+					cluster_centered_crds_all_TP_AB, \
+					cluster_map_edges_TP_AB, cluster_Rdens_edges_TP_AB, \
+					cluster_map_centers_TP_AB, cluster_Rdens_centers_TP_AB, \
+					state_map_edges_TP_AB, state_Rdens_edges_TP_AB, \
+					state_map_centers_TP_AB, state_Rdens_centers_TP_AB, \
+					cluster_centered_map_total_TP_AB, cluster_centered_maps_TP_AB, \
+					cluster_centered_Rdens_total_TP_AB, cluster_centered_Rdens_s_TP_AB, \
+					d_cluster_centered_map_total_TP_AB, d_cluster_centered_Rdens_total_TP_AB, \
+					state_centered_map_total_TP_AB, state_centered_Rdens_total_TP_AB, \
+					state_centered_maps_TP_AB, state_centered_Rdens_s_TP_AB, \
+					d_state_centered_map_TP_AB, d_state_centered_Rdens_TP_AB, \
+					rho_avg_TP_AB, d_rho_avg_TP_AB = \
+						center_and_average_states(L, cluster_map_dx, cluster_map_dr, \
+							state_TP_AB_groups, interface_mode)
+				
+				rho_fourier2D_TP_AB = get_states_fourier(N_fourier, cluster_centered_crds_TP_AB)
 				
 				if(to_save_npz):
 					print('writing', npz_states_filepath)
 					
-					#with open(filename, 'wb') as f:
 					pickle.dump({'OP_grouped_states' : OP_grouped_states, \
 							'maxclust_ind' : maxclust_ind, \
 							'max_cluster_1st_ind_id' : max_cluster_1st_ind_id, \
@@ -3239,6 +3291,43 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 							'd_rho_inf' : d_rho_avg}, \
 						open(npz_states_filepath,'wb'))
 					
+					print('writing', npz_TP_AB_states_filepath)
+					
+					pickle.dump({'OP_grouped_states_TP_AB' : OP_grouped_states_TP_AB, \
+							'maxclust_ind_TP_AB' : maxclust_ind_TP_AB, \
+							'max_cluster_1st_ind_id_TP_AB' : max_cluster_1st_ind_id_TP_AB, \
+							'max_cluster_site_inds_TP_AB' : max_cluster_site_inds_TP_AB, \
+							'cluster_sizes_TP_AB' : cluster_sizes_TP_AB, \
+							'cluster_centered_crds_TP_AB' : cluster_centered_crds_TP_AB, \
+							'state_centered_crds_TP_AB' : state_centered_crds_TP_AB, \
+							'cluster_centered_crds_per_interface_TP_AB' : cluster_centered_crds_per_interface_TP_AB, \
+							'state_centered_crds_per_interface_TP_AB' : state_centered_crds_per_interface_TP_AB, \
+							'cluster_centered_crds_all_TP_AB' : cluster_centered_crds_all_TP_AB, \
+							'cluster_map_edges_TP_AB' : cluster_map_edges_TP_AB, \
+							'cluster_Rdens_edges_TP_AB' : cluster_Rdens_edges_TP_AB, \
+							'state_map_edges_TP_AB' : state_map_edges_TP_AB, \
+							'state_Rdens_edges_TP_AB' : state_Rdens_edges_TP_AB, \
+							'state_map_centers_TP_AB' : state_map_centers_TP_AB, \
+							'cluster_centered_maps_TP_AB' : cluster_centered_maps_TP_AB, \
+							'cluster_centered_Rdens_s_TP_AB' : cluster_centered_Rdens_s_TP_AB, \
+							'd_cluster_centered_map_total_TP_AB' : d_cluster_centered_map_total_TP_AB, \
+							'state_centered_map_total_TP_AB' : state_centered_map_total_TP_AB, \
+							'state_centered_maps_TP_AB' : state_centered_maps_TP_AB, \
+							'state_centered_Rdens_s_TP_AB' : state_centered_Rdens_s_TP_AB, \
+							'd_state_centered_map_TP_AB' : d_state_centered_map_TP_AB, \
+							'cluster_Rdens_centers_TP_AB' : cluster_Rdens_centers_TP_AB, \
+							'cluster_centered_Rdens_total_TP_AB' : cluster_centered_Rdens_total_TP_AB, \
+							'd_cluster_centered_Rdens_total_TP_AB' : d_cluster_centered_Rdens_total_TP_AB, \
+							'cluster_centered_map_total_TP_AB' : cluster_centered_map_total_TP_AB, \
+							'cluster_map_centers_TP_AB' : cluster_map_centers_TP_AB, \
+							'state_Rdens_centers_TP_AB' : state_Rdens_centers_TP_AB, \
+							'state_centered_Rdens_total_TP_AB' : state_centered_Rdens_total_TP_AB, \
+							'd_state_centered_Rdens_TP_AB' : d_state_centered_Rdens_TP_AB, \
+							'rho_fourier2D_TP_AB' : rho_fourier2D_TP_AB, \
+							'rho_inf_TP_AB' : rho_avg_TP_AB, \
+							'd_rho_inf_TP_AB' : d_rho_avg_TP_AB}, \
+						open(npz_TP_AB_states_filepath,'wb'))
+				
 			else:
 				print(npz_states_filepath, 'loading')
 				#npz_data = np.load(npz_states_filepath, allow_pickle=True)
@@ -3273,7 +3362,6 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 					cluster_centered_Rdens_total = pickle_data['cluster_centered_Rdens_total']
 					d_cluster_centered_Rdens_total = pickle_data['d_cluster_centered_Rdens_total']
 					cluster_centered_map_total = pickle_data['cluster_centered_map_total']
-					cluster_map_centers = pickle_data['cluster_map_centers']
 					state_Rdens_centers = pickle_data['state_Rdens_centers']
 					state_centered_Rdens_total = pickle_data['state_centered_Rdens_total']
 					d_state_centered_Rdens = pickle_data['d_state_centered_Rdens']
@@ -3283,8 +3371,48 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 					
 					pickle_data = None
 				
+				print(npz_TP_AB_states_filepath, 'loading')
+				with open(npz_TP_AB_states_filepath, 'rb') as file:
+					pickle_data = pickle.load(file)
+					
+					OP_grouped_states_TP_AB = pickle_data['OP_grouped_states_TP_AB']
+					maxclust_ind_TP_AB = pickle_data['maxclust_ind_TP_AB']
+					max_cluster_1st_ind_id_TP_AB = pickle_data['max_cluster_1st_ind_id_TP_AB']
+					max_cluster_site_inds_TP_AB = pickle_data['max_cluster_site_inds_TP_AB']
+					cluster_sizes_TP_AB = pickle_data['cluster_sizes_TP_AB']
+					cluster_centered_crds_TP_AB = pickle_data['cluster_centered_crds_TP_AB']
+					state_centered_crds_TP_AB = pickle_data['state_centered_crds_TP_AB']
+					cluster_centered_crds_per_interface_TP_AB = pickle_data['cluster_centered_crds_per_interface_TP_AB']
+					state_centered_crds_per_interface_TP_AB = pickle_data['state_centered_crds_per_interface_TP_AB']
+					cluster_centered_crds_all_TP_AB = pickle_data['cluster_centered_crds_all_TP_AB']
+					cluster_map_edges_TP_AB = pickle_data['cluster_map_edges_TP_AB']
+					cluster_Rdens_edges_TP_AB = pickle_data['cluster_Rdens_edges_TP_AB']
+					cluster_map_centers_TP_AB = pickle_data['cluster_map_centers_TP_AB']
+					state_map_edges_TP_AB = pickle_data['state_map_edges_TP_AB']
+					state_Rdens_edges_TP_AB = pickle_data['state_Rdens_edges_TP_AB']
+					state_map_centers_TP_AB = pickle_data['state_map_centers_TP_AB']
+					cluster_centered_maps_TP_AB = pickle_data['cluster_centered_maps_TP_AB']
+					cluster_centered_Rdens_s_TP_AB = pickle_data['cluster_centered_Rdens_s_TP_AB']
+					d_cluster_centered_map_total_TP_AB = pickle_data['d_cluster_centered_map_total_TP_AB']
+					state_centered_map_total_TP_AB = pickle_data['state_centered_map_total_TP_AB']
+					state_centered_maps_TP_AB = pickle_data['state_centered_maps_TP_AB']
+					state_centered_Rdens_s_TP_AB = pickle_data['state_centered_Rdens_s_TP_AB']
+					d_state_centered_map_TP_AB = pickle_data['d_state_centered_map_TP_AB']
+					cluster_Rdens_centers_TP_AB = pickle_data['cluster_Rdens_centers_TP_AB']
+					cluster_centered_Rdens_total_TP_AB = pickle_data['cluster_centered_Rdens_total_TP_AB']
+					d_cluster_centered_Rdens_total_TP_AB = pickle_data['d_cluster_centered_Rdens_total_TP_AB']
+					cluster_centered_map_total_TP_AB = pickle_data['cluster_centered_map_total_TP_AB']
+					state_Rdens_centers_TP_AB = pickle_data['state_Rdens_centers_TP_AB']
+					state_centered_Rdens_total_TP_AB = pickle_data['state_centered_Rdens_total_TP_AB']
+					d_state_centered_Rdens_TP_AB = pickle_data['d_state_centered_Rdens_TP_AB']
+					rho_fourier2D_TP_AB = pickle_data['rho_fourier2D_TP_AB']
+					rho_avg_TP_AB = pickle_data['rho_inf_TP_AB']
+					d_rho_avg_TP_AB = pickle_data['d_rho_inf_TP_AB']
+					
+					pickle_data = None
+				
 			if(to_plot_states_densities):
-				plot_states_maps(get_ThL_lbl(e, mu, init_composition, L, MC_move_mode), \
+				plot_states_maps('All-states; ' + get_ThL_lbl(e, mu, init_composition, L, MC_move_mode), \
 						x_lbl, y_lbl, \
 						cluster_Rdens_centers, \
 						cluster_centered_Rdens_total, \
@@ -3294,6 +3422,20 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 						state_Rdens_centers, \
 						state_centered_Rdens_total, \
 						d_state_centered_Rdens, \
+						to_plot_interface_states=to_plot_states_densities, \
+						to_plot_legend=to_plot_legend, \
+						cluster_lbl_fnc=lambda iii, ops=rho_profile_OP_hist_edges: r'$%d: \in [%d; %d)$; ' % (iii, ops[0, iii], ops[1, iii]))
+				
+				plot_states_maps(r'$A \to B$; ' + get_ThL_lbl(e, mu, init_composition, L, MC_move_mode), \
+						x_lbl, y_lbl, \
+						cluster_Rdens_centers_TP_AB, \
+						cluster_centered_Rdens_total_TP_AB, \
+						d_cluster_centered_Rdens_total_TP_AB, \
+						cluster_centered_map_total_TP_AB, \
+						cluster_map_centers_TP_AB, \
+						state_Rdens_centers_TP_AB, \
+						state_centered_Rdens_total_TP_AB, \
+						d_state_centered_Rdens_TP_AB, \
 						to_plot_interface_states=to_plot_states_densities, \
 						to_plot_legend=to_plot_legend, \
 						cluster_lbl_fnc=lambda iii, ops=rho_profile_OP_hist_edges: r'$%d: \in [%d; %d)$; ' % (iii, ops[0, iii], ops[1, iii]))
@@ -3319,15 +3461,14 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 			
 			my.add_legend(fig_phi, ax_phi, do_legend=to_plot_legend)
 	
-	
 	return F, d_F, OP_hist_centers, OP_hist_lens, \
-			cluster_Rdens_centers, cluster_centered_Rdens_total, \
-			cluster_map_centers, cluster_centered_map_total, \
-			state_Rdens_centers, state_centered_Rdens_total, \
-			state_map_centers, state_centered_map_total, \
+			cluster_Rdens_centers_TP_AB, cluster_centered_Rdens_total_TP_AB, \
+			cluster_map_centers_TP_AB, cluster_centered_map_total_TP_AB, \
+			state_Rdens_centers_TP_AB, state_centered_Rdens_total_TP_AB, \
+			state_map_centers_TP_AB, state_centered_map_total_TP_AB, \
 			TPs_types, TPs_inds, \
 			OP_TP_AB_interps, OP_TP_AB_interp_maxTimes, \
-			rho_fourier2D, \
+			rho_fourier2D_TP_AB, \
 			rho_interp1d, d_rho_interp1d, \
 			k_bc_AB, k_bc_BA, k_AB, d_k_AB, k_BA, d_k_BA, \
 			OP_mean, OP_std, d_OP_mean, \

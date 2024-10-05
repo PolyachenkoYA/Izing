@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=test0
-#SBATCH --time=00:50:00          # total run time limit (HH:MM:SS)
+#SBATCH --time=00:59:00          # total run time limit (HH:MM:SS)
 #SBATCH --nodes=1                # node count
 #SBATCH --ntasks=1               # total number of tasks across all nodes
 #SBATCH --cpus-per-task=1        # cpu-cores per task (>1 if multi-threaded tasks)
@@ -29,4 +29,4 @@ module load gsl/2.6
 #python run_tmp.py -mode BF_AB -Nt 300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.0105 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 2 -OP_max 150 -timeevol_stride 2000 -to_recomp 0 -verbose 1
 #python run_tmp2.py -mode BF_1 -Nt 4700000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 0 -N_saved_states_max 0 -MC_move_mode long_swap -init_composition 0.0101 0.0 -e -2.68010292 -1.34005146 -1.71526587 -OP_0 25 -OP_max 150 -timeevol_stride 2000 -to_recomp 0 -verbose 1 -to_plot 0
 #python run_tmp2.py -mode BF_AB -Nt 7200000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0  -e -2.680103 -1.340051 -1.715266 -MC_move_mode long_swap -init_composition 0.0104 0.0 -OP_0 2 -OP_max 150 -timeevol_stride 1000 -R_clust_init 0 -to_recomp 10 -verbose 1 -to_plot 0
-python run_tmp1.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -to_save_npz 1 -to_recomp postproc_light -OP_A_byas 20 -OP_B_byas 100 -my_seeds 93 94 95 96 97 98 99 100 101 102 -to_show_on_screen 0
+python run_tmp2.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -to_save_npz 1 -to_recomp postproc_light -OP_A_byas 20 -OP_B_byas 100 -my_seeds 93 94 95 96 97 98 99 100 101 102 -to_show_on_screen 0
