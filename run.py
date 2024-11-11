@@ -2930,8 +2930,8 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 				elif(TPs_types[i] == 2):
 					TP_BA_inds_list.append(np.copy(TP_inds_local))
 				
-			TP_AB_inds_all = np.concatenate(tuple(TP_AB_inds_list))
-			TP_BA_inds_all = np.concatenate(tuple(TP_BA_inds_list))
+			TP_AB_inds_all = np.concatenate(tuple(TP_AB_inds_list)) if(len(TP_AB_inds_list) > 0) else np.array([], dtype=int)
+			TP_BA_inds_all = np.concatenate(tuple(TP_BA_inds_list)) if(len(TP_BA_inds_list) > 0) else np.array([], dtype=int)
 		
 		if(to_plot_time_evol):
 			fig_OP, ax_OP, _ = my.get_fig('time (step attempts / $L^2$)', y_lbl, title='$' + x_lbl + '$(steps); ' + ThL_lbl)
@@ -2991,21 +2991,19 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 			
 			if(TPs_inds is not None):
 				n_TP_AB_drawn = 0
-				# TP_AB_inds_list = []
-				# TP_BA_inds_list = []
+				n_TP_BA_drawn = 0
 				for i in range(N_TP):
-					# TP_inds_local = np.arange(TPs_inds[i, 0] + stab_ind[0], TPs_inds[i, 1] + stab_ind[0])
 					if(TPs_types[i] == 0):
-						#ax_TP_AB.plot(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], m[TP_inds_local], color=my.get_my_color(0), lw=0.5)
-						#ax_TP_AB.plot(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], TPs[i], color=my.get_my_color(0), lw=0.5)
-						ax_TP_AB.plot(OP_times[TP_AB_inds_list[i]] - OP_times[TP_AB_inds_list[i][0]], OP_TP_AB_interps[n_TP_AB_drawn](OP_times[TP_AB_inds_list[i]] - OP_times[TP_AB_inds_list[i][0]]), color=my.get_my_color(0), lw=0.5)
-						# TP_AB_inds_list.append(np.copy(TP_inds_local))
+						TP_inds_local = TP_AB_inds_list[n_TP_AB_drawn]
+						OP_times_local = OP_times[TP_inds_local] - OP_times[TP_inds_local[0]]
+						ax_TP_AB.plot(OP_times_local, OP_TP_AB_interps[n_TP_AB_drawn](OP_times_local), color=my.get_my_color(0), lw=0.5)
 						n_TP_AB_drawn += 1
 						
 					elif(TPs_types[i] == 2):
-						#ax_TP_BA.plot(OP_times[TP_inds_local] - OP_times[TP_inds_local[0]], m[TP_inds_local], color=my.get_my_color(0), lw=0.5)
-						ax_TP_BA.plot(OP_times[TP_AB_inds_list[i]] - OP_times[TP_AB_inds_list[i][0]], m[TP_AB_inds_list[i]], color=my.get_my_color(0), lw=0.5)
-						# TP_BA_inds_list.append(np.copy(TP_inds_local))
+						TP_inds_local = TP_BA_inds_list[n_TP_BA_drawn]
+						OP_times_local = OP_times[TP_inds_local] - OP_times[TP_inds_local[0]]
+						ax_TP_BA.plot(OP_times_local, m[TP_inds_local], color=my.get_my_color(0), lw=0.5)
+						n_TP_BA_drawn += 1
 					
 					ax_OP.plot([OP_times[TP_inds_local[0]]] * 2, m_minmax, \
 						'--', color=my.get_my_color(2), \
@@ -7036,7 +7034,7 @@ def main():
 	# python run.py -mode BF_measureD -Nt 25000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -timeevol_stride 100 -to_recomp all -to_save_npz 0 -stab_step 100 -N_saved_states_max -1 -to_animate 0 -my_seeds 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42
 	
 	# python run.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103
-	# python run.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142
+	# python run.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142
 	# python run.py -mode BF_AB -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 23
 	
 	# python run.py -mode BF_AB -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -my_seeds 24 -to_save_npz 1 -to_recomp postproc_light -OP_A_byas 20 -OP_B_byas 100

@@ -58,8 +58,8 @@ feature_label['CS'] = 'Scl'
 
 # ========================== recompile ==================
 if(__name__ == "__main__"):
-	to_recompile = True
-	tmp_mode = 0
+	to_recompile = False
+	tmp_mode = 2
 	if(to_recompile):
 		if(my.check_for_exe('cmake') is None):
 			print('cmake not found. Attempting to import existing library, tmp_mode = %d' % tmp_mode, file=sys.stderr)
@@ -2930,8 +2930,8 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 				elif(TPs_types[i] == 2):
 					TP_BA_inds_list.append(np.copy(TP_inds_local))
 				
-			TP_AB_inds_all = np.concatenate(tuple(TP_AB_inds_list))
-			TP_BA_inds_all = np.concatenate(tuple(TP_BA_inds_list))
+			TP_AB_inds_all = np.concatenate(tuple(TP_AB_inds_list)) if(len(TP_AB_inds_list) > 0) else np.array([], dtype=int)
+			TP_BA_inds_all = np.concatenate(tuple(TP_BA_inds_list)) if(len(TP_BA_inds_list) > 0) else np.array([], dtype=int)
 		
 		if(to_plot_time_evol):
 			fig_OP, ax_OP, _ = my.get_fig('time (step attempts / $L^2$)', y_lbl, title='$' + x_lbl + '$(steps); ' + ThL_lbl)
@@ -3189,7 +3189,7 @@ def proc_order_parameter_BF(MC_move_mode, L, e, mu, states, m, M, E, times, \
 			# print(to_recomp, to_recomp & izing.binflags['postproc_hard'], izing.binflags['postproc_hard'])
 			# input(npz_states_filepath)
 			
-			if((not os.path.isfile(npz_states_filepath)) or (not os.path.isfile(npz_TP_AB_states_filepath)) or \
+			if(1 or (not os.path.isfile(npz_states_filepath)) or (not os.path.isfile(npz_TP_AB_states_filepath)) or \
 				((to_recomp & izing.binflags['postproc_hard']) == izing.binflags['postproc_hard'])):
 				
 				m_max = np.amax(m)

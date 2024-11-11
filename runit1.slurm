@@ -4,7 +4,7 @@
 #SBATCH --nodes=1                # node count
 #SBATCH --ntasks=1               # total number of tasks across all nodes
 #SBATCH --cpus-per-task=1        # cpu-cores per task (>1 if multi-threaded tasks)
-#SBATCH --mem-per-cpu=70G         # memory per cpu-core (4G is default)
+#SBATCH --mem-per-cpu=300G         # memory per cpu-core (4G is default)
 ###SBATCH --mail-type=begin        # send email when job begins
 ###SBATCH --mail-type=end          # send email when job ends
 #SBATCH --mail-type=ALL
@@ -33,4 +33,4 @@ module load gsl/2.6
 #python run_tmp3.py -mode FFS_AB -L 300 -to_get_timeevol 0 -N_states_FFS 15 -N_init_states_FFS 30 -e -2.680103 -1.340051 -1.715266 -MC_move_mode long_swap -init_composition 0.0104 0.0 -OP_interfaces_set_IDs nvt25 -my_seeds 1005 1006 1007 1008 1009 1010 1011 1012 1013 1014 1015 1016 1017 1018 1019 1020 1021 1022 1023 1024 -to_post_proc 1 -Temp 1.0 -to_recomp postproc_hard -Dtop_Nruns 300 -font_mode present
 #python run_tmp2.py -mode BF_AB -Nt 5000000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 0  -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 15 -OP_max 150 -timeevol_stride 1000 -R_clust_init 0 -to_recomp 0 -verbose 1 -to_plot 0 -my_seeds 24
 #python run_tmp1.py -mode BF_AB -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -to_recomp 0 -BF_hist_edges_ID mu2  -progress_print_stride -10000 -font_mode present -my_seeds 24
-python run_tmp2.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -to_save_npz 1 -to_recomp postproc_light -OP_A_byas 20 -OP_B_byas 100 -my_seeds 83 84 85 86 87 88 89 90 91 92 -to_show_on_screen 0
+python run_tmp2.py -mode BF_AB_many -Nt 3300000000 -L 300 -to_get_timeevol 1 -to_plot_timeevol 1 -N_saved_states_max 33010 -e -2.680103 -1.340051 -1.715266 -MC_move_mode swap -init_composition 0.0104 0.0 -OP_0 5 -OP_max 150 -timeevol_stride 100000 -R_clust_init 0 -BF_hist_edges_ID mu3 -progress_print_stride -10000 -font_mode present -to_save_npz 1 -to_recomp postproc_light -OP_A_byas 20 -OP_B_byas 100 -my_seeds  88 89 90 91 92 -to_show_on_screen 0
